@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <AssemblyName>StudyHub</AssemblyName>
+    <RootNamespace>StudyHub</RootNamespace>
+    <Version>3.0.0</Version>
+    <ApplicationIcon>app_icon.ico</ApplicationIcon>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <NoWarn>CS8618;CS8625;CS8600;CS8601;CS8602;CS8603;CS8604;CA1416</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.14" />
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4314.35" />
+    <PackageReference Include="NAudio" Version="2.2.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="app_icon.ico" CopyToOutputDirectory="PreserveNewest" Condition="Exists('app_icon.ico')" />
+    <Content Include="version.json" CopyToOutputDirectory="PreserveNewest" Condition="Exists('version.json')" />
+  </ItemGroup>
+
+</Project>

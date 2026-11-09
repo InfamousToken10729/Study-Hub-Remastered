@@ -1,0 +1,8 @@
+{
+  "version": "3.0.0",
+  "build": 300,
+  "releaseDate": "2026-11-07",
+  "appName": "Study Hub Remastered",
+  "engine": "C# .NET 9 WPF Native",
+  "notes": "Study Hub v3.0.0 Remastered: Rebuilt from the ground up in native C# (.NET 9 WPF) for instant startup, hardware-accelerated 60+ FPS smoothness, native audio/recording studio, and integrated GitHub Auto-Updater."
+}

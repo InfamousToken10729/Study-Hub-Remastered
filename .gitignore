@@ -1,0 +1,7 @@
+# Build & Runtime Artifacts
+bin/
+obj/
+publish_out/
+webview_data/
+*.tmp
+StudyHub_Updater.bat
