@@ -19,7 +19,7 @@
         </Grid.RowDefinitions>
 
         <!-- ================= GLOBAL APP BACKGROUND (STATIC THEME & LIVE PARTICLE CANVAS) ================= -->
-        <Grid x:Name="GlobalBgSurface" Grid.Row="0" Grid.RowSpan="2" IsHitTestVisible="False">
+        <Grid x:Name="GlobalBgSurface" Grid.Row="0" Grid.RowSpan="2" IsHitTestVisible="False" CacheMode="BitmapCache">
             <Border x:Name="BgBaseLayer" Background="#080A18"/>
             <Border x:Name="BgGlow1"/>
             <Border x:Name="BgGlow2"/>

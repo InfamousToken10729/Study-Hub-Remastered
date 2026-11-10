@@ -31,13 +31,16 @@ namespace StudyHub
         private string _activeTab = "Files";
         private StudyFileItem? _splitDoc;
 
-        // Timers
+        // Timers & Unified VSync Animation Loop
         private readonly DispatcherTimer _clockTimer;
         private readonly DispatcherTimer _pomoTimer;
-        private readonly DispatcherTimer _zenStarTimer;
-        private readonly DispatcherTimer _globalParticleTimer;
         private readonly DispatcherTimer _toastTimer;
         private readonly DispatcherTimer _sliderSaveTimer;
+        private readonly Stopwatch _renderStopwatch = new();
+        private bool _isRenderLoopAttached = false;
+        private bool _isClosing = false;
+        private bool _perfSkipToggle = false;
+        private TimeSpan _lastRenderTimestamp = TimeSpan.MinValue;
 
         // Pomodoro State
         private int _pomoSecondsRemaining = 25 * 60;
@@ -57,7 +60,6 @@ namespace StudyHub
         private bool _is24HourClock = false;
         private bool _isDarkMode = true;
         private string _currentZenScene = "north_pole";
-        private readonly Stopwatch _zenFrameStopwatch = new();
         private readonly List<string> _zenCustomVideos = new();
         private int _zenCurrentVideoIdx = 0;
         private int _lastClockSecond = -1;
@@ -65,15 +67,24 @@ namespace StudyHub
         private string _lastClockStyle = "";
         private readonly Random _rand = new();
 
-        // Global Ambient Particle Engine State
+        // Global Ambient Particle Engine State (zero-layout transform-only nodes)
         private class ParticleEngineItem
         {
             public FrameworkElement Element = null!;
+            public TranslateTransform Translate = null!;
+            public TranslateTransform? SpriteShift;
+            public ScaleTransform? Scale;
             public double X, Y, Vx, Vy, R, MaxR, Phase, Speed;
             public Color BaseColor;
         }
+        private class MeshSegmentItem
+        {
+            public Rectangle Rect = null!;
+            public MatrixTransform Transform = null!;
+        }
         private readonly List<ParticleEngineItem> _activeGlobalParticles = new();
-        private readonly List<System.Windows.Shapes.Line> _activeMeshLines = new();
+        private readonly List<MeshSegmentItem> _activeMeshLines = new();
+        private BitmapSource? _matrixGlyphStripBitmap;
         private string _currentParticleEffect = "network";
 
         // Selected Icon & Color for Course Creation
@@ -123,14 +134,6 @@ namespace StudyHub
             _pomoTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
             _pomoTimer.Tick += PomoTimer_Tick;
 
-            // Zen Ambient Scene Animation Timer (~30 FPS default, or ~15 FPS when Performance Throttle is enabled)
-            _zenStarTimer = new DispatcherTimer(DispatcherPriority.Render) { Interval = TimeSpan.FromMilliseconds(33) };
-            _zenStarTimer.Tick += ZenStarTimer_Tick;
-
-            // Global Workspace Ambient Particle Engine Timer
-            _globalParticleTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(40) };
-            _globalParticleTimer.Tick += GlobalParticleTimer_Tick;
-
             // Toast Auto-hide Timer
             _toastTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(3) };
             _toastTimer.Tick += (s, e) => { ToastBorder.Visibility = Visibility.Collapsed; _toastTimer.Stop(); };
@@ -139,6 +142,7 @@ namespace StudyHub
             _sliderSaveTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
             _sliderSaveTimer.Tick += (s, e) => { _sliderSaveTimer.Stop(); SaveState(countActivity: false); };
 
+            StateChanged += (s, e) => UpdateRenderLoopState();
             Loaded += MainWindow_Loaded;
         }
 
@@ -200,6 +204,7 @@ namespace StudyHub
                 UpdateZenClockAndHud(force: true);
                 RenderControlCenterThemesAndEffects();
                 UpdateControlCenterUiState();
+                UpdateRenderLoopState();
 
                 // Auto-check GitHub for updates on launch if configured
                 if (_state.Settings?.AutoCheckUpdates != false &&
@@ -3386,22 +3391,16 @@ namespace StudyHub
             if (isZen)
             {
                 CloseZenSceneDropdown();
-                _zenStarTimer.Stop();
                 StopZenCustomMedia();
                 ZenModeOverlayGrid.Visibility = Visibility.Collapsed;
                 ZenStudyOverlayCard.Visibility = Visibility.Collapsed;
                 TxtZenStudyViewBtn.Text = "Show Study View";
                 HomeViewScrollViewer.Visibility = (_currentSubject == null) ? Visibility.Visible : Visibility.Collapsed;
                 SubjectDetailGrid.Visibility = (_currentSubject != null) ? Visibility.Visible : Visibility.Collapsed;
-
-                if (!string.Equals(_currentParticleEffect, "disable", StringComparison.OrdinalIgnoreCase))
-                {
-                    _globalParticleTimer.Start();
-                }
+                UpdateRenderLoopState();
             }
             else
             {
-                _globalParticleTimer.Stop();
                 HomeViewScrollViewer.Visibility = Visibility.Collapsed;
                 SubjectDetailGrid.Visibility = Visibility.Collapsed;
                 ZenModeOverlayGrid.Visibility = Visibility.Visible;
@@ -3409,11 +3408,7 @@ namespace StudyHub
 
                 UpdateZenClockAndHud(force: true);
                 ApplyZenBackdropSource();
-
-                int intervalMs = (_state?.Settings?.PerfThrottle == true) ? 66 : 33;
-                _zenStarTimer.Interval = TimeSpan.FromMilliseconds(intervalMs);
-                _zenFrameStopwatch.Restart();
-                _zenStarTimer.Start();
+                UpdateRenderLoopState();
                 ShowToast("Zen Study Mode active. Press Esc or F10 to exit 🧘");
             }
         }
@@ -3865,6 +3860,8 @@ namespace StudyHub
                     TxtZenSceneLabel.Text = $"{found.Name} • {found.Badge}";
                 }
             }
+
+            UpdateRenderLoopState();
         }
 
         private void ApplyZenBackdropSource()
@@ -3955,6 +3952,8 @@ namespace StudyHub
             {
                 ActivateBuiltinZenFallback(found, "Unsupported codec fallback");
             }
+
+            UpdateRenderLoopState();
         }
 
         private void BtnZenPrevVideo_Click(object sender, RoutedEventArgs e)
@@ -4007,14 +4006,81 @@ namespace StudyHub
             ShowToast("Unable to decode video format — Northern Lights fallback active.");
         }
 
-        private void ZenStarTimer_Tick(object? sender, EventArgs e)
+        private void UpdateRenderLoopState()
         {
-            double dt = _zenFrameStopwatch.IsRunning ? _zenFrameStopwatch.Elapsed.TotalSeconds : 0.033;
-            _zenFrameStopwatch.Restart();
+            bool canRun = !_isClosing && WindowState != WindowState.Minimized;
+            bool needsZen = canRun
+                && ZenModeOverlayGrid?.Visibility == Visibility.Visible
+                && ZenSceneRenderer?.Visibility == Visibility.Visible
+                && !string.Equals(ZenSceneRenderer.ActiveSceneId, "none", StringComparison.OrdinalIgnoreCase);
 
-            if (ZenSceneRenderer != null && ZenSceneRenderer.Visibility == Visibility.Visible)
+            bool needsParticles = canRun
+                && ZenModeOverlayGrid?.Visibility != Visibility.Visible
+                && _isDarkMode
+                && GlobalThemeCanvas?.Visibility == Visibility.Visible
+                && !string.Equals(_currentParticleEffect, "disable", StringComparison.OrdinalIgnoreCase)
+                && _activeGlobalParticles.Count > 0;
+
+            bool needLoop = needsZen || needsParticles;
+            if (needLoop && !_isRenderLoopAttached)
             {
-                ZenSceneRenderer.StepFrame(dt);
+                _isRenderLoopAttached = true;
+                _lastRenderTimestamp = TimeSpan.MinValue;
+                _perfSkipToggle = false;
+                _renderStopwatch.Restart();
+                CompositionTarget.Rendering += OnCompositionRendering;
+            }
+            else if (!needLoop && _isRenderLoopAttached)
+            {
+                _isRenderLoopAttached = false;
+                CompositionTarget.Rendering -= OnCompositionRendering;
+                _renderStopwatch.Stop();
+            }
+        }
+
+        private void OnCompositionRendering(object? sender, EventArgs e)
+        {
+            if (_isClosing || WindowState == WindowState.Minimized)
+            {
+                UpdateRenderLoopState();
+                return;
+            }
+
+            if (e is RenderingEventArgs ra)
+            {
+                if (ra.RenderingTime == _lastRenderTimestamp)
+                    return;
+                _lastRenderTimestamp = ra.RenderingTime;
+            }
+
+            if (!_renderStopwatch.IsRunning)
+            {
+                _renderStopwatch.Restart();
+                return;
+            }
+
+            if (_state?.Settings?.PerfThrottle == true)
+            {
+                _perfSkipToggle = !_perfSkipToggle;
+                if (_perfSkipToggle)
+                    return;
+            }
+
+            double dt = Math.Clamp(_renderStopwatch.Elapsed.TotalSeconds, 0.001, 0.08);
+            _renderStopwatch.Restart();
+
+            if (ZenModeOverlayGrid?.Visibility == Visibility.Visible)
+            {
+                if (ZenSceneRenderer != null && ZenSceneRenderer.Visibility == Visibility.Visible)
+                {
+                    ZenSceneRenderer.StepFrame(dt);
+                }
+            }
+            else if (_isDarkMode &&
+                     GlobalThemeCanvas?.Visibility == Visibility.Visible &&
+                     !string.Equals(_currentParticleEffect, "disable", StringComparison.OrdinalIgnoreCase))
+            {
+                StepGlobalParticles(dt);
             }
         }
 
@@ -4538,6 +4604,49 @@ namespace StudyHub
             if (_currentSubject != null) RenderFoldersAndFiles();
         }
 
+        private static readonly string MatrixGlyphPool = "0123456789ABCDEFλπΩ";
+
+        private BitmapSource EnsureMatrixGlyphStrip()
+        {
+            if (_matrixGlyphStripBitmap != null) return _matrixGlyphStripBitmap;
+
+            const double cellW = 24.0;
+            const double cellH = 28.0;
+            int n = MatrixGlyphPool.Length;
+            int pxW = (int)(n * cellW * 2.0);
+            int pxH = (int)(cellH * 2.0);
+
+            var typeface = new Typeface(new FontFamily("Consolas, Courier New"), FontStyles.Normal, FontWeights.Bold, FontStretches.Normal);
+            var fg = new SolidColorBrush(Color.FromArgb(185, 16, 185, 129));
+            fg.Freeze();
+
+            var dv = new DrawingVisual();
+            using (var dc = dv.RenderOpen())
+            {
+                for (int i = 0; i < n; i++)
+                {
+                    var ft = new FormattedText(
+                        MatrixGlyphPool[i].ToString(),
+                        System.Globalization.CultureInfo.InvariantCulture,
+                        FlowDirection.LeftToRight,
+                        typeface,
+                        20.0,
+                        fg,
+                        2.0);
+                    double ox = i * cellW + Math.Max(0, (cellW - ft.Width) * 0.5);
+                    double oy = Math.Max(0, (cellH - ft.Height) * 0.5);
+                    dc.DrawText(ft, new Point(ox, oy));
+                }
+            }
+
+            var strip = new RenderTargetBitmap(pxW, pxH, 192.0, 192.0, PixelFormats.Pbgra32);
+            strip.Render(dv);
+            strip.Freeze();
+
+            _matrixGlyphStripBitmap = strip;
+            return strip;
+        }
+
         public void ApplyParticleEffect(string effectId, bool skipToast = false, bool saveToDisk = true)
         {
             if (_state?.Settings == null) return;
@@ -4555,7 +4664,7 @@ namespace StudyHub
 
             if (valid.Id == "disable")
             {
-                _globalParticleTimer?.Stop();
+                UpdateRenderLoopState();
                 if (WpParticleCards != null) RenderControlCenterParticleCards();
                 if (!skipToast) ShowToast("Particle layer disabled.");
                 return;
@@ -4567,354 +4676,488 @@ namespace StudyHub
             switch (valid.Id)
             {
                 case "network":
-                    // 35 constellation nodes + mesh connecting lines
-                    for (int i = 0; i < 35; i++)
                     {
-                        var el = new Ellipse
+                        var nodeBrush = new SolidColorBrush(Color.FromArgb(200, 34, 211, 238));
+                        nodeBrush.Freeze();
+                        var meshBrush = new SolidColorBrush(Color.FromArgb(40, 124, 92, 255));
+                        meshBrush.Freeze();
+
+                        // 35 constellation nodes positioned via TranslateTransform (zero layout invalidation)
+                        for (int i = 0; i < 35; i++)
                         {
-                            Width = _rand.Next(4, 8),
-                            Height = _rand.Next(4, 8),
-                            Fill = new SolidColorBrush(Color.FromArgb(200, 34, 211, 238))
-                        };
-                        double x = _rand.NextDouble() * w;
-                        double y = _rand.NextDouble() * h;
-                        Canvas.SetLeft(el, x);
-                        Canvas.SetTop(el, y);
-                        GlobalThemeCanvas.Children.Add(el);
-
-                        _activeGlobalParticles.Add(new ParticleEngineItem
-                        {
-                            Element = el,
-                            X = x, Y = y,
-                            Vx = (_rand.NextDouble() - 0.5) * 1.2,
-                            Vy = (_rand.NextDouble() - 0.5) * 1.2,
-                            BaseColor = Color.FromRgb(34, 211, 238)
-                        });
-                    }
-
-                    // Pre-create 28 lines
-                    for (int i = 0; i < 28; i++)
-                    {
-                        var line = new System.Windows.Shapes.Line
-                        {
-                            Stroke = new SolidColorBrush(Color.FromArgb(40, 124, 92, 255)),
-                            StrokeThickness = 1.0,
-                            Visibility = Visibility.Collapsed
-                        };
-                        GlobalThemeCanvas.Children.Add(line);
-                        _activeMeshLines.Add(line);
-                    }
-                    break;
-
-                case "cosmic":
-                    // 50 twinkling cosmic dust specks
-                    for (int i = 0; i < 50; i++)
-                    {
-                        int sz = _rand.Next(3, 7);
-                        var col = (_rand.Next(0, 3) == 0) ? Color.FromRgb(245, 158, 11) : Color.FromRgb(168, 85, 247);
-                        var dot = new Ellipse
-                        {
-                            Width = sz, Height = sz,
-                            Fill = new SolidColorBrush(Color.FromArgb(180, col.R, col.G, col.B))
-                        };
-                        double x = _rand.NextDouble() * w;
-                        double y = _rand.NextDouble() * h;
-                        Canvas.SetLeft(dot, x);
-                        Canvas.SetTop(dot, y);
-                        GlobalThemeCanvas.Children.Add(dot);
-
-                        _activeGlobalParticles.Add(new ParticleEngineItem
-                        {
-                            Element = dot,
-                            X = x, Y = y,
-                            Vx = (_rand.NextDouble() - 0.5) * 0.4,
-                            Vy = -(_rand.NextDouble() * 0.5 + 0.2),
-                            Phase = _rand.NextDouble() * Math.PI * 2,
-                            BaseColor = col
-                        });
-                    }
-                    break;
-
-                case "matrix":
-                    // Digital rain columns
-                    string mChars = "0123456789ABCDEFλπΩ";
-                    int cols = (int)(w / 40);
-                    for (int i = 0; i < cols; i++)
-                    {
-                        var tb = new TextBlock
-                        {
-                            Text = mChars[_rand.Next(mChars.Length)].ToString(),
-                            FontFamily = new FontFamily("Consolas, Courier New"),
-                            FontWeight = FontWeights.Bold,
-                            FontSize = _rand.Next(13, 20),
-                            Foreground = new SolidColorBrush(Color.FromArgb(170, 16, 185, 129))
-                        };
-                        double x = i * 40 + _rand.Next(0, 10);
-                        double y = _rand.NextDouble() * -h;
-                        Canvas.SetLeft(tb, x);
-                        Canvas.SetTop(tb, y);
-                        GlobalThemeCanvas.Children.Add(tb);
-
-                        _activeGlobalParticles.Add(new ParticleEngineItem
-                        {
-                            Element = tb,
-                            X = x, Y = y,
-                            Speed = _rand.NextDouble() * 6.0 + 3.0
-                        });
-                    }
-                    break;
-
-                case "orbs":
-                    // Floating soft bokeh spheres
-                    for (int i = 0; i < 12; i++)
-                    {
-                        int sz = _rand.Next(60, 120);
-                        var col = (_rand.Next(0, 2) == 0) ? Color.FromRgb(244, 114, 182) : Color.FromRgb(34, 211, 238);
-                        var orb = new Ellipse
-                        {
-                            Width = sz, Height = sz,
-                            Fill = new RadialGradientBrush(
-                                Color.FromArgb(40, col.R, col.G, col.B),
-                                Color.FromArgb(0, col.R, col.G, col.B))
-                        };
-                        double x = _rand.NextDouble() * w;
-                        double y = _rand.NextDouble() * h;
-                        Canvas.SetLeft(orb, x);
-                        Canvas.SetTop(orb, y);
-                        GlobalThemeCanvas.Children.Add(orb);
-
-                        _activeGlobalParticles.Add(new ParticleEngineItem
-                        {
-                            Element = orb,
-                            X = x, Y = y,
-                            Vx = (_rand.NextDouble() - 0.5) * 0.8,
-                            Vy = (_rand.NextDouble() - 0.5) * 0.8,
-                            R = sz
-                        });
-                    }
-                    break;
-
-                case "lava_lamp":
-                    // Rising morphing wax blobs
-                    for (int i = 0; i < 9; i++)
-                    {
-                        int sz = _rand.Next(70, 130);
-                        var col = (_rand.Next(0, 2) == 0) ? Color.FromRgb(244, 63, 94) : Color.FromRgb(245, 158, 11);
-                        var blob = new Ellipse
-                        {
-                            Width = sz, Height = sz,
-                            Fill = new RadialGradientBrush(
-                                Color.FromArgb(50, col.R, col.G, col.B),
-                                Color.FromArgb(0, col.R, col.G, col.B))
-                        };
-                        double x = _rand.NextDouble() * w;
-                        double y = _rand.NextDouble() * h;
-                        Canvas.SetLeft(blob, x);
-                        Canvas.SetTop(blob, y);
-                        GlobalThemeCanvas.Children.Add(blob);
-
-                        _activeGlobalParticles.Add(new ParticleEngineItem
-                        {
-                            Element = blob,
-                            X = x, Y = y,
-                            Speed = -(_rand.NextDouble() * 1.5 + 0.5),
-                            R = sz
-                        });
-                    }
-                    break;
-
-                case "meteor":
-                    // Diagonal shooting stars
-                    for (int i = 0; i < 5; i++)
-                    {
-                        var met = new System.Windows.Shapes.Line
-                        {
-                            X1 = 0, Y1 = 0,
-                            X2 = 60, Y2 = 30,
-                            Stroke = new SolidColorBrush(Color.FromArgb(160, 245, 158, 11)),
-                            StrokeThickness = 2.0
-                        };
-                        double x = _rand.NextDouble() * w;
-                        double y = _rand.NextDouble() * -h;
-                        Canvas.SetLeft(met, x);
-                        Canvas.SetTop(met, y);
-                        GlobalThemeCanvas.Children.Add(met);
-
-                        _activeGlobalParticles.Add(new ParticleEngineItem
-                        {
-                            Element = met,
-                            X = x, Y = y,
-                            Vx = -(_rand.NextDouble() * 10 + 12),
-                            Vy = _rand.NextDouble() * 6 + 7
-                        });
-                    }
-                    break;
-
-                case "water_ripple":
-                    // Expanding concentric water rings
-                    for (int i = 0; i < 6; i++)
-                    {
-                        var ring = new Ellipse
-                        {
-                            Width = 10, Height = 10,
-                            Stroke = new SolidColorBrush(Color.FromArgb(120, 34, 211, 238)),
-                            StrokeThickness = 1.2
-                        };
-                        double x = _rand.NextDouble() * w;
-                        double y = _rand.NextDouble() * h;
-                        Canvas.SetLeft(ring, x);
-                        Canvas.SetTop(ring, y);
-                        GlobalThemeCanvas.Children.Add(ring);
-
-                        _activeGlobalParticles.Add(new ParticleEngineItem
-                        {
-                            Element = ring,
-                            X = x, Y = y,
-                            R = 10, MaxR = _rand.Next(90, 160),
-                            Speed = _rand.NextDouble() * 1.5 + 1.2
-                        });
-                    }
-                    break;
-
-                case "fading_stars":
-                default:
-                    // Appearing & fading starlight with 4-point cross-star flares matching Image 2
-                    Color[] starColors = new[]
-                    {
-                        Color.FromRgb(56, 189, 248),  // Cyan / Sky (#38BDF8)
-                        Color.FromRgb(192, 132, 252), // Lavender / Purple (#C084FC)
-                        Color.FromRgb(251, 191, 36),  // Amber / Gold (#FBBF24)
-                        Color.FromRgb(255, 255, 255), // Pure White (#FFFFFF)
-                        Color.FromRgb(244, 114, 182), // Rose Pink (#F472B6)
-                        Color.FromRgb(45, 212, 191)   // Emerald / Mint (#2DD4BF)
-                    };
-
-                    for (int i = 0; i < 75; i++)
-                    {
-                        var col = starColors[i % starColors.Length];
-                        bool isCrossFlare = (i % 3 == 0); // 1 in 3 is a 4-point cross star flare!
-                        double r = _rand.NextDouble() * 3.0 + 1.5;
-                        double x = _rand.NextDouble() * w;
-                        double y = _rand.NextDouble() * h;
-                        double alpha = _rand.NextDouble() * 0.8 + 0.1;
-                        double fadeSpeed = _rand.NextDouble() * 0.018 + 0.008;
-                        double fadeDir = (_rand.Next(0, 2) == 0) ? 1.0 : -1.0;
-
-                        FrameworkElement el;
-                        if (isCrossFlare)
-                        {
-                            var tb = new TextBlock
+                            double sz = _rand.Next(4, 8);
+                            double x = _rand.NextDouble() * w;
+                            double y = _rand.NextDouble() * h;
+                            var tt = new TranslateTransform(x, y);
+                            var el = new Ellipse
                             {
-                                Text = (_rand.Next(0, 3) == 0) ? "✧" : "✦",
-                                FontSize = _rand.Next(12, 21),
-                                Foreground = new SolidColorBrush(col),
-                                Opacity = alpha,
+                                Width = sz,
+                                Height = sz,
+                                Fill = nodeBrush,
+                                RenderTransform = tt,
                                 IsHitTestVisible = false
                             };
-                            el = tb;
+                            Canvas.SetLeft(el, 0);
+                            Canvas.SetTop(el, 0);
+                            GlobalThemeCanvas.Children.Add(el);
+
+                            _activeGlobalParticles.Add(new ParticleEngineItem
+                            {
+                                Element = el,
+                                Translate = tt,
+                                X = x, Y = y,
+                                Vx = (_rand.NextDouble() - 0.5) * 1.2,
+                                Vy = (_rand.NextDouble() - 0.5) * 1.2,
+                                BaseColor = Color.FromRgb(34, 211, 238)
+                            });
                         }
-                        else
+
+                        // Pre-create 28 unit-quad mesh segments driven purely via MatrixTransform + Opacity
+                        for (int i = 0; i < 28; i++)
                         {
-                            double sz = r * 2.0;
+                            var mt = new MatrixTransform();
+                            var rect = new Rectangle
+                            {
+                                Width = 1.0,
+                                Height = 1.0,
+                                Fill = meshBrush,
+                                RenderTransform = mt,
+                                Opacity = 0.0,
+                                IsHitTestVisible = false
+                            };
+                            Canvas.SetLeft(rect, 0);
+                            Canvas.SetTop(rect, 0);
+                            GlobalThemeCanvas.Children.Add(rect);
+                            _activeMeshLines.Add(new MeshSegmentItem { Rect = rect, Transform = mt });
+                        }
+                        break;
+                    }
+
+                case "cosmic":
+                    {
+                        var goldBrush = new SolidColorBrush(Color.FromArgb(180, 245, 158, 11));
+                        goldBrush.Freeze();
+                        var violetBrush = new SolidColorBrush(Color.FromArgb(180, 168, 85, 247));
+                        violetBrush.Freeze();
+
+                        // 50 twinkling cosmic dust specks
+                        for (int i = 0; i < 50; i++)
+                        {
+                            int sz = _rand.Next(3, 7);
+                            bool isGold = _rand.Next(0, 3) == 0;
+                            var col = isGold ? Color.FromRgb(245, 158, 11) : Color.FromRgb(168, 85, 247);
+                            double x = _rand.NextDouble() * w;
+                            double y = _rand.NextDouble() * h;
+                            var tt = new TranslateTransform(x, y);
                             var dot = new Ellipse
                             {
                                 Width = sz,
                                 Height = sz,
-                                Fill = new SolidColorBrush(col),
-                                Opacity = alpha,
+                                Fill = isGold ? goldBrush : violetBrush,
+                                RenderTransform = tt,
                                 IsHitTestVisible = false
                             };
-                            el = dot;
+                            Canvas.SetLeft(dot, 0);
+                            Canvas.SetTop(dot, 0);
+                            GlobalThemeCanvas.Children.Add(dot);
+
+                            _activeGlobalParticles.Add(new ParticleEngineItem
+                            {
+                                Element = dot,
+                                Translate = tt,
+                                X = x, Y = y,
+                                Vx = (_rand.NextDouble() - 0.5) * 0.4,
+                                Vy = -(_rand.NextDouble() * 0.5 + 0.2),
+                                Phase = _rand.NextDouble() * Math.PI * 2,
+                                BaseColor = col
+                            });
+                        }
+                        break;
+                    }
+
+                case "matrix":
+                    {
+                        // Pre-baked glyph sprite strip shifted horizontally via TranslateTransform (0 Measure/Arrange churn)
+                        var stripBmp = EnsureMatrixGlyphStrip();
+                        int cols = Math.Max(1, (int)(w / 40));
+                        for (int i = 0; i < cols; i++)
+                        {
+                            double glyphSz = _rand.Next(13, 20);
+                            double cw = glyphSz * 1.2;
+                            double ch = glyphSz * 1.4;
+                            double x = i * 40 + _rand.Next(0, 10);
+                            double y = _rand.NextDouble() * -h;
+                            var tt = new TranslateTransform(x, y);
+                            var spriteShift = new TranslateTransform(-_rand.Next(MatrixGlyphPool.Length) * cw, 0);
+
+                            var host = new Canvas
+                            {
+                                Width = cw,
+                                Height = ch,
+                                ClipToBounds = true,
+                                RenderTransform = tt,
+                                IsHitTestVisible = false
+                            };
+                            var img = new Image
+                            {
+                                Source = stripBmp,
+                                Width = cw * MatrixGlyphPool.Length,
+                                Height = ch,
+                                Stretch = Stretch.Fill,
+                                RenderTransform = spriteShift,
+                                IsHitTestVisible = false
+                            };
+                            RenderOptions.SetBitmapScalingMode(img, BitmapScalingMode.HighQuality);
+                            Canvas.SetLeft(img, 0);
+                            Canvas.SetTop(img, 0);
+                            host.Children.Add(img);
+
+                            Canvas.SetLeft(host, 0);
+                            Canvas.SetTop(host, 0);
+                            GlobalThemeCanvas.Children.Add(host);
+
+                            _activeGlobalParticles.Add(new ParticleEngineItem
+                            {
+                                Element = host,
+                                Translate = tt,
+                                SpriteShift = spriteShift,
+                                X = x, Y = y,
+                                R = cw,
+                                Speed = _rand.NextDouble() * 6.0 + 3.0
+                            });
+                        }
+                        break;
+                    }
+
+                case "orbs":
+                    {
+                        var orbPink = new RadialGradientBrush(
+                            Color.FromArgb(40, 244, 114, 182),
+                            Color.FromArgb(0, 244, 114, 182));
+                        orbPink.Freeze();
+                        var orbCyan = new RadialGradientBrush(
+                            Color.FromArgb(40, 34, 211, 238),
+                            Color.FromArgb(0, 34, 211, 238));
+                        orbCyan.Freeze();
+
+                        // Floating soft bokeh spheres
+                        for (int i = 0; i < 12; i++)
+                        {
+                            int sz = _rand.Next(60, 120);
+                            double x = _rand.NextDouble() * w;
+                            double y = _rand.NextDouble() * h;
+                            var tt = new TranslateTransform(x, y);
+                            var orb = new Ellipse
+                            {
+                                Width = sz,
+                                Height = sz,
+                                Fill = (_rand.Next(0, 2) == 0) ? orbPink : orbCyan,
+                                RenderTransform = tt,
+                                IsHitTestVisible = false
+                            };
+                            Canvas.SetLeft(orb, 0);
+                            Canvas.SetTop(orb, 0);
+                            GlobalThemeCanvas.Children.Add(orb);
+
+                            _activeGlobalParticles.Add(new ParticleEngineItem
+                            {
+                                Element = orb,
+                                Translate = tt,
+                                X = x, Y = y,
+                                Vx = (_rand.NextDouble() - 0.5) * 0.8,
+                                Vy = (_rand.NextDouble() - 0.5) * 0.8,
+                                R = sz
+                            });
+                        }
+                        break;
+                    }
+
+                case "lava_lamp":
+                    {
+                        var lavaRose = new RadialGradientBrush(
+                            Color.FromArgb(50, 244, 63, 94),
+                            Color.FromArgb(0, 244, 63, 94));
+                        lavaRose.Freeze();
+                        var lavaAmber = new RadialGradientBrush(
+                            Color.FromArgb(50, 245, 158, 11),
+                            Color.FromArgb(0, 245, 158, 11));
+                        lavaAmber.Freeze();
+
+                        // Rising morphing wax blobs
+                        for (int i = 0; i < 9; i++)
+                        {
+                            int sz = _rand.Next(70, 130);
+                            double x = _rand.NextDouble() * w;
+                            double y = _rand.NextDouble() * h;
+                            var tt = new TranslateTransform(x, y);
+                            var blob = new Ellipse
+                            {
+                                Width = sz,
+                                Height = sz,
+                                Fill = (_rand.Next(0, 2) == 0) ? lavaRose : lavaAmber,
+                                RenderTransform = tt,
+                                IsHitTestVisible = false
+                            };
+                            Canvas.SetLeft(blob, 0);
+                            Canvas.SetTop(blob, 0);
+                            GlobalThemeCanvas.Children.Add(blob);
+
+                            _activeGlobalParticles.Add(new ParticleEngineItem
+                            {
+                                Element = blob,
+                                Translate = tt,
+                                X = x, Y = y,
+                                Speed = -(_rand.NextDouble() * 1.5 + 0.5),
+                                R = sz
+                            });
+                        }
+                        break;
+                    }
+
+                case "meteor":
+                    {
+                        var meteorBrush = new SolidColorBrush(Color.FromArgb(160, 245, 158, 11));
+                        meteorBrush.Freeze();
+
+                        // Diagonal shooting stars
+                        for (int i = 0; i < 5; i++)
+                        {
+                            double x = _rand.NextDouble() * w;
+                            double y = _rand.NextDouble() * -h;
+                            var tt = new TranslateTransform(x, y);
+                            var met = new System.Windows.Shapes.Line
+                            {
+                                X1 = 0, Y1 = 0,
+                                X2 = 60, Y2 = 30,
+                                Stroke = meteorBrush,
+                                StrokeThickness = 2.0,
+                                RenderTransform = tt,
+                                IsHitTestVisible = false
+                            };
+                            Canvas.SetLeft(met, 0);
+                            Canvas.SetTop(met, 0);
+                            GlobalThemeCanvas.Children.Add(met);
+
+                            _activeGlobalParticles.Add(new ParticleEngineItem
+                            {
+                                Element = met,
+                                Translate = tt,
+                                X = x, Y = y,
+                                Vx = -(_rand.NextDouble() * 10 + 12),
+                                Vy = _rand.NextDouble() * 6 + 7
+                            });
+                        }
+                        break;
+                    }
+
+                case "water_ripple":
+                    {
+                        var rippleBrush = new SolidColorBrush(Color.FromArgb(120, 34, 211, 238));
+                        rippleBrush.Freeze();
+
+                        // Expanding concentric water rings scaled purely via ScaleTransform + TranslateTransform (zero Width/Height churn)
+                        for (int i = 0; i < 6; i++)
+                        {
+                            double maxR = _rand.Next(90, 160);
+                            double maxD = maxR * 2.0;
+                            double r = 10.0;
+                            double x = _rand.NextDouble() * w;
+                            double y = _rand.NextDouble() * h;
+                            double s = r / maxR;
+
+                            var st = new ScaleTransform(s, s);
+                            var tt = new TranslateTransform(x - maxR, y - maxR);
+                            var tg = new TransformGroup();
+                            tg.Children.Add(st);
+                            tg.Children.Add(tt);
+
+                            var ring = new Ellipse
+                            {
+                                Width = maxD,
+                                Height = maxD,
+                                Stroke = rippleBrush,
+                                StrokeThickness = 1.5,
+                                RenderTransformOrigin = new Point(0.5, 0.5),
+                                RenderTransform = tg,
+                                Opacity = Math.Max(0, (1.0 - s) * 0.7),
+                                IsHitTestVisible = false
+                            };
+                            Canvas.SetLeft(ring, 0);
+                            Canvas.SetTop(ring, 0);
+                            GlobalThemeCanvas.Children.Add(ring);
+
+                            _activeGlobalParticles.Add(new ParticleEngineItem
+                            {
+                                Element = ring,
+                                Translate = tt,
+                                Scale = st,
+                                X = x, Y = y,
+                                R = r,
+                                MaxR = maxR,
+                                Speed = _rand.NextDouble() * 1.5 + 1.2
+                            });
+                        }
+                        break;
+                    }
+
+                case "fading_stars":
+                default:
+                    {
+                        // Appearing & fading starlight with 4-point cross-star flares
+                        Color[] starColors = new[]
+                        {
+                            Color.FromRgb(56, 189, 248),  // Cyan / Sky (#38BDF8)
+                            Color.FromRgb(192, 132, 252), // Lavender / Purple (#C084FC)
+                            Color.FromRgb(251, 191, 36),  // Amber / Gold (#FBBF24)
+                            Color.FromRgb(255, 255, 255), // Pure White (#FFFFFF)
+                            Color.FromRgb(244, 114, 182), // Rose Pink (#F472B6)
+                            Color.FromRgb(45, 212, 191)   // Emerald / Mint (#2DD4BF)
+                        };
+                        var starBrushes = new SolidColorBrush[starColors.Length];
+                        for (int c = 0; c < starColors.Length; c++)
+                        {
+                            starBrushes[c] = new SolidColorBrush(starColors[c]);
+                            starBrushes[c].Freeze();
                         }
 
-                        Canvas.SetLeft(el, x);
-                        Canvas.SetTop(el, y);
-                        GlobalThemeCanvas.Children.Add(el);
-
-                        _activeGlobalParticles.Add(new ParticleEngineItem
+                        for (int i = 0; i < 75; i++)
                         {
-                            Element = el,
-                            X = x,
-                            Y = y,
-                            R = r,
-                            Phase = alpha,     // Current alpha
-                            Speed = fadeSpeed, // Fade speed
-                            Vy = fadeDir,      // 1.0 or -1.0
-                            BaseColor = col
-                        });
+                            int ci = i % starColors.Length;
+                            var col = starColors[ci];
+                            var brush = starBrushes[ci];
+                            bool isCrossFlare = (i % 3 == 0);
+                            double r = _rand.NextDouble() * 3.0 + 1.5;
+                            double x = _rand.NextDouble() * w;
+                            double y = _rand.NextDouble() * h;
+                            double alpha = _rand.NextDouble() * 0.8 + 0.1;
+                            double fadeSpeed = _rand.NextDouble() * 0.018 + 0.008;
+                            double fadeDir = (_rand.Next(0, 2) == 0) ? 1.0 : -1.0;
+                            var tt = new TranslateTransform(x, y);
+
+                            FrameworkElement el;
+                            if (isCrossFlare)
+                            {
+                                el = new TextBlock
+                                {
+                                    Text = (_rand.Next(0, 3) == 0) ? "✧" : "✦",
+                                    FontSize = _rand.Next(12, 21),
+                                    Foreground = brush,
+                                    Opacity = alpha,
+                                    RenderTransform = tt,
+                                    IsHitTestVisible = false
+                                };
+                            }
+                            else
+                            {
+                                double sz = r * 2.0;
+                                el = new Ellipse
+                                {
+                                    Width = sz,
+                                    Height = sz,
+                                    Fill = brush,
+                                    Opacity = alpha,
+                                    RenderTransform = tt,
+                                    IsHitTestVisible = false
+                                };
+                            }
+
+                            Canvas.SetLeft(el, 0);
+                            Canvas.SetTop(el, 0);
+                            GlobalThemeCanvas.Children.Add(el);
+
+                            _activeGlobalParticles.Add(new ParticleEngineItem
+                            {
+                                Element = el,
+                                Translate = tt,
+                                X = x,
+                                Y = y,
+                                R = r,
+                                Phase = alpha,     // Current alpha
+                                Speed = fadeSpeed, // Fade speed
+                                Vy = fadeDir,      // 1.0 or -1.0
+                                BaseColor = col
+                            });
+                        }
+                        break;
                     }
-                    break;
             }
 
-            _globalParticleTimer.Start();
+            UpdateRenderLoopState();
             RenderControlCenterParticleCards();
             if (!skipToast) ShowToast($"Particle effect applied: {valid.Name} ✨");
         }
 
-        private void GlobalParticleTimer_Tick(object? sender, EventArgs e)
+        private void StepGlobalParticles(double dtSeconds)
         {
             double w = Math.Max(ActualWidth, 1440);
             double h = Math.Max(ActualHeight, 900);
+            double f = dtSeconds / 0.04; // Preserve original 25 Hz displacement velocity cleanly at any VSync rate
 
             if (_currentParticleEffect == "network")
             {
-                // Drift nodes
                 for (int i = 0; i < _activeGlobalParticles.Count; i++)
                 {
                     var p = _activeGlobalParticles[i];
-                    p.X += p.Vx;
-                    p.Y += p.Vy;
-                    if (p.X < 0 || p.X > w) p.Vx = -p.Vx;
-                    if (p.Y < 0 || p.Y > h) p.Vy = -p.Vy;
-                    Canvas.SetLeft(p.Element, p.X);
-                    Canvas.SetTop(p.Element, p.Y);
+                    p.X += p.Vx * f;
+                    p.Y += p.Vy * f;
+                    if (p.X < 0) { p.X = 0; p.Vx = Math.Abs(p.Vx); }
+                    else if (p.X > w) { p.X = w; p.Vx = -Math.Abs(p.Vx); }
+                    if (p.Y < 0) { p.Y = 0; p.Vy = Math.Abs(p.Vy); }
+                    else if (p.Y > h) { p.Y = h; p.Vy = -Math.Abs(p.Vy); }
+                    p.Translate.X = p.X;
+                    p.Translate.Y = p.Y;
                 }
 
-                // Connect nearby nodes with mesh lines
                 int lineIdx = 0;
                 for (int i = 0; i < _activeGlobalParticles.Count && lineIdx < _activeMeshLines.Count; i++)
                 {
+                    var pi = _activeGlobalParticles[i];
+                    double x1 = pi.X + 3.0;
+                    double y1 = pi.Y + 3.0;
                     for (int j = i + 1; j < _activeGlobalParticles.Count && lineIdx < _activeMeshLines.Count; j++)
                     {
-                        double dx = _activeGlobalParticles[i].X - _activeGlobalParticles[j].X;
-                        double dy = _activeGlobalParticles[i].Y - _activeGlobalParticles[j].Y;
-                        double dist = Math.Sqrt(dx * dx + dy * dy);
+                        var pj = _activeGlobalParticles[j];
+                        double dx = (pj.X + 3.0) - x1;
+                        double dy = (pj.Y + 3.0) - y1;
+                        double distSq = dx * dx + dy * dy;
 
-                        if (dist < 120)
+                        if (distSq < 14400.0) // 120 * 120
                         {
-                            var line = _activeMeshLines[lineIdx++];
-                            line.X1 = _activeGlobalParticles[i].X + 3;
-                            line.Y1 = _activeGlobalParticles[i].Y + 3;
-                            line.X2 = _activeGlobalParticles[j].X + 3;
-                            line.Y2 = _activeGlobalParticles[j].Y + 3;
-                            line.Opacity = (1.0 - dist / 120) * 0.45;
-                            line.Visibility = Visibility.Visible;
+                            double dist = Math.Sqrt(distSq);
+                            double invDist = dist > 0.001 ? 1.0 / dist : 0.0;
+                            double nx = -dy * invDist;
+                            double ny = dx * invDist;
+
+                            var seg = _activeMeshLines[lineIdx++];
+                            seg.Transform.Matrix = new Matrix(dx, dy, nx, ny, x1 - 0.5 * nx, y1 - 0.5 * ny);
+                            seg.Rect.Opacity = (1.0 - dist / 120.0) * 0.45;
                         }
                     }
                 }
                 for (; lineIdx < _activeMeshLines.Count; lineIdx++)
                 {
-                    _activeMeshLines[lineIdx].Visibility = Visibility.Collapsed;
+                    _activeMeshLines[lineIdx].Rect.Opacity = 0.0;
                 }
             }
             else if (_currentParticleEffect == "matrix")
             {
-                string mChars = "0123456789ABCDEFλπΩ";
+                double glyphSwapProb = 1.0 - Math.Pow(0.7, f);
+                int poolLen = MatrixGlyphPool.Length;
                 for (int i = 0; i < _activeGlobalParticles.Count; i++)
                 {
                     var p = _activeGlobalParticles[i];
-                    p.Y += p.Speed;
+                    p.Y += p.Speed * f;
                     if (p.Y > h)
                     {
                         p.Y = -25;
                         p.X = _rand.NextDouble() * w;
                     }
-                    if (p.Element is TextBlock tb && _rand.NextDouble() > 0.7)
+                    if (p.SpriteShift != null && _rand.NextDouble() < glyphSwapProb)
                     {
-                        tb.Text = mChars[_rand.Next(mChars.Length)].ToString();
+                        p.SpriteShift.X = -_rand.Next(poolLen) * p.R;
                     }
-                    Canvas.SetLeft(p.Element, p.X);
-                    Canvas.SetTop(p.Element, p.Y);
+                    p.Translate.X = p.X;
+                    p.Translate.Y = p.Y;
                 }
             }
             else if (_currentParticleEffect == "water_ripple")
@@ -4922,18 +5165,22 @@ namespace StudyHub
                 for (int i = 0; i < _activeGlobalParticles.Count; i++)
                 {
                     var p = _activeGlobalParticles[i];
-                    p.R += p.Speed;
+                    p.R += p.Speed * f;
                     if (p.R > p.MaxR)
                     {
-                        p.R = 4;
+                        p.R = 4.0;
                         p.X = _rand.NextDouble() * w;
                         p.Y = _rand.NextDouble() * h;
                     }
-                    p.Element.Width = p.R * 2;
-                    p.Element.Height = p.R * 2;
-                    p.Element.Opacity = Math.Max(0, (1.0 - p.R / p.MaxR) * 0.7);
-                    Canvas.SetLeft(p.Element, p.X - p.R);
-                    Canvas.SetTop(p.Element, p.Y - p.R);
+                    double s = p.R / p.MaxR;
+                    if (p.Scale != null)
+                    {
+                        p.Scale.ScaleX = s;
+                        p.Scale.ScaleY = s;
+                    }
+                    p.Translate.X = p.X - p.MaxR;
+                    p.Translate.Y = p.Y - p.MaxR;
+                    p.Element.Opacity = Math.Max(0.0, (1.0 - s) * 0.7);
                 }
             }
             else if (_currentParticleEffect == "fading_stars")
@@ -4941,7 +5188,7 @@ namespace StudyHub
                 for (int i = 0; i < _activeGlobalParticles.Count; i++)
                 {
                     var p = _activeGlobalParticles[i];
-                    p.Phase += p.Vy * p.Speed;
+                    p.Phase += p.Vy * p.Speed * f;
                     if (p.Phase >= 1.0)
                     {
                         p.Phase = 1.0;
@@ -4953,8 +5200,8 @@ namespace StudyHub
                         p.Vy = 1.0;
                         p.X = _rand.NextDouble() * w;
                         p.Y = _rand.NextDouble() * h;
-                        Canvas.SetLeft(p.Element, p.X);
-                        Canvas.SetTop(p.Element, p.Y);
+                        p.Translate.X = p.X;
+                        p.Translate.Y = p.Y;
                     }
                     p.Element.Opacity = p.Phase;
                 }
@@ -4964,13 +5211,13 @@ namespace StudyHub
                 for (int i = 0; i < _activeGlobalParticles.Count; i++)
                 {
                     var p = _activeGlobalParticles[i];
-                    p.Phase += p.Speed > 0 ? p.Speed : 0.04;
+                    p.Phase += (p.Speed > 0 ? p.Speed : 0.04) * f;
                     p.Element.Opacity = 0.2 + 0.7 * (0.5 + 0.5 * Math.Sin(p.Phase));
-                    p.X += p.Vx;
-                    p.Y += p.Vy;
+                    p.X += p.Vx * f;
+                    p.Y += p.Vy * f;
                     if (p.Y < -10) p.Y = h + 10;
-                    Canvas.SetLeft(p.Element, p.X);
-                    Canvas.SetTop(p.Element, p.Y);
+                    p.Translate.X = p.X;
+                    p.Translate.Y = p.Y;
                 }
             }
             else if (_currentParticleEffect == "lava_lamp")
@@ -4978,14 +5225,14 @@ namespace StudyHub
                 for (int i = 0; i < _activeGlobalParticles.Count; i++)
                 {
                     var p = _activeGlobalParticles[i];
-                    p.Y += p.Speed;
+                    p.Y += p.Speed * f;
                     if (p.Y < -p.R)
                     {
                         p.Y = h + p.R;
                         p.X = _rand.NextDouble() * w;
                     }
-                    Canvas.SetLeft(p.Element, p.X);
-                    Canvas.SetTop(p.Element, p.Y);
+                    p.Translate.X = p.X;
+                    p.Translate.Y = p.Y;
                 }
             }
             else
@@ -4993,15 +5240,15 @@ namespace StudyHub
                 for (int i = 0; i < _activeGlobalParticles.Count; i++)
                 {
                     var p = _activeGlobalParticles[i];
-                    p.X += p.Vx;
-                    p.Y += p.Vy;
-                    if (p.X < -100 || p.X > w + 100 || p.Y < -100 || p.Y > h + 100)
+                    p.X += p.Vx * f;
+                    p.Y += p.Vy * f;
+                    if (p.X < -120 || p.X > w + 120 || p.Y < -120 || p.Y > h + 120)
                     {
                         p.X = _rand.NextDouble() * w;
                         p.Y = _rand.NextDouble() * -50;
                     }
-                    Canvas.SetLeft(p.Element, p.X);
-                    Canvas.SetTop(p.Element, p.Y);
+                    p.Translate.X = p.X;
+                    p.Translate.Y = p.Y;
                 }
             }
         }
@@ -5522,9 +5769,7 @@ namespace StudyHub
         {
             if (_state?.Settings == null) return;
             _state.Settings.PerfThrottle = ChkPerfThrottle.IsChecked == true;
-            _zenStarTimer.Interval = _state.Settings.PerfThrottle
-                ? TimeSpan.FromMilliseconds(66)
-                : TimeSpan.FromMilliseconds(33);
+            _perfSkipToggle = false;
             SaveState();
         }
 
@@ -5969,6 +6214,7 @@ namespace StudyHub
             {
                 GlobalThemeCanvas.Visibility = isDark ? Visibility.Visible : Visibility.Collapsed;
             }
+            UpdateRenderLoopState();
 
             // 2. Top Nav & Text Chromatic Tokens
             if (TxtBrandTitle != null)
@@ -6490,9 +6736,14 @@ namespace StudyHub
 
         private void Window_Closing(object? sender, CancelEventArgs e)
         {
-            _sliderSaveTimer.Stop();
-            _audio.StopAndResetAll();
-            _audio.Dispose();
+            _isClosing = true;
+            UpdateRenderLoopState();
+            _clockTimer?.Stop();
+            _pomoTimer?.Stop();
+            _toastTimer?.Stop();
+            _sliderSaveTimer?.Stop();
+            _audio?.StopAndResetAll();
+            _audio?.Dispose();
             SaveState(countActivity: false);
         }
     }
