@@ -2,6 +2,7 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
+        xmlns:controls="clr-namespace:StudyHub.Controls"
         Title="Study Hub v3.0 — Remastered Native Edition"
         Width="1440" Height="900"
         MinWidth="1040" MinHeight="680"
@@ -61,7 +62,7 @@
                     <Border x:Name="NavClockBorder" MouseDown="NavClockBorder_MouseDown" Cursor="Hand" Background="#151930" BorderBrush="#252D50" BorderThickness="1" CornerRadius="14" Padding="12,6" Margin="0,0,8,0" ToolTip="Click to toggle 12h / 24h clock format">
                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                             <TextBlock Text="🕒" FontSize="12" Margin="0,0,6,0" VerticalAlignment="Center"/>
-                            <TextBlock x:Name="TxtNavClockTime" Text="11:05:26 PM" FontWeight="Bold" FontSize="12.5" FontFamily="Consolas, monospace" Foreground="#F8FAFC" VerticalAlignment="Center"/>
+                            <TextBlock x:Name="TxtNavClockTime" Text="11:05:26 PM" FontWeight="Bold" FontSize="12.5" FontFamily="Consolas, Courier New" Foreground="#F8FAFC" VerticalAlignment="Center"/>
                             <TextBlock x:Name="TxtNavClockDate" Text="Sun, Nov 8" FontSize="11" Foreground="#8A95B7" Margin="7,0,0,0" VerticalAlignment="Center"/>
                         </StackPanel>
                     </Border>
@@ -77,7 +78,7 @@
                                     <Path Data="M 12,13 L 15,9.5" Stroke="White" StrokeThickness="2.0" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
                                 </Canvas>
                             </Viewbox>
-                            <TextBlock x:Name="TxtNavTimerDisplay" Text="25:00" FontWeight="Black" FontFamily="Consolas, monospace" FontSize="12.5" Foreground="#F472B6" VerticalAlignment="Center"/>
+                            <TextBlock x:Name="TxtNavTimerDisplay" Text="25:00" FontWeight="Black" FontFamily="Consolas, Courier New" FontSize="12.5" Foreground="#F472B6" VerticalAlignment="Center"/>
                             <Ellipse x:Name="NavTimerStatusDot" Width="6" Height="6" Fill="#10B981" Margin="6,0,0,0" VerticalAlignment="Center"/>
                             <TextBlock Text="⌄" FontSize="10" Foreground="#8A95B7" Margin="4,-2,0,0" VerticalAlignment="Center"/>
                         </StackPanel>
@@ -500,7 +501,7 @@
                                         <TextBlock Text="💾 Save Notes"/>
                                     </Button>
                                 </Grid>
-                                <TextBox x:Name="TxtSplitNotes" Grid.Row="1" Style="{StaticResource ModernTextBoxStyle}" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" FontFamily="Consolas, monospace" FontSize="13.5"/>
+                                <TextBox x:Name="TxtSplitNotes" Grid.Row="1" Style="{StaticResource ModernTextBoxStyle}" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" FontFamily="Consolas, Courier New" FontSize="13.5"/>
                             </Grid>
                         </Border>
 
@@ -611,7 +612,7 @@
                                             <RowDefinition Height="*"/>
                                         </Grid.RowDefinitions>
                                         <TextBlock Grid.Row="0" Text="Synchronized Lecture Notes" FontWeight="Bold" FontSize="14" Foreground="{DynamicResource PrimaryTextBrush}" Margin="0,0,0,10"/>
-                                        <TextBox x:Name="TxtRecordingNotes" Grid.Row="1" Style="{StaticResource ModernTextBoxStyle}" AcceptsReturn="True" TextWrapping="Wrap" FontFamily="Consolas, monospace" FontSize="13.5"/>
+                                        <TextBox x:Name="TxtRecordingNotes" Grid.Row="1" Style="{StaticResource ModernTextBoxStyle}" AcceptsReturn="True" TextWrapping="Wrap" FontFamily="Consolas, Courier New" FontSize="13.5"/>
                                     </Grid>
                                 </Border>
                             </Grid>
@@ -866,7 +867,7 @@
                             <Border x:Name="PomoMinTimeChip" Visibility="Collapsed" Background="#1D2546" BorderBrush="#334175" BorderThickness="1" CornerRadius="8" Padding="7,2" Margin="8,0,0,0" VerticalAlignment="Center">
                                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                     <Ellipse x:Name="PomoMinDot" Width="5.5" Height="5.5" Fill="#10B981" Margin="0,0,5,0" VerticalAlignment="Center"/>
-                                    <TextBlock x:Name="TxtPomoMinTime" Text="25:00" FontFamily="Consolas, monospace" FontSize="11.5" FontWeight="Black" Foreground="#38BDF8" VerticalAlignment="Center"/>
+                                    <TextBlock x:Name="TxtPomoMinTime" Text="25:00" FontFamily="Consolas, Courier New" FontSize="11.5" FontWeight="Black" Foreground="#38BDF8" VerticalAlignment="Center"/>
                                 </StackPanel>
                             </Border>
                         </StackPanel>
@@ -1009,7 +1010,7 @@
                                                     </ControlTemplate>
                                                 </Button.Template>
                                             </Button>
-                                            <TextBox x:Name="TxtPomoWorkInput" Grid.Column="1" Text="25" Background="Transparent" BorderThickness="0" Foreground="#F8FAFC" CaretBrush="#22D3EE" FontFamily="Consolas, monospace" FontSize="14.5" FontWeight="Black" TextAlignment="Center" VerticalContentAlignment="Center"/>
+                                            <TextBox x:Name="TxtPomoWorkInput" Grid.Column="1" Text="25" Background="Transparent" BorderThickness="0" Foreground="#F8FAFC" CaretBrush="#22D3EE" FontFamily="Consolas, Courier New" FontSize="14.5" FontWeight="Black" TextAlignment="Center" VerticalContentAlignment="Center"/>
                                             <Button Grid.Column="2" Click="BtnStepWorkUp_Click" Width="22" Height="22" Cursor="Hand" Foreground="{DynamicResource PrimaryTextBrush}" ToolTip="+5 min">
                                                 <Button.Template>
                                                     <ControlTemplate TargetType="Button">
@@ -1057,7 +1058,7 @@
                                                     </ControlTemplate>
                                                 </Button.Template>
                                             </Button>
-                                            <TextBox x:Name="TxtPomoBreakInput" Grid.Column="1" Text="5" Background="Transparent" BorderThickness="0" Foreground="#F8FAFC" CaretBrush="#10B981" FontFamily="Consolas, monospace" FontSize="14.5" FontWeight="Black" TextAlignment="Center" VerticalContentAlignment="Center"/>
+                                            <TextBox x:Name="TxtPomoBreakInput" Grid.Column="1" Text="5" Background="Transparent" BorderThickness="0" Foreground="#F8FAFC" CaretBrush="#10B981" FontFamily="Consolas, Courier New" FontSize="14.5" FontWeight="Black" TextAlignment="Center" VerticalContentAlignment="Center"/>
                                             <Button Grid.Column="2" Click="BtnStepBreakUp_Click" Width="22" Height="22" Cursor="Hand" Foreground="{DynamicResource PrimaryTextBrush}" ToolTip="+1 min">
                                                 <Button.Template>
                                                     <ControlTemplate TargetType="Button">
@@ -1151,7 +1152,7 @@
                     <!-- Expanded Countdown Body -->
                     <StackPanel x:Name="PomoContentPanel" Visibility="Visible">
                         <!-- Digital Countdown Face (Gradient Blue -> Cyan matching Image 2) -->
-                        <TextBlock x:Name="TxtFloatingTimerDisplay" Text="25:00" FontSize="46" FontWeight="Black" FontFamily="Consolas, monospace" HorizontalAlignment="Center" Margin="0,10,0,14">
+                        <TextBlock x:Name="TxtFloatingTimerDisplay" Text="25:00" FontSize="46" FontWeight="Black" FontFamily="Consolas, Courier New" HorizontalAlignment="Center" Margin="0,10,0,14">
                             <TextBlock.Foreground>
                                 <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
                                     <GradientStop Color="#60A5FA" Offset="0.0"/>
@@ -1189,7 +1190,7 @@
                                         <Ellipse Width="8" Height="8" Canvas.Left="56" Canvas.Top="56" Fill="#F472B6"/>
                                     </Canvas>
                                 </Viewbox>
-                                <TextBlock x:Name="TxtAnalogSubReadout" Text="25:00" FontFamily="Consolas, monospace" FontSize="12" FontWeight="Black" Foreground="#38BDF8" HorizontalAlignment="Center" Margin="0,4,0,0"/>
+                                <TextBlock x:Name="TxtAnalogSubReadout" Text="25:00" FontFamily="Consolas, Courier New" FontSize="12" FontWeight="Black" Foreground="#38BDF8" HorizontalAlignment="Center" Margin="0,4,0,0"/>
                             </StackPanel>
                         </Grid>
 
@@ -1320,7 +1321,7 @@
                     </Grid>
 
                     <!-- Countdown -->
-                    <TextBlock x:Name="TxtDropdownTimerDisplay" Text="25:00" FontSize="44" FontWeight="Black" FontFamily="Consolas, monospace" HorizontalAlignment="Center" Margin="0,2,0,12">
+                    <TextBlock x:Name="TxtDropdownTimerDisplay" Text="25:00" FontSize="44" FontWeight="Black" FontFamily="Consolas, Courier New" HorizontalAlignment="Center" Margin="0,2,0,12">
                         <TextBlock.Foreground>
                             <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
                                 <GradientStop Color="#60A5FA" Offset="0.0"/>
@@ -1449,7 +1450,7 @@
                         <Border x:Name="PdfNavClockBorder" MouseDown="NavClockBorder_MouseDown" Cursor="Hand" Background="#181D38" BorderBrush="#283056" BorderThickness="1" CornerRadius="12" Padding="12,6" Margin="0,0,10,0" ToolTip="Click to toggle 12h / 24h clock format">
                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                 <TextBlock Text="🕒" FontSize="12" Margin="0,0,6,0" VerticalAlignment="Center"/>
-                                <TextBlock x:Name="TxtPdfClockTime" Text="12:00:00 AM" FontWeight="Bold" FontSize="13" FontFamily="Consolas, monospace" Foreground="#F4F6FF" VerticalAlignment="Center"/>
+                                <TextBlock x:Name="TxtPdfClockTime" Text="12:00:00 AM" FontWeight="Bold" FontSize="13" FontFamily="Consolas, Courier New" Foreground="#F4F6FF" VerticalAlignment="Center"/>
                                 <TextBlock x:Name="TxtPdfClockDate" Text="Fri, Nov 6" FontSize="11" Foreground="#9AA3C2" Margin="8,0,0,0" VerticalAlignment="Center"/>
                             </StackPanel>
                         </Border>
@@ -1465,7 +1466,7 @@
                                         <Path Data="M 12,13 L 15,9.5" Stroke="White" StrokeThickness="2.0" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
                                     </Canvas>
                                 </Viewbox>
-                                <TextBlock x:Name="TxtPdfTimerDisplay" Text="25:00" FontWeight="Black" FontFamily="Consolas, monospace" FontSize="13" Foreground="#F472B6" VerticalAlignment="Center"/>
+                                <TextBlock x:Name="TxtPdfTimerDisplay" Text="25:00" FontWeight="Black" FontFamily="Consolas, Courier New" FontSize="13" Foreground="#F472B6" VerticalAlignment="Center"/>
                                 <Ellipse x:Name="PdfTimerStatusDot" Width="7" Height="7" Fill="#10B981" Margin="6,0,0,0" VerticalAlignment="Center"/>
                             </StackPanel>
                         </Border>
@@ -1821,7 +1822,7 @@
                                 <StackPanel Grid.Column="3" VerticalAlignment="Center">
                                     <Grid Margin="0,0,0,2">
                                         <TextBlock Text="Master" FontWeight="Bold" FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}" VerticalAlignment="Center"/>
-                                        <TextBlock x:Name="TxtMasterVolLabel" Text="80%" FontWeight="Bold" FontSize="12" FontFamily="Consolas, monospace" Foreground="#A78BFA" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                        <TextBlock x:Name="TxtMasterVolLabel" Text="80%" FontWeight="Bold" FontSize="12" FontFamily="Consolas, Courier New" Foreground="#A78BFA" HorizontalAlignment="Right" VerticalAlignment="Center"/>
                                     </Grid>
                                     <Slider x:Name="SliderMasterVolume" Minimum="0" Maximum="100" Value="80" Style="{StaticResource StudioSliderStyle}" ValueChanged="SliderMasterVolume_ValueChanged"/>
                                 </StackPanel>
@@ -1901,84 +1902,267 @@
         </Grid>
 
         <!-- ================= FULLSCREEN ZEN STUDY MODE OVERLAY ================= -->
-        <Grid x:Name="ZenModeOverlayGrid" Grid.Row="0" Grid.RowSpan="2" Visibility="Collapsed" Panel.ZIndex="300" Background="#060814" KeyDown="ZenModeOverlayGrid_KeyDown">
-            <!-- Animated Ambient Canvas -->
-            <Canvas x:Name="ZenCanvas" ClipToBounds="True"/>
+        <Grid x:Name="ZenModeOverlayGrid" Grid.Row="0" Grid.RowSpan="2" Visibility="Collapsed" Panel.ZIndex="300" Background="#060814" Focusable="True" KeyDown="ZenModeOverlayGrid_KeyDown">
+            <!-- 1. Native High-Performance Animated Scene Canvas (All 17 Built-in Worlds + Minimalist None) -->
+            <controls:ZenSceneCanvas x:Name="ZenSceneRenderer" Panel.ZIndex="1" ClipToBounds="True"/>
 
-            <!-- Top Center Zen HUD Capsule (Digital Clock, Timer Readout & Scene Badge) -->
-            <Border x:Name="ZenTopHud" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,34,0,0" Background="#77000000" BorderBrush="#33FFFFFF" BorderThickness="1" CornerRadius="26" Padding="32,16">
-                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                    <!-- Digital Clock Display -->
-                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,0,0,4">
-                        <TextBlock x:Name="TxtZenClockTime" Text="11:19" FontSize="52" FontWeight="Black" FontFamily="Consolas, monospace" Foreground="White" VerticalAlignment="Bottom"/>
-                        <TextBlock x:Name="TxtZenClockAmPm" Text="PM" FontSize="18" FontWeight="Black" FontFamily="Consolas, monospace" Foreground="#22D3EE" VerticalAlignment="Bottom" Margin="8,0,0,8"/>
-                    </StackPanel>
+            <!-- 2. Custom Local Video / Image Loop Layer -->
+            <MediaElement x:Name="ZenCustomVideoPlayer" Panel.ZIndex="2" LoadedBehavior="Manual" UnloadedBehavior="Stop" Stretch="UniformToFill" Visibility="Collapsed" MediaEnded="ZenCustomVideoPlayer_MediaEnded" MediaFailed="ZenCustomVideoPlayer_MediaFailed"/>
+            <Image x:Name="ZenCustomImageView" Panel.ZIndex="2" Stretch="UniformToFill" Visibility="Collapsed"/>
 
-                    <!-- Divider line -->
-                    <Border Height="1" Background="#25FFFFFF" Margin="0,4,0,8"/>
-
-                    <!-- Live Focus Timer Readout -->
-                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,0,0,6">
-                        <TextBlock Text="⏱️" FontSize="12" Margin="0,0,6,0" VerticalAlignment="Center"/>
-                        <TextBlock x:Name="TxtZenTimerDisplay" Text="Focus Timer • 25:00" FontWeight="Bold" FontSize="12" Foreground="#F4F6FF" VerticalAlignment="Center"/>
-                    </StackPanel>
-
-                    <!-- Active Scene Badge -->
-                    <Border Background="#44000000" BorderBrush="#25FFFFFF" BorderThickness="1" CornerRadius="12" Padding="10,4" HorizontalAlignment="Center">
-                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                            <Ellipse Width="7" Height="7" Fill="#10B981" Margin="0,0,6,0" VerticalAlignment="Center"/>
-                            <TextBlock x:Name="TxtZenSceneLabel" Text="Northern Lights • North Pole &amp; Ice Mountains" FontSize="11" FontWeight="Bold" Foreground="#10B981" VerticalAlignment="Center"/>
-                        </StackPanel>
-                    </Border>
-                </StackPanel>
+            <!-- 3. Subtle Atmospheric Vignette -->
+            <Border Panel.ZIndex="3" IsHitTestVisible="False">
+                <Border.Background>
+                    <RadialGradientBrush Center="0.5,0.5" GradientOrigin="0.5,0.5" RadiusX="0.72" RadiusY="0.72">
+                        <GradientStop Color="#00040610" Offset="0.48"/>
+                        <GradientStop Color="#8C040610" Offset="1.0"/>
+                    </RadialGradientBrush>
+                </Border.Background>
             </Border>
 
-            <!-- Top-Right Zen Floating Action Controls Bar -->
-            <StackPanel HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,24,24,0" Orientation="Horizontal">
-                <!-- Scene Dropdown with all 19 Zen Scenes -->
-                <ComboBox x:Name="CmbZenScene" Width="210" Height="36" Margin="0,0,10,0" Background="#11152C" Foreground="#F4F6FF">
-                    <ComboBoxItem Tag="north_pole" Content="🌌 Northern Lights"/>
-                    <ComboBoxItem Tag="far_space" Content="🚀 Far Space"/>
-                    <ComboBoxItem Tag="solar_system" Content="☀️ Solar System"/>
-                    <ComboBoxItem Tag="moon_night" Content="🌙 Moon Night"/>
-                    <ComboBoxItem Tag="cyber_city" Content="🌆 Cyber City"/>
-                    <ComboBoxItem Tag="nuclear_wasteland" Content="☢️ Nuclear Wasteland"/>
-                    <ComboBoxItem Tag="wasteland" Content="💨 Wasteland"/>
-                    <ComboBoxItem Tag="city_wasteland" Content="🏙️ City Wasteland"/>
-                    <ComboBoxItem Tag="desert" Content="🏜️ Desert Dunes"/>
-                    <ComboBoxItem Tag="lake_forest" Content="🌲 Lake Forest"/>
-                    <ComboBoxItem Tag="shipwreck" Content="⚓ Shipwreck Cove"/>
-                    <ComboBoxItem Tag="ocean_life" Content="🐠 Ocean Life"/>
-                    <ComboBoxItem Tag="snowy_peaks" Content="❄️ Snowy Mountain Tops"/>
-                    <ComboBoxItem Tag="city_skyline" Content="🌃 City Skyline"/>
-                    <ComboBoxItem Tag="city_shoreline" Content="🌉 City Shoreline"/>
-                    <ComboBoxItem Tag="sunset" Content="🌅 Sunset"/>
-                    <ComboBoxItem Tag="rainy_forest" Content="🌧️ Rainy Forest"/>
-                    <ComboBoxItem Tag="custom" Content="🎬 Custom Video"/>
-                    <ComboBoxItem Tag="none" Content="🚫 None (Minimalist)"/>
-                </ComboBox>
+            <!-- 4. Top Center Zen HUD Capsule (Digital or Analog Clock, Timer Readout & Separate Scene Pill) -->
+            <StackPanel x:Name="ZenCenterOverlay" Panel.ZIndex="10" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,34,0,0">
+                <!-- Clock & Focus Timer Card -->
+                <Border x:Name="ZenTopHud" HorizontalAlignment="Center" Background="#66000000" BorderBrush="#26FFFFFF" BorderThickness="1" CornerRadius="24" Padding="32,16" Margin="0,0,0,12">
+                    <Border.Effect>
+                        <DropShadowEffect Color="#000000" BlurRadius="32" ShadowDepth="8" Opacity="0.45"/>
+                    </Border.Effect>
+                    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <!-- Digital Clock Display -->
+                        <StackPanel x:Name="ZenDigitalClockWrap" Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <TextBlock x:Name="TxtZenClockTime" Text="08:15" FontSize="54" FontWeight="Black" FontFamily="Consolas, Courier New" Foreground="White" VerticalAlignment="Bottom"/>
+                            <TextBlock x:Name="TxtZenClockAmPm" Text="PM" FontSize="17" FontWeight="Black" FontFamily="Consolas, Courier New" Foreground="#38BDF8" VerticalAlignment="Bottom" Margin="8,0,0,8"/>
+                        </StackPanel>
+
+                        <!-- Analog Clock Display (Shown when ClockStyle == "analog") -->
+                        <StackPanel x:Name="ZenAnalogClockWrap" Visibility="Collapsed" HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <Viewbox Width="126" Height="126">
+                                <Canvas Width="120" Height="120">
+                                    <Ellipse Width="108" Height="108" Canvas.Left="6" Canvas.Top="6" Fill="#880F172A" Stroke="#38FFFFFF" StrokeThickness="3"/>
+                                    <!-- 12 Hour Markers -->
+                                    <Line X1="60" Y1="10" X2="60" Y2="16" Stroke="#8CFFFFFF" StrokeThickness="2.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
+                                    <Line X1="85" Y1="16.7" X2="82" Y2="21.9" Stroke="#8CFFFFFF" StrokeThickness="1.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
+                                    <Line X1="103.3" Y1="35" X2="98.1" Y2="38" Stroke="#8CFFFFFF" StrokeThickness="1.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
+                                    <Line X1="110" Y1="60" X2="104" Y2="60" Stroke="#8CFFFFFF" StrokeThickness="2.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
+                                    <Line X1="103.3" Y1="85" X2="98.1" Y2="82" Stroke="#8CFFFFFF" StrokeThickness="1.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
+                                    <Line X1="85" Y1="103.3" X2="82" Y2="98.1" Stroke="#8CFFFFFF" StrokeThickness="1.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
+                                    <Line X1="60" Y1="110" X2="60" Y2="104" Stroke="#8CFFFFFF" StrokeThickness="2.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
+                                    <Line X1="35" Y1="103.3" X2="38" Y2="98.1" Stroke="#8CFFFFFF" StrokeThickness="1.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
+                                    <Line X1="16.7" Y1="85" X2="21.9" Y2="82" Stroke="#8CFFFFFF" StrokeThickness="1.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
+                                    <Line X1="10" Y1="60" X2="16" Y2="60" Stroke="#8CFFFFFF" StrokeThickness="2.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
+                                    <Line X1="16.7" Y1="35" X2="21.9" Y2="38" Stroke="#8CFFFFFF" StrokeThickness="1.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
+                                    <Line X1="35" Y1="16.7" X2="38" Y2="21.9" Stroke="#8CFFFFFF" StrokeThickness="1.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
+                                    <!-- Hour Hand -->
+                                    <Line X1="60" Y1="60" X2="60" Y2="32" Stroke="#FFFFFF" StrokeThickness="4" StrokeStartLineCap="Round" StrokeEndLineCap="Round">
+                                        <Line.RenderTransform>
+                                            <RotateTransform x:Name="ZenAnalogHourRotate" Angle="0" CenterX="60" CenterY="60"/>
+                                        </Line.RenderTransform>
+                                    </Line>
+                                    <!-- Minute Hand -->
+                                    <Line X1="60" Y1="60" X2="60" Y2="20" Stroke="#38BDF8" StrokeThickness="3" StrokeStartLineCap="Round" StrokeEndLineCap="Round">
+                                        <Line.RenderTransform>
+                                            <RotateTransform x:Name="ZenAnalogMinuteRotate" Angle="0" CenterX="60" CenterY="60"/>
+                                        </Line.RenderTransform>
+                                    </Line>
+                                    <!-- Second Hand -->
+                                    <Line X1="60" Y1="66" X2="60" Y2="16" Stroke="#F472B6" StrokeThickness="1.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round">
+                                        <Line.RenderTransform>
+                                            <RotateTransform x:Name="ZenAnalogSecondRotate" Angle="0" CenterX="60" CenterY="60"/>
+                                        </Line.RenderTransform>
+                                    </Line>
+                                    <Ellipse Width="8" Height="8" Canvas.Left="56" Canvas.Top="56" Fill="#F472B6"/>
+                                </Canvas>
+                            </Viewbox>
+                            <TextBlock x:Name="TxtZenAnalogSubText" Text="08:15 PM" FontFamily="Consolas, Courier New" FontSize="12" FontWeight="Bold" Foreground="#BAE6FD" HorizontalAlignment="Center" Margin="0,4,0,0"/>
+                        </StackPanel>
+
+                        <!-- Divider line -->
+                        <Border Height="1" Background="#1FFFFFFF" MinWidth="210" Margin="0,10,0,8"/>
+
+                        <!-- Live Focus Timer Readout -->
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <Viewbox Width="13" Height="13" Margin="0,0,7,0" VerticalAlignment="Center">
+                                <Canvas Width="24" Height="24">
+                                    <Path Data="M 10,2 L 14,2" Stroke="#FB7185" StrokeThickness="2.2" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
+                                    <Path Data="M 12,2 L 12,5" Stroke="#FB7185" StrokeThickness="2.0" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
+                                    <Ellipse Width="15" Height="15" Canvas.Left="4.5" Canvas.Top="5.5" Fill="#FB7185"/>
+                                    <Path Data="M 12,13 L 15,9.5" Stroke="White" StrokeThickness="2.0" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
+                                </Canvas>
+                            </Viewbox>
+                            <TextBlock x:Name="TxtZenTimerDisplay" Text="Focus Timer • 25:00" FontFamily="Consolas, Courier New" FontWeight="Bold" FontSize="12" Foreground="#E2E8F0" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <!-- Custom Video Folder Prompt (Shown only when 'Custom Video' is active with no videos found) -->
+                <Border x:Name="ZenCustomPromptBox" Visibility="Collapsed" HorizontalAlignment="Center" Margin="0,0,0,12" Background="#8C000000" BorderBrush="#55F59E0B" BorderThickness="1" CornerRadius="16" Padding="16,8">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <Path Data="M 2,6 A 2,2 0 0,1 4,4 L 9,4 L 11,6 L 20,6 A 2,2 0 0,1 22,8 L 22,18 A 2,2 0 0,1 20,20 L 4,20 A 2,2 0 0,1 2,18 Z" Fill="#FBBF24" Width="14" Height="14" Stretch="Uniform" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                        <TextBlock Text="No custom videos found in folder." FontSize="12" FontWeight="SemiBold" Foreground="White" VerticalAlignment="Center"/>
+                        <Button Click="BtnBrowseZenVideoFolder_Click" Style="{StaticResource BrandButtonStyle}" Padding="12,6" Margin="12,0,0,0">
+                            <TextBlock Text="Select Video Folder" FontSize="11.5" FontWeight="Bold"/>
+                        </Button>
+                    </StackPanel>
+                </Border>
+
+                <!-- Active Scene Pill Badge Below Card -->
+                <Border HorizontalAlignment="Center" Background="#73000000" BorderBrush="#26FFFFFF" BorderThickness="1" CornerRadius="16" Padding="16,6">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <Ellipse Width="7" Height="7" Fill="#34D399" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                        <TextBlock x:Name="TxtZenSceneLabel" Text="Northern Lights • North Pole &amp; Ice Mountains" FontSize="11.5" FontWeight="SemiBold" Foreground="#E2E8F0" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+
+            <!-- 5. Top-Right Zen Floating Action Controls Bar -->
+            <StackPanel x:Name="ZenTopBar" Panel.ZIndex="15" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,18,18,0" Orientation="Horizontal">
+                <!-- Previous / Next / Pick Folder for Custom Video mode -->
+                <Button x:Name="BtnZenPrevVideo" Visibility="Collapsed" Click="BtnZenPrevVideo_Click" Width="36" Height="36" Margin="0,0,8,0" Cursor="Hand" ToolTip="Previous Custom Video">
+                    <Button.Template>
+                        <ControlTemplate TargetType="Button">
+                            <Border x:Name="bd" Background="#D9111827" BorderBrush="#26FFFFFF" BorderThickness="1" CornerRadius="11">
+                                <Path Data="M 6,5 L 6,19 M 18,5 L 8,12 L 18,19 Z" Fill="White" Width="11" Height="11" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="bd" Property="Background" Value="#E61F2937"/>
+                                    <Setter TargetName="bd" Property="BorderBrush" Value="#55FFFFFF"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Button.Template>
+                </Button>
+
+                <Button x:Name="BtnZenNextVideo" Visibility="Collapsed" Click="BtnZenNextVideo_Click" Width="36" Height="36" Margin="0,0,8,0" Cursor="Hand" ToolTip="Next Custom Video">
+                    <Button.Template>
+                        <ControlTemplate TargetType="Button">
+                            <Border x:Name="bd" Background="#D9111827" BorderBrush="#26FFFFFF" BorderThickness="1" CornerRadius="11">
+                                <Path Data="M 18,5 L 18,19 M 6,5 L 16,12 L 6,19 Z" Fill="White" Width="11" Height="11" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="bd" Property="Background" Value="#E61F2937"/>
+                                    <Setter TargetName="bd" Property="BorderBrush" Value="#55FFFFFF"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Button.Template>
+                </Button>
+
+                <Button x:Name="BtnZenPickVideoFolder" Visibility="Collapsed" Click="BtnBrowseZenVideoFolder_Click" Width="36" Height="36" Margin="0,0,8,0" Cursor="Hand" ToolTip="Choose Local Video Folder">
+                    <Button.Template>
+                        <ControlTemplate TargetType="Button">
+                            <Border x:Name="bd" Background="#D9111827" BorderBrush="#26FFFFFF" BorderThickness="1" CornerRadius="11">
+                                <Path Data="M 2,6 A 2,2 0 0,1 4,4 L 9,4 L 11,6 L 20,6 A 2,2 0 0,1 22,8 L 22,18 A 2,2 0 0,1 20,20 L 4,20 A 2,2 0 0,1 2,18 Z" Fill="#FBBF24" Width="13" Height="13" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="bd" Property="Background" Value="#E61F2937"/>
+                                    <Setter TargetName="bd" Property="BorderBrush" Value="#55FFFFFF"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Button.Template>
+                </Button>
+
+                <!-- Custom Frosted Dark Zen Scene Dropdown Pill Button -->
+                <Button x:Name="BtnZenSceneDropdown" Click="BtnZenSceneDropdown_Click" Height="36" Margin="0,0,10,0" Cursor="Hand" ToolTip="Choose Zen Mode Environment">
+                    <Button.Template>
+                        <ControlTemplate TargetType="Button">
+                            <Border x:Name="bd" Background="#D9111827" BorderBrush="#26FFFFFF" BorderThickness="1" CornerRadius="11" Padding="13,0">
+                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="bd" Property="Background" Value="#E81F2937"/>
+                                    <Setter TargetName="bd" Property="BorderBrush" Value="#48FFFFFF"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Button.Template>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <Path x:Name="ZenDropdownBtnIconPath" Data="M 2,19 L 8.5,8 L 13,14 L 16.5,9.5 L 22,19 Z M 19,3.5 L 19.7,5.3 L 21.5,6 L 19.7,6.7 L 19,8.5 L 18.3,6.7 L 16.5,6 L 18.3,5.3 Z" Fill="#FBBF24" Width="13" Height="13" Stretch="Uniform" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                        <TextBlock x:Name="TxtZenDropdownName" Text="Northern Lights" FontSize="12" FontWeight="Bold" Foreground="#FCD34D" VerticalAlignment="Center"/>
+                        <Path x:Name="ZenDropdownChevron" Data="M 1,2 L 5,6 L 9,2" Stroke="#B8FFFFFF" StrokeThickness="1.7" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Width="9" Height="6" Stretch="Uniform" Margin="8,1,0,0" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Button>
 
                 <!-- Show Study View Toggle -->
-                <Button x:Name="BtnZenToggleStudyView" Click="BtnZenToggleStudyView_Click" Style="{StaticResource SecondaryButtonStyle}" Margin="0,0,10,0" Padding="14,8">
-                    <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="📖 " FontSize="12"/>
-                        <TextBlock x:Name="TxtZenStudyViewBtn" Text="Show Study View" FontSize="12" FontWeight="Bold" Foreground="#22D3EE"/>
+                <Button x:Name="BtnZenToggleStudyView" Click="BtnZenToggleStudyView_Click" Height="36" Margin="0,0,10,0" Cursor="Hand" ToolTip="Show/Hide Study Material Over Backdrop">
+                    <Button.Template>
+                        <ControlTemplate TargetType="Button">
+                            <Border x:Name="bd" Background="#CC111827" BorderBrush="#26FFFFFF" BorderThickness="1" CornerRadius="11" Padding="13,0">
+                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="bd" Property="Background" Value="#E61F2937"/>
+                                    <Setter TargetName="bd" Property="BorderBrush" Value="#48FFFFFF"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Button.Template>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <Path Data="M 4,4 C 7,4 10,5 12,6.5 C 14,5 17,4 20,4 L 21,4 L 21,18 L 20,18 C 17,18 14,19 12,20.5 C 10,19 7,18 4,18 L 3,18 L 3,4 Z" Fill="#67E8F9" Width="13" Height="13" Stretch="Uniform" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                        <TextBlock x:Name="TxtZenStudyViewBtn" Text="Show Study View" FontSize="12" FontWeight="Bold" Foreground="#67E8F9" VerticalAlignment="Center"/>
                     </StackPanel>
                 </Button>
 
                 <!-- Sound Mixer Button -->
-                <Button Click="BtnZenToggleMixer_Click" Style="{StaticResource BrandButtonStyle}" Margin="0,0,10,0" Padding="14,8">
-                    <TextBlock Text="🎚️ Sound Mixer" FontSize="12" FontWeight="Bold"/>
+                <Button Click="BtnZenToggleMixer_Click" Height="36" Margin="0,0,10,0" Cursor="Hand" ToolTip="Ambient Sound Studio &amp; Mixer (Ctrl+M)">
+                    <Button.Template>
+                        <ControlTemplate TargetType="Button">
+                            <Border x:Name="bd" Background="#7C3AED" BorderBrush="#33FFFFFF" BorderThickness="1" CornerRadius="11" Padding="14,0">
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <Path Data="M 3,6 L 21,6 M 3,12 L 21,12 M 3,18 L 21,18 M 7,3.5 L 7,8.5 M 15,9.5 L 15,14.5 M 10,15.5 L 10,20.5" Stroke="White" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Width="13" Height="13" Stretch="Uniform" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                    <TextBlock Text="Sound Mixer" FontSize="12" FontWeight="Bold" Foreground="White" VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="bd" Property="Background" Value="#8B5CF6"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Button.Template>
                 </Button>
 
                 <!-- Exit Zen Button -->
-                <Button Click="BtnExitZen_Click" Style="{StaticResource DangerButtonStyle}">
-                    <TextBlock Text="✕ Exit Zen"/>
+                <Button Click="BtnExitZen_Click" Height="36" Cursor="Hand" ToolTip="Exit Zen Study Mode (Esc / F10)">
+                    <Button.Template>
+                        <ControlTemplate TargetType="Button">
+                            <Border x:Name="bd" Background="#D9111827" BorderBrush="#26FFFFFF" BorderThickness="1" CornerRadius="11" Padding="14,0">
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <Path Data="M 4,9 L 9,9 L 9,4 M 20,9 L 15,9 L 15,4 M 4,15 L 9,15 L 9,20 M 20,15 L 15,15 L 15,20" Stroke="White" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Width="12" Height="12" Stretch="Uniform" Margin="0,0,8,0" VerticalAlignment="Center"/>
+                                    <TextBlock Text="Exit Zen" FontSize="12" FontWeight="Bold" Foreground="White" VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="bd" Property="Background" Value="#E11D48"/>
+                                    <Setter TargetName="bd" Property="BorderBrush" Value="#55FFFFFF"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Button.Template>
                 </Button>
             </StackPanel>
 
-            <!-- Optional Study View Translucent Card inside Zen Mode -->
-            <Border x:Name="ZenStudyOverlayCard" Visibility="Collapsed" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Margin="32,110,32,32" Background="#DD0E1225" BorderBrush="#33FFFFFF" BorderThickness="1" CornerRadius="24" Padding="24">
+            <!-- 6. Custom Dark Frosted Zen Scene Dropdown Popover Overlay -->
+            <Grid x:Name="ZenSceneDropdownOverlay" Panel.ZIndex="20" Visibility="Collapsed">
+                <Border Background="#01000000" MouseDown="ZenSceneDropdownBackdrop_MouseDown"/>
+                <Border x:Name="BdZenSceneDropdownMenu" Width="282" MaxHeight="400" HorizontalAlignment="Left" VerticalAlignment="Top" Background="#F20F172A" BorderBrush="#2EFFFFFF" BorderThickness="1" CornerRadius="16" Padding="8">
+                    <Border.Effect>
+                        <DropShadowEffect Color="#000000" BlurRadius="36" ShadowDepth="10" Opacity="0.65"/>
+                    </Border.Effect>
+                    <ScrollViewer x:Name="ZenDropdownScrollViewer" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="0,0,2,0">
+                        <StackPanel x:Name="SpZenDropdownItems"/>
+                    </ScrollViewer>
+                </Border>
+            </Grid>
+
+            <!-- 7. Optional Study View Translucent Card inside Zen Mode -->
+            <Border x:Name="ZenStudyOverlayCard" Panel.ZIndex="30" Visibility="Collapsed" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Margin="32,128,32,32" Background="#DD0E1225" BorderBrush="#33FFFFFF" BorderThickness="1" CornerRadius="24" Padding="24">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
@@ -2425,7 +2609,7 @@
         </Grid>
 
         <!-- Toast Notification Popup -->
-        <Border x:Name="ToastBorder" Grid.Row="0" Grid.RowSpan="2" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,20,0,0" Background="{DynamicResource NavBgBrush}" BorderBrush="#7C5CFF" BorderThickness="1.5" CornerRadius="12" Padding="16,10" Panel.ZIndex="400" Visibility="Collapsed">
+        <Border x:Name="ToastBorder" Grid.Row="0" Grid.RowSpan="2" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,28" Background="{DynamicResource NavBgBrush}" BorderBrush="#7C5CFF" BorderThickness="1.5" CornerRadius="12" Padding="16,10" Panel.ZIndex="400" Visibility="Collapsed">
             <TextBlock x:Name="TxtToastMessage" Text="Action saved! ✅" FontWeight="Bold" FontSize="13" Foreground="{DynamicResource PrimaryTextBrush}"/>
         </Border>
     </Grid>

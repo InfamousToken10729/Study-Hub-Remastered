@@ -56,10 +56,13 @@ namespace StudyHub
         private bool _isFullscreen = false;
         private bool _is24HourClock = false;
         private bool _isDarkMode = true;
-        private readonly List<UIElement> _zenParticles = new();
-        private readonly List<double> _zenSpeeds = new();
         private string _currentZenScene = "north_pole";
-        private bool _isApplyingZenScene = false;
+        private readonly Stopwatch _zenFrameStopwatch = new();
+        private readonly List<string> _zenCustomVideos = new();
+        private int _zenCurrentVideoIdx = 0;
+        private int _lastClockSecond = -1;
+        private bool _lastClockWas24 = false;
+        private string _lastClockStyle = "";
         private readonly Random _rand = new();
 
         // Global Ambient Particle Engine State
@@ -110,18 +113,18 @@ namespace StudyHub
                 MainWhiteboardCanvas.DefaultDrawingAttributes.Color = Color.FromRgb(124, 92, 255);
             }
 
-            // Real-time Top Bar Clock Timer
-            _clockTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+            // Real-time Top Bar Clock Timer (250ms cadence with change-detection prevents second skips and Zen HUD flicker)
+            _clockTimer = new DispatcherTimer(DispatcherPriority.Normal) { Interval = TimeSpan.FromMilliseconds(250) };
             _clockTimer.Tick += (s, e) => UpdateLiveClock();
             _clockTimer.Start();
-            UpdateLiveClock();
+            UpdateLiveClock(force: true);
 
             // Focus Pomodoro Timer
             _pomoTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
             _pomoTimer.Tick += PomoTimer_Tick;
 
-            // Zen Ambient Animation Timer
-            _zenStarTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(45) };
+            // Zen Ambient Scene Animation Timer (~30 FPS default, or ~15 FPS when Performance Throttle is enabled)
+            _zenStarTimer = new DispatcherTimer(DispatcherPriority.Render) { Interval = TimeSpan.FromMilliseconds(33) };
             _zenStarTimer.Tick += ZenStarTimer_Tick;
 
             // Global Workspace Ambient Particle Engine Timer
@@ -156,7 +159,7 @@ namespace StudyHub
 
                 ChkSettingsAutoCheckOnLaunch.IsChecked = _state.Settings?.AutoCheckUpdates ?? true;
                 _is24HourClock = string.Equals(_state.Settings?.TimeFormat, "24h", StringComparison.OrdinalIgnoreCase);
-                UpdateLiveClock();
+                UpdateLiveClock(force: true);
 
                 // Normalize surface theme vs dark/light toggle
                 bool startInDark = !string.Equals(_state.Theme, "light", StringComparison.OrdinalIgnoreCase);
@@ -192,11 +195,9 @@ namespace StudyHub
 
                 // Initialize Particle Effects & Zen Scenes (Surface theme already applied via ApplyTheme)
                 ApplyParticleEffect(_state.Settings?.ParticleEffect ?? "network", skipToast: true, saveToDisk: false);
+                RefreshZenCustomVideos();
                 ApplyZenScene(_state.Settings?.ZenScene ?? "north_pole", saveToDisk: false);
-                if (CmbZenScene != null)
-                {
-                    CmbZenScene.SelectionChanged += CmbZenScene_SelectionChanged;
-                }
+                UpdateZenClockAndHud(force: true);
                 RenderControlCenterThemesAndEffects();
                 UpdateControlCenterUiState();
 
@@ -222,16 +223,35 @@ namespace StudyHub
 
         // ================= CLOCK & POMODORO =================
 
-        private void UpdateLiveClock()
+        private void UpdateLiveClock(bool force = false)
         {
             var now = DateTime.Now;
-            string timeStr = _is24HourClock ? now.ToString("HH:mm:ss") : now.ToString("hh:mm:ss tt");
+            string clockStyle = _state?.Settings?.ClockStyle ?? "digital";
+            if (!force &&
+                now.Second == _lastClockSecond &&
+                _is24HourClock == _lastClockWas24 &&
+                string.Equals(clockStyle, _lastClockStyle, StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            _lastClockSecond = now.Second;
+            _lastClockWas24 = _is24HourClock;
+            _lastClockStyle = clockStyle;
+
+            string ampm = now.Hour >= 12 ? "PM" : "AM";
+            string timeStr = _is24HourClock ? now.ToString("HH:mm:ss") : $"{now:hh:mm:ss} {ampm}";
             string dateStr = now.ToString("ddd, MMM d");
-            if (TxtNavClockTime != null) TxtNavClockTime.Text = timeStr;
-            if (TxtNavClockDate != null) TxtNavClockDate.Text = dateStr;
-            if (TxtPdfClockTime != null) TxtPdfClockTime.Text = timeStr;
-            if (TxtPdfClockDate != null) TxtPdfClockDate.Text = dateStr;
-            if (TxtZenClockTime != null) TxtZenClockTime.Text = _is24HourClock ? now.ToString("HH:mm") : now.ToString("hh:mm tt");
+            if (TxtNavClockTime != null && !string.Equals(TxtNavClockTime.Text, timeStr, StringComparison.Ordinal))
+                TxtNavClockTime.Text = timeStr;
+            if (TxtNavClockDate != null && !string.Equals(TxtNavClockDate.Text, dateStr, StringComparison.Ordinal))
+                TxtNavClockDate.Text = dateStr;
+            if (TxtPdfClockTime != null && !string.Equals(TxtPdfClockTime.Text, timeStr, StringComparison.Ordinal))
+                TxtPdfClockTime.Text = timeStr;
+            if (TxtPdfClockDate != null && !string.Equals(TxtPdfClockDate.Text, dateStr, StringComparison.Ordinal))
+                TxtPdfClockDate.Text = dateStr;
+
+            UpdateZenClockAndHud(now, force);
 
             // Update Dynamic Greeting Badge in Welcome Banner
             int h = now.Hour;
@@ -272,13 +292,20 @@ namespace StudyHub
                 TxtGreetingIcon.Text = icon;
                 TxtGreetingIcon.Visibility = useSunVector ? Visibility.Collapsed : Visibility.Visible;
             }
-            if (TxtGreetingBadge != null) TxtGreetingBadge.Text = greeting;
+            if (TxtGreetingBadge != null && !string.Equals(TxtGreetingBadge.Text, greeting, StringComparison.Ordinal))
+                TxtGreetingBadge.Text = greeting;
         }
 
         private void NavClockBorder_MouseDown(object sender, MouseButtonEventArgs e)
         {
             _is24HourClock = !_is24HourClock;
-            UpdateLiveClock();
+            if (_state?.Settings != null)
+            {
+                _state.Settings.TimeFormat = _is24HourClock ? "24h" : "12h";
+                SaveState(countActivity: false);
+                UpdateControlCenterUiState();
+            }
+            UpdateLiveClock(force: true);
             ShowToast(_is24HourClock ? "24-hour time format enabled 🕒" : "12-hour time format enabled 🕒");
         }
 
@@ -330,7 +357,7 @@ namespace StudyHub
             if (TxtAnalogSubReadout != null) TxtAnalogSubReadout.Text = formatted;
             if (TxtDropdownTimerDisplay != null) TxtDropdownTimerDisplay.Text = formatted;
             if (TxtPdfTimerDisplay != null) TxtPdfTimerDisplay.Text = formatted;
-            if (TxtZenTimerDisplay != null) TxtZenTimerDisplay.Text = $"⏱️ {formatted}";
+            UpdateZenTimerReadout();
 
             var dotBrush = _isPomoRunning
                 ? new SolidColorBrush(Color.FromRgb(16, 185, 129))
@@ -3148,7 +3175,7 @@ namespace StudyHub
                         Text = $"{(int)channel.Volume}%",
                         FontSize = 12,
                         FontWeight = FontWeights.Bold,
-                        FontFamily = new FontFamily("Consolas, monospace"),
+                        FontFamily = new FontFamily("Consolas, Courier New"),
                         Foreground = isChannelActive
                             ? (_isDarkMode ? new SolidColorBrush(Color.FromRgb(167, 139, 250)) : new SolidColorBrush(Color.FromRgb(124, 58, 237)))
                             : (_isDarkMode ? new SolidColorBrush(Color.FromRgb(138, 149, 183)) : new SolidColorBrush(Color.FromRgb(100, 116, 139))),
@@ -3358,22 +3385,34 @@ namespace StudyHub
             bool isZen = ZenModeOverlayGrid.Visibility == Visibility.Visible;
             if (isZen)
             {
+                CloseZenSceneDropdown();
+                _zenStarTimer.Stop();
+                StopZenCustomMedia();
                 ZenModeOverlayGrid.Visibility = Visibility.Collapsed;
                 ZenStudyOverlayCard.Visibility = Visibility.Collapsed;
                 TxtZenStudyViewBtn.Text = "Show Study View";
                 HomeViewScrollViewer.Visibility = (_currentSubject == null) ? Visibility.Visible : Visibility.Collapsed;
                 SubjectDetailGrid.Visibility = (_currentSubject != null) ? Visibility.Visible : Visibility.Collapsed;
-                _zenStarTimer.Stop();
+
+                if (!string.Equals(_currentParticleEffect, "disable", StringComparison.OrdinalIgnoreCase))
+                {
+                    _globalParticleTimer.Start();
+                }
             }
             else
             {
+                _globalParticleTimer.Stop();
                 HomeViewScrollViewer.Visibility = Visibility.Collapsed;
                 SubjectDetailGrid.Visibility = Visibility.Collapsed;
                 ZenModeOverlayGrid.Visibility = Visibility.Visible;
                 ZenModeOverlayGrid.Focus();
 
-                UpdateZenClockAndHud();
-                InitActiveZenScene();
+                UpdateZenClockAndHud(force: true);
+                ApplyZenBackdropSource();
+
+                int intervalMs = (_state?.Settings?.PerfThrottle == true) ? 66 : 33;
+                _zenStarTimer.Interval = TimeSpan.FromMilliseconds(intervalMs);
+                _zenFrameStopwatch.Restart();
                 _zenStarTimer.Start();
                 ShowToast("Zen Study Mode active. Press Esc or F10 to exit 🧘");
             }
@@ -3438,6 +3477,30 @@ namespace StudyHub
             new("none", "None", "Static Focus Backdrop", "#334155,#0F172A", "🚫")
         };
 
+        private static string GetZenSceneIconPathData(string sceneId) => sceneId switch
+        {
+            "north_pole" => "M 2,19 L 8.5,8 L 13,14 L 16.5,9.5 L 22,19 Z M 19,3.5 L 19.8,5.2 L 21.5,6 L 19.8,6.8 L 19,8.5 L 18.2,6.8 L 16.5,6 L 18.2,5.2 Z",
+            "far_space" => "M 12,2.5 C 15,5 16,8.5 16,13 L 19,16.5 L 15.5,17.5 L 14,15.5 L 10,15.5 L 8.5,17.5 L 5,16.5 L 8,13 C 8,8.5 9,5 12,2.5 Z M 12,17 L 14,20.5 L 12,22 L 10,20.5 Z",
+            "solar_system" => "M 12,7.5 A 4.5,4.5 0 1,1 11.99,7.5 Z M 11,1.5 L 13,1.5 L 13,4.8 L 11,4.8 Z M 11,19.2 L 13,19.2 L 13,22.5 L 11,22.5 Z M 1.5,11 L 4.8,11 L 4.8,13 L 1.5,13 Z M 19.2,11 L 22.5,11 L 22.5,13 L 19.2,13 Z M 4.2,5.6 L 5.6,4.2 L 7.9,6.5 L 6.5,7.9 Z M 16.1,17.5 L 17.5,16.1 L 19.8,18.4 L 18.4,19.8 Z M 4.2,18.4 L 6.5,16.1 L 7.9,17.5 L 5.6,19.8 Z M 16.1,6.5 L 18.4,4.2 L 19.8,5.6 L 17.5,7.9 Z",
+            "moon_night" => "M 13.5,3 A 9,9 0 1,0 20.5,16.5 A 6.5,6.5 0 0,1 13.5,3 Z M 18,4 L 18.6,5.4 L 20,6 L 18.6,6.6 L 18,8 L 17.4,6.6 L 16,6 L 17.4,5.4 Z",
+            "cyber_city" => "M 3,20 L 3,9 L 6,9 L 6,6 L 9,6 L 9,20 Z M 10.5,20 L 10.5,3 L 14.5,3 L 14.5,20 Z M 16,20 L 16,10.5 L 21,10.5 L 21,20 Z",
+            "nuclear_wasteland" => "M 12,9.8 A 2.2,2.2 0 1,1 11.99,9.8 Z M 10.1,8.7 L 7,3.3 A 10,10 0 0,1 17,3.3 L 13.9,8.7 A 3.8,3.8 0 0,0 10.1,8.7 Z M 15.8,12 L 22,12 A 10,10 0 0,1 17,20.7 L 13.9,15.3 A 3.8,3.8 0 0,0 15.8,12 Z M 10.1,15.3 L 7,20.7 A 10,10 0 0,1 2,12 L 8.2,12 A 3.8,3.8 0 0,0 10.1,15.3 Z",
+            "wasteland" => "M 3,6.5 L 14,6.5 A 2,2 0 1,0 14,2.5 L 14,4.2 A 0.4,0.4 0 1,1 14,5 L 3,5 Z M 2,12 L 19,12 A 2.4,2.4 0 1,0 19,7.2 L 19,9.2 A 0.4,0.4 0 1,1 19,10 L 2,10 Z M 4,15 L 14.5,15 A 2.4,2.4 0 1,1 14.5,19.8 L 14.5,17.8 A 0.4,0.4 0 1,0 14.5,17 L 4,17 Z",
+            "city_wasteland" => "M 4,20 L 4,10 L 7,12 L 9,7 L 12,11 L 12,20 Z M 13.5,20 L 13.5,4 L 17,6 L 20,4.5 L 20,20 Z",
+            "desert" => "M 7.5,12 A 4.5,4.5 0 0,1 16.5,12 Z M 2,18.5 Q 8,12.5 14,16.5 Q 18,14 22,18.5 L 22,20.5 L 2,20.5 Z",
+            "lake_forest" => "M 8.5,3 L 3,12 L 6,12 L 2.5,18 L 7.5,18 L 7.5,21 L 9.5,21 L 9.5,18 L 14.5,18 L 11,12 L 14,12 Z M 16.5,7 L 12.5,14 L 14.8,14 L 12,19 L 15.8,19 L 15.8,21 L 17.2,21 L 17.2,19 L 21,19 L 18.2,14 L 20.5,14 Z",
+            "shipwreck" => "M 12,3 A 2,2 0 1,1 11.99,3 Z M 11,6 L 13,6 L 13,8 L 16,8 L 16,10 L 13,10 L 13,17.5 C 16,17 18.5,14.5 18.5,12 L 16.5,12 L 19.5,8.5 L 22,12 L 20.3,12 C 20,16.8 16.5,20.5 12,21 C 7.5,20.5 4,16.8 3.7,12 L 2,12 L 4.5,8.5 L 7.5,12 L 5.5,12 C 5.5,14.5 8,17 11,17.5 L 11,10 L 8,10 L 8,8 L 11,8 Z",
+            "ocean_life" => "M 2.5,8 L 7,12 L 2.5,16 Z M 6.5,12 C 9.5,6 17,6.5 21.5,12 C 17,17.5 9.5,18 6.5,12 Z",
+            "snowy_peaks" => "M 11,2 L 13,2 L 13,10.2 L 19.8,6.2 L 20.8,8 L 14,12 L 20.8,16 L 19.8,17.8 L 13,13.8 L 13,22 L 11,22 L 11,13.8 L 4.2,17.8 L 3.2,16 L 10,12 L 3.2,8 L 4.2,6.2 L 11,10.2 Z",
+            "city_skyline" => "M 3,20 L 3,10 L 8,10 L 8,20 Z M 9.5,20 L 9.5,6 L 11.5,6 L 11.5,3 L 12.5,3 L 12.5,6 L 14.5,6 L 14.5,20 Z M 16,20 L 16,8.5 L 21,8.5 L 21,20 Z",
+            "city_shoreline" => "M 2,15 L 5,15 L 5,5 L 7,5 L 7,15 L 17,15 L 17,5 L 19,5 L 19,15 L 22,15 L 22,17 L 2,17 Z M 7,7 C 9.5,12.5 14.5,12.5 17,7 L 17,9 C 14.5,14 9.5,14 7,9 Z M 3,19 L 21,19 L 21,21 L 3,21 Z",
+            "sunset" => "M 6,13.5 A 6,6 0 0,1 18,13.5 Z M 2,15.5 L 22,15.5 L 22,17.5 L 2,17.5 Z M 5,19.5 L 19,19.5 L 19,21.5 L 5,21.5 Z",
+            "rainy_forest" => "M 7,13 A 3.5,3.5 0 0,1 6.5,6.2 A 5,5 0 0,1 16,6.8 A 3.3,3.3 0 0,1 17.5,13 Z M 7,15.5 L 9,15.5 L 7.5,20.5 L 5.5,20.5 Z M 11.5,15.5 L 13.5,15.5 L 12,20.5 L 10,20.5 Z M 16,15.5 L 18,15.5 L 16.5,20.5 L 14.5,20.5 Z",
+            "custom" => "M 2,7 A 2,2 0 0,1 4,5 L 14,5 A 2,2 0 0,1 16,7 L 16,17 A 2,2 0 0,1 14,19 L 4,19 A 2,2 0 0,1 2,17 Z M 17,9.5 L 22,6.5 L 22,17.5 L 17,14.5 Z",
+            "none" => "M 12,2 A 10,10 0 1,1 11.99,2 Z M 12,4.6 A 7.4,7.4 0 1,0 12.01,4.6 Z M 5.8,16.6 L 16.6,5.8 L 18.2,7.4 L 7.4,18.2 Z",
+            _ => "M 2,19 L 8.5,8 L 13,14 L 16.5,9.5 L 22,19 Z"
+        };
+
         private void BtnZenToggleStudyView_Click(object sender, RoutedEventArgs e)
         {
             bool isVis = ZenStudyOverlayCard.Visibility == Visibility.Visible;
@@ -3459,218 +3522,519 @@ namespace StudyHub
             TxtZenStudyViewBtn.Text = "Show Study View";
         }
 
-        private void UpdateZenClockAndHud()
+        private void UpdateZenTimerReadout()
         {
-            var now = DateTime.Now;
-            TxtZenClockTime.Text = _is24HourClock ? now.ToString("HH:mm") : now.ToString("hh:mm");
-            TxtZenClockAmPm.Text = _is24HourClock ? "" : now.ToString("tt").ToUpper();
-            TxtZenTimerDisplay.Text = $"Focus Timer • {TxtFloatingTimerDisplay.Text}";
+            if (TxtZenTimerDisplay == null) return;
+            int m = _pomoSecondsRemaining / 60;
+            int s = _pomoSecondsRemaining % 60;
+            string prefix = _isPomoRunning
+                ? (_isPomoBreak ? "☕ Break" : "🔥 Focusing")
+                : (_isPomoBreak ? "☕ Break" : "Focus Timer");
+            string nextText = $"{prefix} • {m:00}:{s:00}";
+            if (!string.Equals(TxtZenTimerDisplay.Text, nextText, StringComparison.Ordinal))
+            {
+                TxtZenTimerDisplay.Text = nextText;
+            }
         }
 
-        private void CmbZenScene_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        private void UpdateZenClockAndHud(DateTime? explicitNow = null, bool force = false)
         {
-            if (_isApplyingZenScene || _state?.Settings == null || CmbZenScene == null) return;
-            if (CmbZenScene.SelectedItem is ComboBoxItem item && item.Tag is string sceneId)
+            var now = explicitNow ?? DateTime.Now;
+            bool isAnalog = string.Equals(_state?.Settings?.ClockStyle, "analog", StringComparison.OrdinalIgnoreCase);
+
+            if (ZenDigitalClockWrap != null && ZenAnalogClockWrap != null)
             {
-                ApplyZenScene(sceneId);
+                var digVis = isAnalog ? Visibility.Collapsed : Visibility.Visible;
+                var anaVis = isAnalog ? Visibility.Visible : Visibility.Collapsed;
+                if (ZenDigitalClockWrap.Visibility != digVis) ZenDigitalClockWrap.Visibility = digVis;
+                if (ZenAnalogClockWrap.Visibility != anaVis) ZenAnalogClockWrap.Visibility = anaVis;
+            }
+
+            string mainStr = _is24HourClock ? now.ToString("HH:mm") : now.ToString("hh:mm");
+            string ampmStr = _is24HourClock ? "" : (now.Hour >= 12 ? "PM" : "AM");
+
+            if (TxtZenClockTime != null && (force || !string.Equals(TxtZenClockTime.Text, mainStr, StringComparison.Ordinal)))
+            {
+                TxtZenClockTime.Text = mainStr;
+            }
+            if (TxtZenClockAmPm != null)
+            {
+                var ampmVis = _is24HourClock ? Visibility.Collapsed : Visibility.Visible;
+                if (TxtZenClockAmPm.Visibility != ampmVis) TxtZenClockAmPm.Visibility = ampmVis;
+                if (force || !string.Equals(TxtZenClockAmPm.Text, ampmStr, StringComparison.Ordinal))
+                {
+                    TxtZenClockAmPm.Text = ampmStr;
+                }
+            }
+
+            if (isAnalog)
+            {
+                double sec = now.Second;
+                double min = now.Minute + sec / 60.0;
+                double hr = (now.Hour % 12) + min / 60.0;
+                if (ZenAnalogHourRotate != null) ZenAnalogHourRotate.Angle = (hr / 12.0) * 360.0;
+                if (ZenAnalogMinuteRotate != null) ZenAnalogMinuteRotate.Angle = (min / 60.0) * 360.0;
+                if (ZenAnalogSecondRotate != null) ZenAnalogSecondRotate.Angle = (sec / 60.0) * 360.0;
+                if (TxtZenAnalogSubText != null)
+                {
+                    string sub = _is24HourClock ? mainStr : $"{mainStr} {ampmStr}";
+                    if (!string.Equals(TxtZenAnalogSubText.Text, sub, StringComparison.Ordinal))
+                        TxtZenAnalogSubText.Text = sub;
+                }
+            }
+
+            UpdateZenTimerReadout();
+        }
+
+        private void BtnZenSceneDropdown_Click(object sender, RoutedEventArgs e)
+        {
+            if (ZenSceneDropdownOverlay == null) return;
+            if (ZenSceneDropdownOverlay.Visibility == Visibility.Visible)
+            {
+                CloseZenSceneDropdown();
+            }
+            else
+            {
+                RenderZenSceneDropdown();
+                PositionZenSceneDropdownMenu();
+                ZenSceneDropdownOverlay.Visibility = Visibility.Visible;
+            }
+        }
+
+        private void ZenSceneDropdownBackdrop_MouseDown(object sender, MouseButtonEventArgs e)
+        {
+            CloseZenSceneDropdown();
+        }
+
+        private void CloseZenSceneDropdown()
+        {
+            if (ZenSceneDropdownOverlay != null)
+            {
+                ZenSceneDropdownOverlay.Visibility = Visibility.Collapsed;
+            }
+        }
+
+        private void PositionZenSceneDropdownMenu()
+        {
+            if (BdZenSceneDropdownMenu == null || BtnZenSceneDropdown == null || ZenModeOverlayGrid == null) return;
+            double hostW = ZenModeOverlayGrid.ActualWidth > 0 ? ZenModeOverlayGrid.ActualWidth : (ActualWidth > 0 ? ActualWidth : 1440);
+            double hostH = ZenModeOverlayGrid.ActualHeight > 0 ? ZenModeOverlayGrid.ActualHeight : (ActualHeight > 0 ? ActualHeight : 900);
+            double menuW = BdZenSceneDropdownMenu.Width > 0 ? BdZenSceneDropdownMenu.Width : 282;
+
+            try
+            {
+                Point anchorRightBottom = BtnZenSceneDropdown.TranslatePoint(
+                    new Point(BtnZenSceneDropdown.ActualWidth, BtnZenSceneDropdown.ActualHeight),
+                    ZenModeOverlayGrid);
+                double left = anchorRightBottom.X - menuW;
+                double top = anchorRightBottom.Y + 8;
+                if (left + menuW > hostW - 14) left = hostW - menuW - 14;
+                if (left < 14) left = 14;
+                if (top < 14) top = 62;
+                if (top + 360 > hostH - 14) top = Math.Max(14, hostH - 414);
+                BdZenSceneDropdownMenu.Margin = new Thickness(left, top, 0, 0);
+            }
+            catch
+            {
+                BdZenSceneDropdownMenu.Margin = new Thickness(Math.Max(14, hostW - menuW - 24), 62, 0, 0);
+            }
+        }
+
+        private void RenderZenSceneDropdown()
+        {
+            if (SpZenDropdownItems == null) return;
+            SpZenDropdownItems.Children.Clear();
+            string curZen = _currentZenScene ?? _state?.Settings?.ZenScene ?? "north_pole";
+
+            var hoverBg = new SolidColorBrush(Color.FromArgb(28, 255, 255, 255));
+            hoverBg.Freeze();
+            var activeBg = new SolidColorBrush(Color.FromRgb(124, 58, 237));
+            activeBg.Freeze();
+            var inactiveSub = new SolidColorBrush(Color.FromRgb(148, 163, 184));
+            inactiveSub.Freeze();
+            var activeSub = new SolidColorBrush(Color.FromArgb(215, 255, 255, 255));
+            activeSub.Freeze();
+            var inactiveTitle = new SolidColorBrush(Color.FromRgb(226, 232, 240));
+            inactiveTitle.Freeze();
+            var amberCheck = new SolidColorBrush(Color.FromRgb(253, 224, 71));
+            amberCheck.Freeze();
+
+            foreach (var sc in ZEN_SCENES_LIST)
+            {
+                bool active = string.Equals(sc.Id, curZen, StringComparison.OrdinalIgnoreCase);
+
+                var rowBd = new Border
+                {
+                    Background = active ? activeBg : Brushes.Transparent,
+                    CornerRadius = new CornerRadius(11),
+                    Padding = new Thickness(10, 8, 10, 8),
+                    Margin = new Thickness(0, 1, 0, 2),
+                    Cursor = Cursors.Hand
+                };
+                if (!active)
+                {
+                    rowBd.MouseEnter += (_, _) => rowBd.Background = hoverBg;
+                    rowBd.MouseLeave += (_, _) => rowBd.Background = Brushes.Transparent;
+                }
+
+                var rowGrid = new Grid();
+                rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+                rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+                var tile = new Border
+                {
+                    Width = 28,
+                    Height = 28,
+                    CornerRadius = new CornerRadius(8),
+                    Background = ParseTailwindPreviewBrush(sc.GradientPreview),
+                    Margin = new Thickness(0, 0, 10, 0),
+                    VerticalAlignment = VerticalAlignment.Center
+                };
+                tile.Child = new System.Windows.Shapes.Path
+                {
+                    Data = Geometry.Parse(GetZenSceneIconPathData(sc.Id)),
+                    Fill = Brushes.White,
+                    Width = 13,
+                    Height = 13,
+                    Stretch = Stretch.Uniform,
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    VerticalAlignment = VerticalAlignment.Center
+                };
+                Grid.SetColumn(tile, 0);
+                rowGrid.Children.Add(tile);
+
+                var textCol = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+                textCol.Children.Add(new TextBlock
+                {
+                    Text = sc.Name,
+                    FontSize = 12,
+                    FontWeight = FontWeights.Bold,
+                    Foreground = active ? Brushes.White : inactiveTitle,
+                    TextTrimming = TextTrimming.CharacterEllipsis
+                });
+                textCol.Children.Add(new TextBlock
+                {
+                    Text = sc.Badge,
+                    FontSize = 10,
+                    FontWeight = FontWeights.Medium,
+                    Foreground = active ? activeSub : inactiveSub,
+                    TextTrimming = TextTrimming.CharacterEllipsis,
+                    Margin = new Thickness(0, 1, 0, 0)
+                });
+                Grid.SetColumn(textCol, 1);
+                rowGrid.Children.Add(textCol);
+
+                if (active)
+                {
+                    var chk = new System.Windows.Shapes.Path
+                    {
+                        Data = Geometry.Parse("M 4,12 L 9.5,17.5 L 20,6.5"),
+                        Stroke = amberCheck,
+                        StrokeThickness = 2.4,
+                        StrokeStartLineCap = PenLineCap.Round,
+                        StrokeEndLineCap = PenLineCap.Round,
+                        Width = 12,
+                        Height = 12,
+                        Stretch = Stretch.Uniform,
+                        Margin = new Thickness(8, 0, 2, 0),
+                        VerticalAlignment = VerticalAlignment.Center
+                    };
+                    Grid.SetColumn(chk, 2);
+                    rowGrid.Children.Add(chk);
+                }
+
+                rowBd.Child = rowGrid;
+                string targetId = sc.Id;
+                rowBd.MouseLeftButtonUp += (_, args) =>
+                {
+                    args.Handled = true;
+                    ApplyZenScene(targetId);
+                    CloseZenSceneDropdown();
+                };
+                SpZenDropdownItems.Children.Add(rowBd);
             }
         }
 
         private void ApplyZenScene(string sceneId, bool saveToDisk = true)
         {
             if (_state?.Settings == null) return;
-            var found = ZEN_SCENES_LIST.Find(z => z.Id == sceneId) ?? ZEN_SCENES_LIST[0];
+            var found = ZEN_SCENES_LIST.Find(z => string.Equals(z.Id, sceneId, StringComparison.OrdinalIgnoreCase)) ?? ZEN_SCENES_LIST[0];
             _currentZenScene = found.Id;
             _state.Settings.ZenScene = found.Id;
             if (saveToDisk) SaveState();
 
             if (TxtActiveZenSceneBadge != null) TxtActiveZenSceneBadge.Text = found.Name;
             if (TxtZenSceneLabel != null) TxtZenSceneLabel.Text = $"{found.Name} • {found.Badge}";
-
-            _isApplyingZenScene = true;
-            try
+            if (TxtZenDropdownName != null) TxtZenDropdownName.Text = found.Name;
+            if (ZenDropdownBtnIconPath != null)
             {
-                if (CmbZenScene != null)
-                {
-                    for (int i = 0; i < CmbZenScene.Items.Count; i++)
-                    {
-                        if (CmbZenScene.Items[i] is ComboBoxItem cbi && string.Equals(cbi.Tag as string, found.Id, StringComparison.OrdinalIgnoreCase))
-                        {
-                            if (CmbZenScene.SelectedIndex != i)
-                                CmbZenScene.SelectedIndex = i;
-                            break;
-                        }
-                    }
-                }
-            }
-            finally
-            {
-                _isApplyingZenScene = false;
+                try { ZenDropdownBtnIconPath.Data = Geometry.Parse(GetZenSceneIconPathData(found.Id)); } catch { }
             }
 
             if (WpZenCards != null) RenderControlCenterZenCards();
-            if (ZenCanvas != null) InitActiveZenScene();
+            if (ZenSceneDropdownOverlay != null && ZenSceneDropdownOverlay.Visibility == Visibility.Visible)
+                RenderZenSceneDropdown();
+
+            ApplyZenBackdropSource();
         }
 
-        private void InitActiveZenScene()
+        private void StopZenCustomMedia()
         {
-            ZenCanvas.Children.Clear();
-            _zenParticles.Clear();
-            _zenSpeeds.Clear();
-
-            double w = Math.Max(ActualWidth, 1440);
-            double h = Math.Max(ActualHeight, 900);
-
-            switch (_currentZenScene)
+            try
             {
-                case "nuclear_wasteland":
-                    // Irradiated yellowish-green glowing fallout ash embers rising
-                    for (int i = 0; i < 50; i++)
-                    {
-                        var ember = new Ellipse
-                        {
-                            Width = _rand.Next(3, 8),
-                            Height = _rand.Next(3, 8),
-                            Fill = new SolidColorBrush(Color.FromArgb((byte)_rand.Next(140, 240), 190, 242, 100))
-                        };
-                        Canvas.SetLeft(ember, _rand.NextDouble() * w);
-                        Canvas.SetTop(ember, _rand.NextDouble() * h);
-                        ZenCanvas.Children.Add(ember);
-                        _zenParticles.Add(ember);
-                        _zenSpeeds.Add(-(_rand.NextDouble() * 2.5 + 1.0)); // moves upward
-                    }
-                    break;
-
-                case "cyber_city":
-                    // Futuristic traffic streaks & neon lights
-                    for (int i = 0; i < 45; i++)
-                    {
-                        var car = new System.Windows.Shapes.Line
-                        {
-                            X1 = 0, Y1 = 0,
-                            X2 = _rand.Next(16, 36), Y2 = 0,
-                            Stroke = new SolidColorBrush(_rand.Next(0, 2) == 0 ? Color.FromRgb(34, 211, 238) : Color.FromRgb(244, 114, 182)),
-                            StrokeThickness = 2.2
-                        };
-                        Canvas.SetLeft(car, _rand.NextDouble() * w);
-                        Canvas.SetTop(car, _rand.NextDouble() * h);
-                        ZenCanvas.Children.Add(car);
-                        _zenParticles.Add(car);
-                        _zenSpeeds.Add(_rand.NextDouble() * 6.0 + 3.0);
-                    }
-                    break;
-
-                case "moon_night":
-                    // Twinkling fireflies drifting gently
-                    for (int i = 0; i < 40; i++)
-                    {
-                        var firefly = new Ellipse
-                        {
-                            Width = _rand.Next(4, 9),
-                            Height = _rand.Next(4, 9),
-                            Fill = new SolidColorBrush(Color.FromArgb((byte)_rand.Next(120, 230), 253, 224, 71))
-                        };
-                        Canvas.SetLeft(firefly, _rand.NextDouble() * w);
-                        Canvas.SetTop(firefly, _rand.NextDouble() * h);
-                        ZenCanvas.Children.Add(firefly);
-                        _zenParticles.Add(firefly);
-                        _zenSpeeds.Add(_rand.NextDouble() * 1.2 + 0.4);
-                    }
-                    break;
-
-                case "snowy_peaks":
-                    // Falling snowflakes
-                    for (int i = 0; i < 70; i++)
-                    {
-                        var snow = new Ellipse
-                        {
-                            Width = _rand.Next(2, 6),
-                            Height = _rand.Next(2, 6),
-                            Fill = new SolidColorBrush(Color.FromArgb((byte)_rand.Next(140, 240), 255, 255, 255))
-                        };
-                        Canvas.SetLeft(snow, _rand.NextDouble() * w);
-                        Canvas.SetTop(snow, _rand.NextDouble() * h);
-                        ZenCanvas.Children.Add(snow);
-                        _zenParticles.Add(snow);
-                        _zenSpeeds.Add(_rand.NextDouble() * 2.2 + 1.0);
-                    }
-                    break;
-
-                case "rainy_forest":
-                    // Soothing rain streaks
-                    for (int i = 0; i < 75; i++)
-                    {
-                        var rain = new System.Windows.Shapes.Line
-                        {
-                            X1 = 0, Y1 = 0,
-                            X2 = -3, Y2 = 18,
-                            Stroke = new SolidColorBrush(Color.FromArgb((byte)_rand.Next(120, 220), 147, 197, 253)),
-                            StrokeThickness = 1.3
-                        };
-                        Canvas.SetLeft(rain, _rand.NextDouble() * w);
-                        Canvas.SetTop(rain, _rand.NextDouble() * h);
-                        ZenCanvas.Children.Add(rain);
-                        _zenParticles.Add(rain);
-                        _zenSpeeds.Add(_rand.NextDouble() * 14 + 10);
-                    }
-                    break;
-
-                case "solar_system":
-                case "far_space":
-                default:
-                    // Cosmic deep space starfield
-                    for (int i = 0; i < 80; i++)
-                    {
-                        int sz = _rand.Next(2, 6);
-                        var star = new Ellipse
-                        {
-                            Width = sz,
-                            Height = sz,
-                            Fill = new SolidColorBrush(Color.FromArgb((byte)_rand.Next(140, 255), 180, 210, 255))
-                        };
-                        Canvas.SetLeft(star, _rand.NextDouble() * w);
-                        Canvas.SetTop(star, _rand.NextDouble() * h);
-                        ZenCanvas.Children.Add(star);
-                        _zenParticles.Add(star);
-                        _zenSpeeds.Add(_rand.NextDouble() * 0.8 + 0.3);
-                    }
-                    break;
+                if (ZenCustomVideoPlayer != null)
+                {
+                    ZenCustomVideoPlayer.Stop();
+                    ZenCustomVideoPlayer.Source = null;
+                    ZenCustomVideoPlayer.Visibility = Visibility.Collapsed;
+                }
+                if (ZenCustomImageView != null)
+                {
+                    ZenCustomImageView.Source = null;
+                    ZenCustomImageView.Visibility = Visibility.Collapsed;
+                }
             }
+            catch { }
+        }
+
+        private void RefreshZenCustomVideos(bool notify = false)
+        {
+            _zenCustomVideos.Clear();
+            string folder = (_state?.Settings?.ZenVideoFolder ?? "").Trim();
+            if (!string.IsNullOrEmpty(folder) && Directory.Exists(folder))
+            {
+                var exts = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    ".mp4", ".webm", ".mov", ".avi", ".wmv", ".mkv", ".m4v", ".gif", ".webp", ".png", ".jpg", ".jpeg"
+                };
+                try
+                {
+                    foreach (var f in Directory.GetFiles(folder).OrderBy(p => Path.GetFileName(p), StringComparer.OrdinalIgnoreCase))
+                    {
+                        if (exts.Contains(Path.GetExtension(f)))
+                        {
+                            _zenCustomVideos.Add(f);
+                        }
+                    }
+                }
+                catch { }
+            }
+
+            if (notify)
+            {
+                if (_zenCustomVideos.Count > 0)
+                {
+                    ShowToast($"Loaded {_zenCustomVideos.Count} custom Zen video(s)! 🎬");
+                }
+                else
+                {
+                    ShowToast("No videos/images found in folder — Northern Lights fallback active.");
+                }
+            }
+        }
+
+        private void ActivateBuiltinZenFallback(ZenSceneOption found, string? reason = null)
+        {
+            StopZenCustomMedia();
+            if (ZenSceneRenderer != null)
+            {
+                ZenSceneRenderer.Visibility = Visibility.Visible;
+                string renderId = (found.Id == "custom") ? "north_pole" : found.Id;
+                ZenSceneRenderer.SetScene(renderId);
+            }
+
+            bool isCustomScene = found.Id == "custom";
+            if (BtnZenPickVideoFolder != null) BtnZenPickVideoFolder.Visibility = isCustomScene ? Visibility.Visible : Visibility.Collapsed;
+            if (BtnZenPrevVideo != null) BtnZenPrevVideo.Visibility = Visibility.Collapsed;
+            if (BtnZenNextVideo != null) BtnZenNextVideo.Visibility = Visibility.Collapsed;
+            if (ZenCustomPromptBox != null)
+            {
+                ZenCustomPromptBox.Visibility = (isCustomScene && _zenCustomVideos.Count == 0) ? Visibility.Visible : Visibility.Collapsed;
+            }
+
+            if (TxtZenSceneLabel != null)
+            {
+                if (isCustomScene)
+                {
+                    string baseLabel = "Northern Lights • North Pole & Ice Mountains";
+                    TxtZenSceneLabel.Text = string.IsNullOrEmpty(reason) ? baseLabel : $"{baseLabel} ({reason})";
+                }
+                else
+                {
+                    TxtZenSceneLabel.Text = $"{found.Name} • {found.Badge}";
+                }
+            }
+        }
+
+        private void ApplyZenBackdropSource()
+        {
+            var found = ZEN_SCENES_LIST.Find(z => string.Equals(z.Id, _currentZenScene, StringComparison.OrdinalIgnoreCase)) ?? ZEN_SCENES_LIST[0];
+            if (found.Id != "custom")
+            {
+                ActivateBuiltinZenFallback(found, null);
+                return;
+            }
+
+            if (_zenCustomVideos.Count == 0)
+            {
+                RefreshZenCustomVideos();
+            }
+
+            if (_zenCustomVideos.Count == 0)
+            {
+                ActivateBuiltinZenFallback(found, "Select a video folder");
+                return;
+            }
+
+            if (ZenCustomPromptBox != null) ZenCustomPromptBox.Visibility = Visibility.Collapsed;
+            if (BtnZenPickVideoFolder != null) BtnZenPickVideoFolder.Visibility = Visibility.Visible;
+
+            bool multi = _zenCustomVideos.Count > 1;
+            if (BtnZenPrevVideo != null) BtnZenPrevVideo.Visibility = multi ? Visibility.Visible : Visibility.Collapsed;
+            if (BtnZenNextVideo != null) BtnZenNextVideo.Visibility = multi ? Visibility.Visible : Visibility.Collapsed;
+
+            _zenCurrentVideoIdx = ((_zenCurrentVideoIdx % _zenCustomVideos.Count) + _zenCustomVideos.Count) % _zenCustomVideos.Count;
+            string mediaPath = _zenCustomVideos[_zenCurrentVideoIdx];
+            if (!File.Exists(mediaPath))
+            {
+                RefreshZenCustomVideos();
+                ActivateBuiltinZenFallback(found, "File missing");
+                return;
+            }
+
+            if (TxtZenSceneLabel != null)
+            {
+                TxtZenSceneLabel.Text = $"Custom Video ({_zenCurrentVideoIdx + 1}/{_zenCustomVideos.Count}) • {Path.GetFileName(mediaPath)}";
+            }
+
+            string ext = Path.GetExtension(mediaPath).ToLowerInvariant();
+            bool isImage = ext is ".gif" or ".webp" or ".png" or ".jpg" or ".jpeg";
+
+            try
+            {
+                if (isImage)
+                {
+                    if (ZenCustomVideoPlayer != null)
+                    {
+                        ZenCustomVideoPlayer.Stop();
+                        ZenCustomVideoPlayer.Source = null;
+                        ZenCustomVideoPlayer.Visibility = Visibility.Collapsed;
+                    }
+                    if (ZenSceneRenderer != null) ZenSceneRenderer.Visibility = Visibility.Collapsed;
+                    if (ZenCustomImageView != null)
+                    {
+                        var bmp = new BitmapImage();
+                        bmp.BeginInit();
+                        bmp.UriSource = new Uri(mediaPath, UriKind.Absolute);
+                        bmp.CacheOption = BitmapCacheOption.OnLoad;
+                        bmp.EndInit();
+                        ZenCustomImageView.Source = bmp;
+                        ZenCustomImageView.Visibility = Visibility.Visible;
+                    }
+                }
+                else
+                {
+                    if (ZenCustomImageView != null)
+                    {
+                        ZenCustomImageView.Source = null;
+                        ZenCustomImageView.Visibility = Visibility.Collapsed;
+                    }
+                    if (ZenSceneRenderer != null) ZenSceneRenderer.Visibility = Visibility.Collapsed;
+                    if (ZenCustomVideoPlayer != null)
+                    {
+                        ZenCustomVideoPlayer.Visibility = Visibility.Visible;
+                        ZenCustomVideoPlayer.IsMuted = _audio?.IsMasterMuted ?? false;
+                        ZenCustomVideoPlayer.Volume = Math.Clamp((_state?.Settings?.MixerMaster ?? 80) / 100.0 * 0.65, 0.0, 1.0);
+                        ZenCustomVideoPlayer.Source = new Uri(mediaPath, UriKind.Absolute);
+                        ZenCustomVideoPlayer.Play();
+                    }
+                }
+            }
+            catch
+            {
+                ActivateBuiltinZenFallback(found, "Unsupported codec fallback");
+            }
+        }
+
+        private void BtnZenPrevVideo_Click(object sender, RoutedEventArgs e)
+        {
+            if (_zenCustomVideos.Count <= 1) return;
+            _zenCurrentVideoIdx = (_zenCurrentVideoIdx - 1 + _zenCustomVideos.Count) % _zenCustomVideos.Count;
+            ApplyZenBackdropSource();
+        }
+
+        private void BtnZenNextVideo_Click(object sender, RoutedEventArgs e)
+        {
+            if (_zenCustomVideos.Count <= 1) return;
+            _zenCurrentVideoIdx = (_zenCurrentVideoIdx + 1) % _zenCustomVideos.Count;
+            ApplyZenBackdropSource();
+        }
+
+        private void BtnBrowseZenVideoFolder_Click(object sender, RoutedEventArgs e)
+        {
+            var dlg = new OpenFolderDialog
+            {
+                Title = "Select Folder for Zen Mode Videos / Animations"
+            };
+            if (!string.IsNullOrWhiteSpace(_state?.Settings?.ZenVideoFolder) && Directory.Exists(_state.Settings.ZenVideoFolder))
+            {
+                dlg.InitialDirectory = _state.Settings.ZenVideoFolder;
+            }
+
+            if (dlg.ShowDialog() == true && !string.IsNullOrWhiteSpace(dlg.FolderName))
+            {
+                _state.Settings.ZenVideoFolder = dlg.FolderName;
+                _zenCurrentVideoIdx = 0;
+                RefreshZenCustomVideos(notify: true);
+                ApplyZenScene("custom", saveToDisk: true);
+            }
+        }
+
+        private void ZenCustomVideoPlayer_MediaEnded(object sender, RoutedEventArgs e)
+        {
+            if (ZenCustomVideoPlayer != null && ZenCustomVideoPlayer.Visibility == Visibility.Visible)
+            {
+                ZenCustomVideoPlayer.Position = TimeSpan.Zero;
+                ZenCustomVideoPlayer.Play();
+            }
+        }
+
+        private void ZenCustomVideoPlayer_MediaFailed(object? sender, ExceptionRoutedEventArgs e)
+        {
+            var found = ZEN_SCENES_LIST.Find(z => z.Id == "custom") ?? ZEN_SCENES_LIST[0];
+            ActivateBuiltinZenFallback(found, "Video decode fallback");
+            ShowToast("Unable to decode video format — Northern Lights fallback active.");
         }
 
         private void ZenStarTimer_Tick(object? sender, EventArgs e)
         {
-            double h = Math.Max(ActualHeight, 900);
-            double w = Math.Max(ActualWidth, 1440);
+            double dt = _zenFrameStopwatch.IsRunning ? _zenFrameStopwatch.Elapsed.TotalSeconds : 0.033;
+            _zenFrameStopwatch.Restart();
 
-            for (int i = 0; i < _zenParticles.Count; i++)
+            if (ZenSceneRenderer != null && ZenSceneRenderer.Visibility == Visibility.Visible)
             {
-                var p = _zenParticles[i];
-                double spd = (i < _zenSpeeds.Count) ? _zenSpeeds[i] : 1.5;
-                double top = Canvas.GetTop(p) + spd;
-
-                if (spd < 0 && top < -20)
-                {
-                    top = h + 10;
-                    Canvas.SetLeft(p, _rand.NextDouble() * w);
-                }
-                else if (spd > 0 && top > h)
-                {
-                    top = -20;
-                    Canvas.SetLeft(p, _rand.NextDouble() * w);
-                }
-
-                Canvas.SetTop(p, top);
+                ZenSceneRenderer.StepFrame(dt);
             }
-
-            UpdateZenClockAndHud();
         }
 
         private void ZenModeOverlayGrid_KeyDown(object sender, KeyEventArgs e)
         {
-            if (e.Key == Key.Escape || e.Key == Key.F10)
+            if (e.Key == Key.Escape)
+            {
+                if (ZenSceneDropdownOverlay != null && ZenSceneDropdownOverlay.Visibility == Visibility.Visible)
+                {
+                    CloseZenSceneDropdown();
+                    e.Handled = true;
+                    return;
+                }
+                ToggleZenMode();
+                e.Handled = true;
+            }
+            else if (e.Key == Key.F10)
             {
                 ToggleZenMode();
+                e.Handled = true;
             }
         }
 
@@ -4280,7 +4644,7 @@ namespace StudyHub
                         var tb = new TextBlock
                         {
                             Text = mChars[_rand.Next(mChars.Length)].ToString(),
-                            FontFamily = new FontFamily("Consolas, monospace"),
+                            FontFamily = new FontFamily("Consolas, Courier New"),
                             FontWeight = FontWeights.Bold,
                             FontSize = _rand.Next(13, 20),
                             Foreground = new SolidColorBrush(Color.FromArgb(170, 16, 185, 129))
@@ -4865,7 +5229,7 @@ namespace StudyHub
                 grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
                 grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
-                // Icon Squircle Box
+                // Icon Squircle Box (Crisp Vector Icon matching Zen Dropdown & Reference)
                 var iconBox = new Border
                 {
                     Width = 36, Height = 36,
@@ -4873,11 +5237,13 @@ namespace StudyHub
                     Margin = new Thickness(0, 0, 10, 0),
                     Background = ParseTailwindPreviewBrush(z.GradientPreview)
                 };
-                iconBox.Child = new TextBlock
+                iconBox.Child = new System.Windows.Shapes.Path
                 {
-                    Text = z.Icon,
-                    FontSize = 15,
-                    Foreground = Brushes.White,
+                    Data = Geometry.Parse(GetZenSceneIconPathData(z.Id)),
+                    Fill = Brushes.White,
+                    Width = 15,
+                    Height = 15,
+                    Stretch = Stretch.Uniform,
                     HorizontalAlignment = HorizontalAlignment.Center,
                     VerticalAlignment = VerticalAlignment.Center
                 };
@@ -5028,6 +5394,7 @@ namespace StudyHub
             SaveState();
             UpdateControlCenterUiState();
             UpdatePomoDisplay();
+            UpdateLiveClock(force: true);
             ShowToast("Clock style: Monospace Digital");
         }
 
@@ -5037,6 +5404,7 @@ namespace StudyHub
             SaveState();
             UpdateControlCenterUiState();
             UpdatePomoDisplay();
+            UpdateLiveClock(force: true);
             ShowToast("Clock style: Analog Dial");
         }
 
@@ -5046,7 +5414,7 @@ namespace StudyHub
             _state.Settings.TimeFormat = "12h";
             SaveState();
             UpdateControlCenterUiState();
-            UpdateLiveClock();
+            UpdateLiveClock(force: true);
             ShowToast("Time format: 12-Hour (AM/PM)");
         }
 
@@ -5056,7 +5424,7 @@ namespace StudyHub
             _state.Settings.TimeFormat = "24h";
             SaveState();
             UpdateControlCenterUiState();
-            UpdateLiveClock();
+            UpdateLiveClock(force: true);
             ShowToast("Time format: 24-Hour Railway");
         }
 
@@ -5154,6 +5522,9 @@ namespace StudyHub
         {
             if (_state?.Settings == null) return;
             _state.Settings.PerfThrottle = ChkPerfThrottle.IsChecked == true;
+            _zenStarTimer.Interval = _state.Settings.PerfThrottle
+                ? TimeSpan.FromMilliseconds(66)
+                : TimeSpan.FromMilliseconds(33);
             SaveState();
         }
 
@@ -5566,6 +5937,7 @@ namespace StudyHub
             {
                 if (PdfViewerOverlayGrid.Visibility == Visibility.Visible) ClosePdfViewer();
                 else if (TopBarTimerDropdownGrid != null && TopBarTimerDropdownGrid.Visibility == Visibility.Visible) TopBarTimerDropdownGrid.Visibility = Visibility.Collapsed;
+                else if (ZenSceneDropdownOverlay != null && ZenSceneDropdownOverlay.Visibility == Visibility.Visible) CloseZenSceneDropdown();
                 else if (ZenModeOverlayGrid.Visibility == Visibility.Visible) ToggleZenMode();
                 else if (SettingsModalGrid.Visibility == Visibility.Visible) SettingsModalGrid.Visibility = Visibility.Collapsed;
                 else if (SoundMixerDrawerGrid.Visibility == Visibility.Visible) SoundMixerDrawerGrid.Visibility = Visibility.Collapsed;
