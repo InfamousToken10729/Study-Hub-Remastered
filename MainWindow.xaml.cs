@@ -6052,8 +6052,8 @@ namespace StudyHub
             try
             {
                 string url = TxtSettingsGithubUrl.Text.Trim();
-                var result = await _updater.CheckForUpdatesAsync(url);
-                if (result.IsUpdateAvailable && !string.IsNullOrEmpty(result.DownloadUrl))
+                var result = await _updater.CheckForUpdatesAsync(url, _state.Settings.InstalledCommitSha);
+                if ((result.IsUpdateAvailable || !string.IsNullOrEmpty(result.DownloadUrl)) && !string.IsNullOrEmpty(result.DownloadUrl))
                 {
                     var progress = new Progress<(int percent, string status)>(p =>
                     {
@@ -6063,6 +6063,11 @@ namespace StudyHub
                     var (ok, error) = await _updater.DownloadAndApplyUpdateAsync(result, progress);
                     if (ok)
                     {
+                        if (!string.IsNullOrWhiteSpace(result.LatestCommitSha))
+                        {
+                            _state.Settings.InstalledCommitSha = result.LatestCommitSha;
+                            SaveState(countActivity: false);
+                        }
                         Application.Current.Shutdown();
                     }
                     else

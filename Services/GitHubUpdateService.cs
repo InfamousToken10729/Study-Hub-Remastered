@@ -37,10 +37,12 @@ namespace StudyHub.Services
         private readonly HttpClient _http;
         private readonly string _baseDir;
 
+        public string LastDownloadedApkPath { get; private set; } = "";
+
         public GitHubUpdateService(string baseDir)
         {
             _baseDir = baseDir;
-            _http = new HttpClient { Timeout = TimeSpan.FromSeconds(25) };
+            _http = new HttpClient { Timeout = TimeSpan.FromSeconds(120) };
             _http.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("StudyHub-Updater", CurrentAppVersion));
             _http.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
         }
@@ -138,18 +140,39 @@ namespace StudyHub.Services
                 }
 
                 result.RepoDisplay = $"{owner}/{repo}";
-                string defaultBranch = string.IsNullOrWhiteSpace(branch) ? "main" : branch;
+                string repoDefaultBranch = "main";
+                string activeBranch = string.IsNullOrWhiteSpace(branch) ? "main" : branch;
 
-                // 0. Query repo metadata to get actual default_branch if not specified
+                // 0. Query repo metadata to get actual default_branch and verify requested branch exists
                 try
                 {
                     using var repoResp = await _http.GetAsync($"https://api.github.com/repos/{owner}/{repo}");
                     if (repoResp.IsSuccessStatusCode)
                     {
                         using var doc = JsonDocument.Parse(await repoResp.Content.ReadAsStringAsync());
-                        if (string.IsNullOrWhiteSpace(branch) && doc.RootElement.TryGetProperty("default_branch", out var dbEl))
+                        if (doc.RootElement.TryGetProperty("default_branch", out var dbEl))
                         {
-                            defaultBranch = dbEl.GetString() ?? "main";
+                            repoDefaultBranch = dbEl.GetString() ?? "main";
+                        }
+                        if (string.IsNullOrWhiteSpace(branch))
+                        {
+                            activeBranch = repoDefaultBranch;
+                        }
+                        else if (!string.Equals(branch, repoDefaultBranch, StringComparison.OrdinalIgnoreCase))
+                        {
+                            // Auto-fallback when URL specifies e.g. /tree/study_hub but repo actually uses main
+                            try
+                            {
+                                using var brCheck = await _http.GetAsync($"https://api.github.com/repos/{owner}/{repo}/commits/{branch}");
+                                if (!brCheck.IsSuccessStatusCode)
+                                {
+                                    activeBranch = repoDefaultBranch;
+                                }
+                            }
+                            catch
+                            {
+                                activeBranch = repoDefaultBranch;
+                            }
                         }
                     }
                     else if ((int)repoResp.StatusCode == 404)
@@ -160,19 +183,69 @@ namespace StudyHub.Services
                 }
                 catch { }
 
-                // 1. Strategy A: Check GitHub Releases (/releases/latest or /releases)
+                bool hasNativeBinaryAsset = false;
+                string releasePublishedIso = "";
+                string releaseTagId = "";
+
+                // Helper to resolve repo root binary if not attached as Release Asset
+                async Task<(string url, string type, string sha)> TryResolveRepoRootBinaryAsync()
+                {
+#if ANDROID
+                    string targetFile = "StudyHub.apk";
+                    string targetType = "apk";
+#else
+                    string targetFile = "StudyHub.exe";
+                    string targetType = "exe";
+#endif
+                    try
+                    {
+                        using var contentsResp = await _http.GetAsync($"https://api.github.com/repos/{owner}/{repo}/contents/{targetFile}?ref={activeBranch}");
+                        if (contentsResp.IsSuccessStatusCode)
+                        {
+                            using var doc = JsonDocument.Parse(await contentsResp.Content.ReadAsStringAsync());
+                            string dlUrl = doc.RootElement.TryGetProperty("download_url", out var dlEl) ? (dlEl.GetString() ?? "") : "";
+                            string fSha = doc.RootElement.TryGetProperty("sha", out var sEl) ? (sEl.GetString() ?? "") : "";
+                            if (string.IsNullOrWhiteSpace(dlUrl))
+                                dlUrl = $"https://github.com/{owner}/{repo}/raw/{activeBranch}/{targetFile}";
+                            return (dlUrl, targetType, fSha);
+                        }
+                    }
+                    catch { }
+                    return ("", "", "");
+                }
+
+                // 1. Strategy A: Check GitHub Releases (/releases/latest or /releases?per_page=1)
                 try
                 {
+                    JsonElement? relRoot = null;
                     using var relResp = await _http.GetAsync($"https://api.github.com/repos/{owner}/{repo}/releases/latest");
                     if (relResp.IsSuccessStatusCode)
                     {
                         using var doc = JsonDocument.Parse(await relResp.Content.ReadAsStringAsync());
-                        var root = doc.RootElement;
+                        relRoot = doc.RootElement.Clone();
+                    }
+                    else
+                    {
+                        using var listResp = await _http.GetAsync($"https://api.github.com/repos/{owner}/{repo}/releases?per_page=1");
+                        if (listResp.IsSuccessStatusCode)
+                        {
+                            using var listDoc = JsonDocument.Parse(await listResp.Content.ReadAsStringAsync());
+                            if (listDoc.RootElement.ValueKind == JsonValueKind.Array && listDoc.RootElement.GetArrayLength() > 0)
+                                relRoot = listDoc.RootElement[0].Clone();
+                        }
+                    }
+
+                    if (relRoot.HasValue)
+                    {
+                        var root = relRoot.Value;
                         string tag = root.TryGetProperty("tag_name", out var tEl) ? (tEl.GetString() ?? "") : "";
                         string name = root.TryGetProperty("name", out var nEl) ? (nEl.GetString() ?? tag) : tag;
                         string body = root.TryGetProperty("body", out var bEl) ? (bEl.GetString() ?? "") : "";
                         string pub = root.TryGetProperty("published_at", out var pEl) ? (pEl.GetString() ?? "") : "";
+                        string relId = root.TryGetProperty("id", out var idEl) ? idEl.ToString() : "";
                         string zipball = root.TryGetProperty("zipball_url", out var zEl) ? (zEl.GetString() ?? "") : "";
+                        releasePublishedIso = pub;
+                        releaseTagId = !string.IsNullOrWhiteSpace(tag) ? $"rel:{tag}:{relId}" : $"rel:{relId}";
 
                         string cleanRemoteVer = CleanVersionString(tag);
                         if (string.IsNullOrWhiteSpace(cleanRemoteVer)) cleanRemoteVer = CleanVersionString(name);
@@ -190,6 +263,7 @@ namespace StudyHub.Services
                                 {
                                     assetUrl = aUrl;
                                     assetType = "apk";
+                                    hasNativeBinaryAsset = true;
                                     break;
                                 }
 #else
@@ -197,46 +271,65 @@ namespace StudyHub.Services
                                 {
                                     assetUrl = aUrl;
                                     assetType = "exe";
+                                    hasNativeBinaryAsset = true;
                                     break;
                                 }
-#endif
                                 if (aName.EndsWith(".zip", StringComparison.OrdinalIgnoreCase) && string.IsNullOrEmpty(assetUrl))
                                 {
                                     assetUrl = aUrl;
                                     assetType = "zip";
+                                    hasNativeBinaryAsset = true;
                                 }
+#endif
                             }
                         }
 
                         if (string.IsNullOrEmpty(assetUrl))
                         {
-                            assetUrl = !string.IsNullOrEmpty(zipball)
-                                ? zipball
-                                : $"https://github.com/{owner}/{repo}/archive/refs/heads/{defaultBranch}.zip";
-                            assetType = "source_zip";
+                            // Fallback to repo root binary (StudyHub.apk / StudyHub.exe) ignoring GitHub's auto-generated Source code zips
+                            var (rootUrl, rootType, _) = await TryResolveRepoRootBinaryAsync();
+                            if (!string.IsNullOrWhiteSpace(rootUrl))
+                            {
+                                assetUrl = rootUrl;
+                                assetType = rootType;
+                                hasNativeBinaryAsset = true;
+                            }
+#if !ANDROID
+                            else
+                            {
+                                assetUrl = !string.IsNullOrEmpty(zipball)
+                                    ? zipball
+                                    : $"https://github.com/{owner}/{repo}/archive/refs/heads/{activeBranch}.zip";
+                                assetType = "source_zip";
+                            }
+#endif
                         }
 
-                        if (!string.IsNullOrWhiteSpace(cleanRemoteVer))
+                        if (!string.IsNullOrWhiteSpace(tag) || !string.IsNullOrWhiteSpace(name))
                         {
                             result.Success = true;
-                            result.LatestVersion = cleanRemoteVer;
+                            result.LatestVersion = !string.IsNullOrWhiteSpace(cleanRemoteVer) ? cleanRemoteVer : CurrentAppVersion;
                             result.ReleaseTitle = string.IsNullOrWhiteSpace(name) ? $"Release {tag}" : name;
-                            result.ReleaseNotes = string.IsNullOrWhiteSpace(body) ? "New release available on GitHub." : body;
+                            result.ReleaseNotes = string.IsNullOrWhiteSpace(body) ? "Release found on GitHub." : body;
                             result.PublishedAt = FormatIsoDate(pub);
                             result.DownloadUrl = assetUrl;
                             result.DownloadType = assetType;
-                            result.IsUpdateAvailable = CompareVersions(cleanRemoteVer, CurrentAppVersion) > 0;
-                            if (result.IsUpdateAvailable)
+                            result.LatestCommitSha = releaseTagId;
+
+                            if (!string.IsNullOrWhiteSpace(cleanRemoteVer) && CompareVersions(cleanRemoteVer, CurrentAppVersion) > 0)
+                            {
+                                result.IsUpdateAvailable = true;
                                 return result;
+                            }
                         }
                     }
                 }
                 catch { }
 
-                // 2. Strategy B: Check raw version.json in repository default branch
+                // 2. Strategy B: Check raw version.json in active branch
                 try
                 {
-                    string rawVerUrl = $"https://raw.githubusercontent.com/{owner}/{repo}/{defaultBranch}/version.json?t={DateTimeOffset.UtcNow.ToUnixTimeSeconds()}";
+                    string rawVerUrl = $"https://raw.githubusercontent.com/{owner}/{repo}/{activeBranch}/version.json?t={DateTimeOffset.UtcNow.ToUnixTimeSeconds()}";
                     using var verResp = await _http.GetAsync(rawVerUrl);
                     if (verResp.IsSuccessStatusCode)
                     {
@@ -258,16 +351,51 @@ namespace StudyHub.Services
                         {
                             result.Success = true;
                             result.LatestVersion = cleanVer;
-                            result.ReleaseTitle = $"Study Hub v{cleanVer}";
-                            result.ReleaseNotes = string.IsNullOrWhiteSpace(notes) ? $"Version {cleanVer} from {owner}/{repo} ({defaultBranch})" : notes;
-                            result.DownloadUrl = !string.IsNullOrWhiteSpace(customDl)
-                                ? customDl
-                                : $"https://github.com/{owner}/{repo}/archive/refs/heads/{defaultBranch}.zip";
-                            result.DownloadType = !string.IsNullOrWhiteSpace(customDl) && customDl.EndsWith(".apk", StringComparison.OrdinalIgnoreCase)
-                                ? "apk"
-                                : !string.IsNullOrWhiteSpace(customDl) && customDl.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)
-                                    ? "exe"
-                                    : "source_zip";
+                            if (string.IsNullOrWhiteSpace(result.ReleaseTitle))
+                                result.ReleaseTitle = $"Study Hub v{cleanVer}";
+                            if (string.IsNullOrWhiteSpace(result.ReleaseNotes) || result.ReleaseNotes == "Release found on GitHub.")
+                                result.ReleaseNotes = string.IsNullOrWhiteSpace(notes) ? $"Version {cleanVer} from {owner}/{repo} ({activeBranch})" : notes;
+
+                            // Preserve already-found release native binary if present; otherwise apply customDl / repo root binary
+                            if (!hasNativeBinaryAsset)
+                            {
+                                if (!string.IsNullOrWhiteSpace(customDl))
+                                {
+                                    bool isWantedBinary =
+#if ANDROID
+                                        customDl.EndsWith(".apk", StringComparison.OrdinalIgnoreCase);
+#else
+                                        customDl.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) || customDl.EndsWith(".zip", StringComparison.OrdinalIgnoreCase);
+#endif
+                                    if (isWantedBinary)
+                                    {
+                                        result.DownloadUrl = customDl;
+                                        result.DownloadType = customDl.EndsWith(".apk", StringComparison.OrdinalIgnoreCase) ? "apk"
+                                            : customDl.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ? "exe" : "zip";
+                                        hasNativeBinaryAsset = true;
+                                    }
+                                }
+
+                                if (!hasNativeBinaryAsset)
+                                {
+                                    var (rootUrl, rootType, _) = await TryResolveRepoRootBinaryAsync();
+                                    if (!string.IsNullOrWhiteSpace(rootUrl))
+                                    {
+                                        result.DownloadUrl = rootUrl;
+                                        result.DownloadType = rootType;
+                                        hasNativeBinaryAsset = true;
+                                    }
+#if !ANDROID
+                                    else if (string.IsNullOrWhiteSpace(result.DownloadUrl))
+                                    {
+                                        result.DownloadUrl = !string.IsNullOrWhiteSpace(customDl)
+                                            ? customDl
+                                            : $"https://github.com/{owner}/{repo}/archive/refs/heads/{activeBranch}.zip";
+                                        result.DownloadType = "source_zip";
+                                    }
+#endif
+                                }
+                            }
 
                             if (CompareVersions(cleanVer, CurrentAppVersion) > 0 || remoteBuild > CurrentAppBuild)
                             {
@@ -279,8 +407,8 @@ namespace StudyHub.Services
                 }
                 catch { }
 
-                // 3. Strategy C: Check latest commit on default branch
-                using (var commitResp = await _http.GetAsync($"https://api.github.com/repos/{owner}/{repo}/commits/{defaultBranch}"))
+                // 3. Strategy C: Check latest commit on active branch (and ensure binary URL is present)
+                using (var commitResp = await _http.GetAsync($"https://api.github.com/repos/{owner}/{repo}/commits/{activeBranch}"))
                 {
                     if (commitResp.IsSuccessStatusCode)
                     {
@@ -298,29 +426,48 @@ namespace StudyHub.Services
                                 dateStr = dEl.GetString() ?? "";
                         }
 
-                        result.Success = true;
-                        result.LatestCommitSha = sha;
-                        if (string.IsNullOrWhiteSpace(result.DownloadUrl))
+                        if (!hasNativeBinaryAsset)
                         {
-                            result.DownloadUrl = $"https://github.com/{owner}/{repo}/archive/refs/heads/{defaultBranch}.zip";
-                            result.DownloadType = "source_zip";
+                            var (rootUrl, rootType, _) = await TryResolveRepoRootBinaryAsync();
+                            if (!string.IsNullOrWhiteSpace(rootUrl))
+                            {
+                                result.DownloadUrl = rootUrl;
+                                result.DownloadType = rootType;
+                                hasNativeBinaryAsset = true;
+                            }
+#if !ANDROID
+                            else if (string.IsNullOrWhiteSpace(result.DownloadUrl))
+                            {
+                                result.DownloadUrl = $"https://github.com/{owner}/{repo}/archive/refs/heads/{activeBranch}.zip";
+                                result.DownloadType = "source_zip";
+                            }
+#endif
                         }
+
+                        result.Success = true;
+                        string combinedSignature = !string.IsNullOrWhiteSpace(releaseTagId) ? $"{releaseTagId}@{shortSha}" : sha;
+                        result.LatestCommitSha = combinedSignature;
+
                         if (string.IsNullOrWhiteSpace(result.ReleaseTitle))
-                            result.ReleaseTitle = $"Latest Commit ({shortSha}) on {defaultBranch}";
+                            result.ReleaseTitle = $"Latest Commit ({shortSha}) on {activeBranch}";
                         if (string.IsNullOrWhiteSpace(result.ReleaseNotes))
                             result.ReleaseNotes = string.IsNullOrWhiteSpace(msg) ? $"Commit {shortSha}" : msg;
-                        result.PublishedAt = FormatIsoDate(dateStr);
+                        if (string.IsNullOrWhiteSpace(result.PublishedAt))
+                            result.PublishedAt = FormatIsoDate(dateStr);
 
-                        // If user had a previously recorded commit SHA and remote differs, mark update available
+                        // Check SHA difference or timestamp difference
+                        string effectiveDateIso = !string.IsNullOrWhiteSpace(releasePublishedIso) ? releasePublishedIso : dateStr;
+
                         if (!string.IsNullOrWhiteSpace(installedCommitSha) &&
-                            !string.IsNullOrWhiteSpace(sha) &&
+                            !string.IsNullOrWhiteSpace(combinedSignature) &&
+                            !string.Equals(installedCommitSha, combinedSignature, StringComparison.OrdinalIgnoreCase) &&
                             !string.Equals(installedCommitSha, sha, StringComparison.OrdinalIgnoreCase))
                         {
                             result.IsUpdateAvailable = true;
                             result.LatestVersion = $"{result.LatestVersion} ({shortSha})";
                         }
                         else if (string.IsNullOrWhiteSpace(installedCommitSha) &&
-                                 DateTimeOffset.TryParse(dateStr, out var commitTime))
+                                 DateTimeOffset.TryParse(effectiveDateIso, out var commitTime))
                         {
                             DateTime localBuildTime = DateTime.MinValue;
 #if ANDROID
@@ -354,6 +501,7 @@ namespace StudyHub.Services
                     }
                     else
                     {
+                        if (result.Success) return result;
                         result.ErrorMessage = $"Could not query repository '{owner}/{repo}' (HTTP {(int)commitResp.StatusCode}).";
                         return result;
                     }
@@ -386,7 +534,13 @@ namespace StudyHub.Services
                 bool isApk = updateInfo.DownloadType == "apk" ||
                              updateInfo.DownloadUrl.EndsWith(".apk", StringComparison.OrdinalIgnoreCase);
 
+#if ANDROID
+                string cacheDir = Microsoft.Maui.Storage.FileSystem.CacheDirectory;
+                if (!Directory.Exists(cacheDir)) Directory.CreateDirectory(cacheDir);
+                string downloadFile = Path.Combine(cacheDir, "StudyHub_Update.apk");
+#else
                 string downloadFile = Path.Combine(stagingDir, isApk ? "StudyHub_Update.apk" : isExe ? "StudyHub_New.exe" : "update_package.zip");
+#endif
 
                 using (var response = await _http.GetAsync(updateInfo.DownloadUrl, HttpCompletionOption.ResponseHeadersRead))
                 {
@@ -404,20 +558,29 @@ namespace StudyHub.Services
                     {
                         await fileStream.WriteAsync(buffer, 0, read);
                         totalRead += read;
+                        double mbRead = totalRead / (1024.0 * 1024.0);
                         if (totalBytes.HasValue && totalBytes.Value > 0)
                         {
+#if ANDROID
+                            int pct = 5 + (int)((totalRead * 90) / totalBytes.Value);
+                            double mbTotal = totalBytes.Value / (1024.0 * 1024.0);
+                            progress?.Report((Math.Clamp(pct, 5, 95), $"Downloading APK... {mbRead:F1} / {mbTotal:F1} MB"));
+#else
                             int pct = 10 + (int)((totalRead * 65) / totalBytes.Value);
-                            progress?.Report((Math.Clamp(pct, 10, 75), $"Downloading update... ({totalRead / 1024} KB)"));
+                            progress?.Report((Math.Clamp(pct, 10, 75), $"Downloading update... ({mbRead:F1} MB)"));
+#endif
                         }
                         else
                         {
-                            progress?.Report((45, $"Downloading update... ({totalRead / 1024} KB)"));
+                            progress?.Report((50, $"Downloading update... ({mbRead:F1} MB)"));
                         }
                     }
+                    await fileStream.FlushAsync();
                 }
 
 #if ANDROID
-                progress?.Report((100, $"Downloaded update package to {downloadFile}"));
+                LastDownloadedApkPath = downloadFile;
+                progress?.Report((100, "Download complete! Launching Android installer..."));
                 return (true, "");
 #else
                 int currentPid = Environment.ProcessId;
@@ -527,6 +690,75 @@ del ""%~f0""
                 return (false, $"Failed to apply update: {ex.Message}");
             }
         }
+
+#if ANDROID
+        public bool CanInstallPackagesOnAndroid()
+        {
+            try
+            {
+                if (!OperatingSystem.IsAndroidVersionAtLeast(26)) return true;
+                var ctx = Android.App.Application.Context;
+                return ctx?.PackageManager?.CanRequestPackageInstalls() ?? true;
+            }
+            catch
+            {
+                return true;
+            }
+        }
+
+        public void RequestInstallPackagesPermissionOnAndroid()
+        {
+            try
+            {
+                if (!OperatingSystem.IsAndroidVersionAtLeast(26)) return;
+                var ctx = Android.App.Application.Context;
+                if (ctx == null) return;
+                var uri = Android.Net.Uri.Parse($"package:{ctx.PackageName}");
+                var intent = new Android.Content.Intent(Android.Provider.Settings.ActionManageUnknownAppSources, uri);
+                intent.AddFlags(Android.Content.ActivityFlags.NewTask);
+                ctx.StartActivity(intent);
+            }
+            catch { }
+        }
+
+        public (bool ok, string error) LaunchAndroidApkInstaller(string apkFilePath)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(apkFilePath) || !File.Exists(apkFilePath))
+                    return (false, "Downloaded APK file was not found.");
+
+                if (!CanInstallPackagesOnAndroid())
+                {
+                    RequestInstallPackagesPermissionOnAndroid();
+                    return (false, "PERMISSION_NEEDED");
+                }
+
+                var ctx = Android.App.Application.Context;
+                if (ctx == null)
+                    return (false, "Android context unavailable.");
+
+                var javaFile = new Java.IO.File(apkFilePath);
+                var apkUri = AndroidX.Core.Content.FileProvider.GetUriForFile(
+                    ctx,
+                    ctx.PackageName + ".fileProvider",
+                    javaFile);
+
+                if (apkUri == null)
+                    return (false, "Failed to create FileProvider URI for APK.");
+
+                var installIntent = new Android.Content.Intent(Android.Content.Intent.ActionView);
+                installIntent.SetDataAndType(apkUri, "application/vnd.android.package-archive");
+                installIntent.AddFlags(Android.Content.ActivityFlags.GrantReadUriPermission | Android.Content.ActivityFlags.NewTask);
+                ctx.StartActivity(installIntent);
+                return (true, "");
+            }
+            catch (Exception ex)
+            {
+                return (false, ex.Message);
+            }
+        }
+#endif
 
         private static string CleanVersionString(string input)
         {

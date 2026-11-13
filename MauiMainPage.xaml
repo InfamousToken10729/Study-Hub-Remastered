@@ -20,7 +20,7 @@
                     Grid.Row="0"
                     BackgroundColor="#E611152C"
                     Stroke="#252D50"
-                    StrokeThickness="0,0,0,1"
+                    StrokeThickness="1"
                     Padding="12,8">
                 <VerticalStackLayout Spacing="8">
                     <!-- Top Row: Brand on Left + Desktop/Landscape Pills + Action Buttons on Right -->
@@ -499,7 +499,7 @@
                         </Border>
 
                         <!-- Section Header: My Subjects -->
-                        <Grid ColumnDefinitions="*,Auto" VerticalOptions="Center">
+                        <Grid ColumnDefinitions="*,Auto" HeightRequest="42" MinimumHeightRequest="42" VerticalOptions="Center">
                             <HorizontalStackLayout Spacing="10" VerticalOptions="Center">
                                 <Border WidthRequest="34"
                                         HeightRequest="34"
@@ -1168,7 +1168,8 @@
                     WidthRequest="300"
                     BackgroundColor="#FA0E1225"
                     Stroke="#252D50"
-                    StrokeThickness="0,0,1,0"
+                    StrokeThickness="1"
+                    VerticalOptions="Fill"
                     Padding="18">
                 <Grid RowDefinitions="Auto,*,Auto">
                     <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,16">
@@ -1276,9 +1277,10 @@
             <Border x:Name="SoundMixerPanel"
                     Grid.Column="1"
                     WidthRequest="330"
+                    VerticalOptions="Fill"
                     BackgroundColor="#FA11152C"
                     Stroke="#283056"
-                    StrokeThickness="1,0,0,0"
+                    StrokeThickness="1"
                     Padding="14">
                 <Grid RowDefinitions="Auto,Auto,*,Auto" RowSpacing="10">
                     <!-- Mixer Header -->
@@ -1375,7 +1377,7 @@
 
         <!-- ================= 7. IN-APP PDF READER OVERLAY (WITH NATIVE DARK MODE) ================= -->
         <Grid x:Name="PdfReaderOverlay" IsVisible="False" BackgroundColor="#0B0D18" RowDefinitions="56,*">
-            <Border Grid.Row="0" BackgroundColor="#11152C" Stroke="#252D54" StrokeThickness="0,0,0,1" Padding="10,0">
+            <Border Grid.Row="0" BackgroundColor="#11152C" Stroke="#252D54" StrokeThickness="1" Padding="10,0">
                 <Grid ColumnDefinitions="Auto,*,Auto" VerticalOptions="Center">
                     <Button Grid.Column="0"
                             Text="←"
@@ -1539,18 +1541,52 @@
                             </FlexLayout>
 
                             <Entry x:Name="EntryGithubRepoUrl"
-                                   Placeholder="https://github.com/InfamousToken10729/Study-Hub-Remastered/tree/study_hub"
+                                   Placeholder="https://github.com/InfamousToken10729/Study-Hub-Remastered"
                                    PlaceholderColor="#687296"
                                    TextColor="#F8FAFC"
                                    BackgroundColor="#0D1124"
                                    FontSize="12" />
-                            <Button Text="🔄 Check GitHub for Updates"
+                            <Button x:Name="BtnCheckGithubUpdate"
+                                    Text="🔄 Check GitHub for Updates"
                                     FontSize="12"
                                     FontAttributes="Bold"
                                     BackgroundColor="#7C5CFF"
                                     TextColor="White"
                                     CornerRadius="10"
                                     Clicked="OnCheckGithubUpdateClicked" />
+
+                            <Border x:Name="BdMobileUpdateStatusCard"
+                                    IsVisible="False"
+                                    BackgroundColor="#0D1124"
+                                    Stroke="#283566"
+                                    StrokeThickness="1"
+                                    StrokeShape="RoundRectangle 12"
+                                    Padding="12">
+                                <VerticalStackLayout Spacing="8">
+                                    <Label x:Name="LblMobileUpdateStatusTitle"
+                                           Text="Checking GitHub..."
+                                           FontSize="12.5"
+                                           FontAttributes="Bold"
+                                           TextColor="#38BDF8" />
+                                    <Label x:Name="LblMobileUpdateStatusNotes"
+                                           Text=""
+                                           FontSize="11"
+                                           TextColor="#CBD5E1" />
+                                    <ProgressBar x:Name="ProgMobileUpdateDownload"
+                                                 IsVisible="False"
+                                                 Progress="0"
+                                                 ProgressColor="#10B981" />
+                                    <Button x:Name="BtnMobileInstallUpdateNow"
+                                            IsVisible="False"
+                                            Text="⬇️ Download &amp; Install Update In-App"
+                                            FontSize="12"
+                                            FontAttributes="Bold"
+                                            BackgroundColor="#10B981"
+                                            TextColor="White"
+                                            CornerRadius="10"
+                                            Clicked="OnMobileInstallUpdateNowClicked" />
+                                </VerticalStackLayout>
+                            </Border>
                         </VerticalStackLayout>
                     </ScrollView>
 

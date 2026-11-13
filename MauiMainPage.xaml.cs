@@ -56,6 +56,11 @@ public partial class MauiMainPage : ContentPage
     private List<SubjectItem> _calSubjectChoices = new();
     private DateTime _lastNotifCheckUtc = DateTime.MinValue;
 
+    // In-App GitHub Updater State
+    private UpdateCheckResult? _lastUpdateCheckResult;
+    private string _downloadedApkPath = "";
+    private bool _isUpdateInstalling = false;
+
     private static readonly string[] SubjectEmojiPalette =
     {
         "🎓", "📚", "💻", "🔬", "📐", "✈️", "📡", "⚙️",
@@ -167,7 +172,7 @@ public partial class MauiMainPage : ContentPage
         ApplyResponsiveLayout(width, height);
         if (widthChangedSignificantly)
         {
-            RenderSubjectsGrid(_currentSearchQuery);
+            Dispatcher.Dispatch(() => RenderSubjectsGrid(_currentSearchQuery));
         }
     }
 
@@ -649,13 +654,16 @@ public partial class MauiMainPage : ContentPage
         double effectiveW = _pageWidth > 40 ? _pageWidth : 390;
         bool isPhonePortrait = effectiveW < 540;
         int colCount = isPhonePortrait ? 1 : (effectiveW < 880 ? 2 : 3);
+        double rowCardHeight = isPhonePortrait ? 146 : 152;
+        double addCardHeight = isPhonePortrait ? 80 : rowCardHeight;
         var cards = new List<View>();
 
         // 1. "+ Add Subject" Dashed Card (Compact Horizontal Banner on Phone Portrait, Full Card on Landscape/Tablet)
         var addCard = new Border
         {
             HorizontalOptions = LayoutOptions.Fill,
-            HeightRequest = isPhonePortrait ? 76 : 150,
+            HeightRequest = addCardHeight,
+            MinimumHeightRequest = addCardHeight,
             BackgroundColor = isDark ? Color.FromArgb("#9911162B") : Color.FromArgb("#E6F8FAFC"),
             Stroke = isDark ? Color.FromArgb("#334170") : Color.FromArgb("#94A3B8"),
             StrokeThickness = 1.5,
@@ -676,6 +684,7 @@ public partial class MauiMainPage : ContentPage
             StrokeShape = new RoundRectangle { CornerRadius = isPhonePortrait ? 18 : 21 },
             HorizontalOptions = LayoutOptions.Center,
             VerticalOptions = LayoutOptions.Center,
+            InputTransparent = true,
             Content = new Label
             {
                 Text = "+",
@@ -683,7 +692,8 @@ public partial class MauiMainPage : ContentPage
                 FontAttributes = FontAttributes.Bold,
                 TextColor = isDark ? Color.FromArgb("#94A3C6") : Color.FromArgb("#334155"),
                 HorizontalOptions = LayoutOptions.Center,
-                VerticalOptions = LayoutOptions.Center
+                VerticalOptions = LayoutOptions.Center,
+                InputTransparent = true
             }
         };
 
@@ -694,7 +704,8 @@ public partial class MauiMainPage : ContentPage
             FontAttributes = FontAttributes.Bold,
             TextColor = isDark ? Color.FromArgb("#94A3C6") : Color.FromArgb("#475569"),
             HorizontalOptions = LayoutOptions.Center,
-            VerticalOptions = LayoutOptions.Center
+            VerticalOptions = LayoutOptions.Center,
+            InputTransparent = true
         };
 
         if (isPhonePortrait)
@@ -703,7 +714,8 @@ public partial class MauiMainPage : ContentPage
             {
                 HorizontalOptions = LayoutOptions.Center,
                 VerticalOptions = LayoutOptions.Center,
-                Spacing = 12
+                Spacing = 12,
+                InputTransparent = true
             };
             hStack.Children.Add(plusCircle);
             hStack.Children.Add(addTitleLbl);
@@ -715,7 +727,8 @@ public partial class MauiMainPage : ContentPage
             {
                 HorizontalOptions = LayoutOptions.Center,
                 VerticalOptions = LayoutOptions.Center,
-                Spacing = 10
+                Spacing = 10,
+                InputTransparent = true
             };
             vStack.Children.Add(plusCircle);
             vStack.Children.Add(addTitleLbl);
@@ -739,10 +752,12 @@ public partial class MauiMainPage : ContentPage
             int subDone = _state.Tasks.Count(t => t.SubjectId == sub.Id && t.Completed);
             int pct = subTasks > 0 ? (int)Math.Round(subDone * 100.0 / subTasks) : 0;
 
+            var capturedSub = sub;
             var cardBorder = new Border
             {
                 HorizontalOptions = LayoutOptions.Fill,
-                HeightRequest = isPhonePortrait ? 142 : 150,
+                HeightRequest = rowCardHeight,
+                MinimumHeightRequest = rowCardHeight,
                 BackgroundColor = isDark ? Color.FromArgb("#E6131830") : Colors.White,
                 Stroke = isDark ? Color.FromArgb("#263056") : Color.FromArgb("#CBD5E1"),
                 StrokeThickness = 1,
@@ -751,7 +766,7 @@ public partial class MauiMainPage : ContentPage
             };
 
             var openTap = new TapGestureRecognizer();
-            openTap.Tapped += (_, _) => OpenSubject(sub);
+            openTap.Tapped += (_, _) => OpenSubject(capturedSub);
             cardBorder.GestureRecognizers.Add(openTap);
 
             var cardGrid = new Grid
@@ -762,13 +777,18 @@ public partial class MauiMainPage : ContentPage
                     new RowDefinition { Height = GridLength.Star }
                 }
             };
+            cardGrid.GestureRecognizers.Add(new TapGestureRecognizer
+            {
+                Command = new Command(() => OpenSubject(capturedSub))
+            });
 
             // Top Inline Accent Bar (Flush with rounded border top)
             cardGrid.Add(new BoxView
             {
                 Color = accentColor,
                 HeightRequest = 4,
-                HorizontalOptions = LayoutOptions.Fill
+                HorizontalOptions = LayoutOptions.Fill,
+                InputTransparent = true
             }, 0, 0);
 
             var bodyStack = new VerticalStackLayout
@@ -796,12 +816,14 @@ public partial class MauiMainPage : ContentPage
                 BackgroundColor = accentColor,
                 StrokeThickness = 0,
                 StrokeShape = new RoundRectangle { CornerRadius = 12 },
+                InputTransparent = true,
                 Content = new Label
                 {
                     Text = MapSubjectEmoji(sub.Icon),
                     FontSize = 18,
                     HorizontalOptions = LayoutOptions.Center,
-                    VerticalOptions = LayoutOptions.Center
+                    VerticalOptions = LayoutOptions.Center,
+                    InputTransparent = true
                 }
             }, 0, 0);
 
@@ -813,21 +835,23 @@ public partial class MauiMainPage : ContentPage
                 TextColor = isDark ? Color.FromArgb("#F8FAFC") : Color.FromArgb("#0F172A"),
                 VerticalOptions = LayoutOptions.Center,
                 LineBreakMode = LineBreakMode.TailTruncation,
-                MaxLines = 2
+                MaxLines = 2,
+                InputTransparent = true
             }, 1, 0);
 
             var menuBtn = new Button
             {
                 Text = "⋯",
                 FontSize = 14,
-                WidthRequest = 30,
-                HeightRequest = 28,
+                WidthRequest = 32,
+                HeightRequest = 30,
                 Padding = new Thickness(0),
                 CornerRadius = 8,
                 BackgroundColor = isDark ? Color.FromArgb("#1A2140") : Color.FromArgb("#F1F5F9"),
-                TextColor = isDark ? Color.FromArgb("#94A3C6") : Color.FromArgb("#475569")
+                TextColor = isDark ? Color.FromArgb("#94A3C6") : Color.FromArgb("#475569"),
+                InputTransparent = false
             };
-            menuBtn.Clicked += async (_, _) => await OnSubjectQuickMenuClicked(sub);
+            menuBtn.Clicked += async (_, _) => await OnSubjectQuickMenuClicked(capturedSub);
             headerGrid.Add(menuBtn, 2, 0);
 
             bodyStack.Children.Add(headerGrid);
@@ -839,7 +863,8 @@ public partial class MauiMainPage : ContentPage
                 Stroke = isDark ? Color.FromArgb("#1E2648") : Color.FromArgb("#E2E8F0"),
                 StrokeThickness = 1,
                 StrokeShape = new RoundRectangle { CornerRadius = 10 },
-                Padding = new Thickness(10, 5)
+                Padding = new Thickness(10, 5),
+                InputTransparent = true
             };
             var statsGrid = new Grid
             {
@@ -847,21 +872,24 @@ public partial class MauiMainPage : ContentPage
                 {
                     new ColumnDefinition { Width = GridLength.Star },
                     new ColumnDefinition { Width = GridLength.Auto }
-                }
+                },
+                InputTransparent = true
             };
             statsGrid.Add(new Label
             {
                 Text = $"📁 {fileCount} Files",
                 FontSize = 11,
                 FontAttributes = FontAttributes.Bold,
-                TextColor = Color.FromArgb("#38BDF8")
+                TextColor = Color.FromArgb("#38BDF8"),
+                InputTransparent = true
             }, 0, 0);
             statsGrid.Add(new Label
             {
                 Text = $"📅 {eventCount} Events",
                 FontSize = 11,
                 FontAttributes = FontAttributes.Bold,
-                TextColor = Color.FromArgb("#C084FC")
+                TextColor = Color.FromArgb("#C084FC"),
+                InputTransparent = true
             }, 1, 0);
             statsPill.Content = statsGrid;
             bodyStack.Children.Add(statsPill);
@@ -875,20 +903,23 @@ public partial class MauiMainPage : ContentPage
                     new ColumnDefinition { Width = GridLength.Star }
                 },
                 ColumnSpacing = 8,
-                VerticalOptions = LayoutOptions.Center
+                VerticalOptions = LayoutOptions.Center,
+                InputTransparent = true
             };
             progGrid.Add(new Label
             {
                 Text = $"{pct}%",
                 FontSize = 10.5,
                 FontAttributes = FontAttributes.Bold,
-                TextColor = isDark ? Color.FromArgb("#8A95B7") : Color.FromArgb("#64748B")
+                TextColor = isDark ? Color.FromArgb("#8A95B7") : Color.FromArgb("#64748B"),
+                InputTransparent = true
             }, 0, 0);
             progGrid.Add(new ProgressBar
             {
                 Progress = pct / 100.0,
                 ProgressColor = accentColor,
-                VerticalOptions = LayoutOptions.Center
+                VerticalOptions = LayoutOptions.Center,
+                InputTransparent = true
             }, 1, 0);
             bodyStack.Children.Add(progGrid);
 
@@ -897,15 +928,30 @@ public partial class MauiMainPage : ContentPage
             cards.Add(cardBorder);
         }
 
+        double totalHeight = 0;
+        int rowCount = 0;
         for (int i = 0; i < cards.Count; i += colCount)
         {
+            rowCount++;
             if (colCount == 1)
             {
+                double h = (i == 0) ? addCardHeight : rowCardHeight;
                 SubjectsRowsContainer.Children.Add(cards[i]);
+                totalHeight += h;
             }
             else
             {
-                var rowGrid = new Grid { ColumnSpacing = 12, HorizontalOptions = LayoutOptions.Fill };
+                var rowGrid = new Grid
+                {
+                    ColumnSpacing = 12,
+                    HorizontalOptions = LayoutOptions.Fill,
+                    HeightRequest = rowCardHeight,
+                    MinimumHeightRequest = rowCardHeight,
+                    RowDefinitions =
+                    {
+                        new RowDefinition { Height = new GridLength(rowCardHeight) }
+                    }
+                };
                 for (int c = 0; c < colCount; c++)
                     rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Star });
 
@@ -913,8 +959,16 @@ public partial class MauiMainPage : ContentPage
                     rowGrid.Add(cards[i + c], c, 0);
 
                 SubjectsRowsContainer.Children.Add(rowGrid);
+                totalHeight += rowCardHeight;
             }
         }
+
+        if (rowCount > 1)
+            totalHeight += SubjectsRowsContainer.Spacing * (rowCount - 1);
+
+        SubjectsRowsContainer.MinimumHeightRequest = totalHeight;
+        SubjectsRowsContainer.HeightRequest = totalHeight;
+        (SubjectsRowsContainer as IView)?.InvalidateMeasure();
     }
 
     private void RenderActiveDrawerCourses()
@@ -2450,7 +2504,13 @@ public partial class MauiMainPage : ContentPage
 
     private void OnToggleSoundMixerClicked(object? sender, EventArgs e)
     {
-        SoundMixerOverlay.IsVisible = !SoundMixerOverlay.IsVisible;
+        bool show = !SoundMixerOverlay.IsVisible;
+        SoundMixerOverlay.IsVisible = show;
+        if (show)
+        {
+            BuildSoundMixerChannelsUi();
+            UpdateSoundMixerBadge();
+        }
     }
 
     private void OnMixerMasterPlayPauseClicked(object? sender, EventArgs e)
@@ -2474,6 +2534,7 @@ public partial class MauiMainPage : ContentPage
 
     private void OnMasterVolumeChanged(object? sender, ValueChangedEventArgs e)
     {
+        if (_audio == null || _state == null) return;
         int v = (int)Math.Round(e.NewValue);
         LblMasterVolPct.Text = $"{v}%";
         _audio.SetMasterVolume(v);
@@ -3386,43 +3447,191 @@ public partial class MauiMainPage : ContentPage
         _state.Settings.GithubRepoUrl = normalizedUrl;
         await _storage.SaveStateAsync(_state);
 
+        BdMobileUpdateStatusCard.IsVisible = true;
+        LblMobileUpdateStatusTitle.Text = "🔄 Checking GitHub for updates...";
+        LblMobileUpdateStatusTitle.TextColor = Color.FromArgb("#38BDF8");
+        LblMobileUpdateStatusNotes.Text = $"Querying {normalizedUrl}...";
+        ProgMobileUpdateDownload.IsVisible = false;
+        ProgMobileUpdateDownload.Progress = 0;
+        BtnMobileInstallUpdateNow.IsVisible = false;
+
         ShowToast("Checking GitHub for updates...");
         var res = await _updater.CheckForUpdatesAsync(normalizedUrl, _state.Settings.InstalledCommitSha);
+        _lastUpdateCheckResult = res;
+
         if (!res.Success)
         {
+            LblMobileUpdateStatusTitle.Text = "❌ Update Check Failed";
+            LblMobileUpdateStatusTitle.TextColor = Color.FromArgb("#F43F5E");
+            LblMobileUpdateStatusNotes.Text = res.ErrorMessage;
             await DisplayAlert("GitHub Updater", res.ErrorMessage, "OK");
             return;
         }
 
         if (res.IsUpdateAvailable)
         {
-            string msg = $"New update available: {res.LatestVersion}\n{res.ReleaseTitle}\n\n{res.ReleaseNotes}";
+            LblMobileUpdateStatusTitle.Text = $"🎉 Update Available: v{res.LatestVersion}";
+            LblMobileUpdateStatusTitle.TextColor = Color.FromArgb("#10B981");
+            LblMobileUpdateStatusNotes.Text = $"{res.ReleaseTitle}\n{res.ReleaseNotes}".Trim();
+
             if (!string.IsNullOrWhiteSpace(res.DownloadUrl))
             {
-                bool openDl = await DisplayAlert("GitHub Updater", msg, "Download / Open", "Later");
-                if (openDl)
+                BtnMobileInstallUpdateNow.IsVisible = true;
+                BtnMobileInstallUpdateNow.IsEnabled = true;
+                BtnMobileInstallUpdateNow.Text = "⬇️ Download & Install Update In-App";
+
+                string msg = $"New update available: {res.LatestVersion}\n{res.ReleaseTitle}\n\n{res.ReleaseNotes}\n\nDownload and install directly inside Study Hub?";
+                bool installNow = await DisplayAlert("GitHub Updater", msg, "Install Now", "Later");
+                if (installNow)
                 {
-                    try
-                    {
-                        await Launcher.Default.OpenAsync(new Uri(res.DownloadUrl));
-                    }
-                    catch (Exception ex)
-                    {
-                        await DisplayAlert("Open URL Error", ex.Message, "OK");
-                    }
+                    await StartInAppUpdateInstallAsync();
                 }
             }
             else
             {
-                await DisplayAlert("GitHub Updater", msg, "OK");
+                await DisplayAlert("GitHub Updater", $"New update found ({res.LatestVersion}), but no .apk installer was found in Release assets or repository root.", "OK");
             }
         }
         else
         {
+            LblMobileUpdateStatusTitle.Text = $"✅ Up to Date (v{res.CurrentVersion})";
+            LblMobileUpdateStatusTitle.TextColor = Color.FromArgb("#10B981");
             string commitInfo = string.IsNullOrWhiteSpace(res.LatestCommitSha)
-                ? ""
-                : $"\nLatest branch check: {res.ReleaseTitle}";
-            await DisplayAlert("GitHub Updater", $"You are up to date (v{res.CurrentVersion}).{commitInfo}", "OK");
+                ? "You have the latest version."
+                : $"Latest check: {res.ReleaseTitle}";
+            LblMobileUpdateStatusNotes.Text = commitInfo;
+
+            if (!string.IsNullOrWhiteSpace(res.DownloadUrl))
+            {
+                BtnMobileInstallUpdateNow.IsVisible = true;
+                BtnMobileInstallUpdateNow.IsEnabled = true;
+                BtnMobileInstallUpdateNow.Text = "🔄 Reinstall Latest Build In-App";
+            }
+
+            await DisplayAlert("GitHub Updater", $"You are up to date (v{res.CurrentVersion}).\n{commitInfo}", "OK");
+        }
+    }
+
+    private async void OnMobileInstallUpdateNowClicked(object? sender, EventArgs e)
+    {
+        await StartInAppUpdateInstallAsync();
+    }
+
+    private async Task StartInAppUpdateInstallAsync()
+    {
+        if (_isUpdateInstalling) return;
+        if (_lastUpdateCheckResult == null || string.IsNullOrWhiteSpace(_lastUpdateCheckResult.DownloadUrl))
+        {
+            ShowToast("Please check GitHub for updates first.");
+            return;
+        }
+
+        _isUpdateInstalling = true;
+        BtnMobileInstallUpdateNow.IsEnabled = false;
+        BtnCheckGithubUpdate.IsEnabled = false;
+        BdMobileUpdateStatusCard.IsVisible = true;
+        ProgMobileUpdateDownload.IsVisible = true;
+
+        try
+        {
+#if ANDROID
+            // If APK was already downloaded and user just granted Unknown Apps permission, launch installer immediately
+            if (!string.IsNullOrWhiteSpace(_downloadedApkPath) && File.Exists(_downloadedApkPath))
+            {
+                LblMobileUpdateStatusTitle.Text = "📦 Launching Android Installer...";
+                LblMobileUpdateStatusNotes.Text = "Installing downloaded StudyHub update...";
+                var (instOk, instErr) = _updater.LaunchAndroidApkInstaller(_downloadedApkPath);
+                if (instOk)
+                {
+                    ShowToast("Android package installer opened 📦");
+                    return;
+                }
+                if (instErr == "PERMISSION_NEEDED")
+                {
+                    LblMobileUpdateStatusTitle.Text = "🔐 Permission Required";
+                    LblMobileUpdateStatusTitle.TextColor = Color.FromArgb("#F59E0B");
+                    LblMobileUpdateStatusNotes.Text = "Allow 'Install unknown apps' for Study Hub, then tap Install again.";
+                    await DisplayAlert("Install Permission Required", "Please enable 'Allow from this source' in Android Settings, then return and tap the Install button again (no re-download needed).", "OK");
+                    return;
+                }
+                // Otherwise fall through to fresh download
+                _downloadedApkPath = "";
+            }
+#endif
+
+            ProgMobileUpdateDownload.Progress = 0.05;
+            LblMobileUpdateStatusTitle.Text = "⬇️ Downloading Update...";
+            LblMobileUpdateStatusTitle.TextColor = Color.FromArgb("#38BDF8");
+
+            var progress = new Progress<(int percent, string status)>(p =>
+            {
+                MainThread.BeginInvokeOnMainThread(() =>
+                {
+                    ProgMobileUpdateDownload.Progress = Math.Clamp(p.percent / 100.0, 0.0, 1.0);
+                    LblMobileUpdateStatusNotes.Text = $"{p.status} ({p.percent}%)";
+                });
+            });
+
+            var (ok, error) = await _updater.DownloadAndApplyUpdateAsync(_lastUpdateCheckResult, progress);
+            if (!ok)
+            {
+                LblMobileUpdateStatusTitle.Text = "❌ Update Download Failed";
+                LblMobileUpdateStatusTitle.TextColor = Color.FromArgb("#F43F5E");
+                LblMobileUpdateStatusNotes.Text = error;
+                await DisplayAlert("Update Failed", error, "OK");
+                return;
+            }
+
+            if (!string.IsNullOrWhiteSpace(_lastUpdateCheckResult.LatestCommitSha))
+            {
+                _state.Settings.InstalledCommitSha = _lastUpdateCheckResult.LatestCommitSha;
+                await _storage.SaveStateAsync(_state);
+            }
+
+#if ANDROID
+            _downloadedApkPath = _updater.LastDownloadedApkPath;
+            LblMobileUpdateStatusTitle.Text = "📦 Installing Update...";
+            LblMobileUpdateStatusTitle.TextColor = Color.FromArgb("#10B981");
+            LblMobileUpdateStatusNotes.Text = "Opening Android package installer...";
+
+            var (launched, launchErr) = _updater.LaunchAndroidApkInstaller(_downloadedApkPath);
+            if (launched)
+            {
+                ShowToast("Follow the Android prompt to finish updating 🚀");
+            }
+            else if (launchErr == "PERMISSION_NEEDED")
+            {
+                LblMobileUpdateStatusTitle.Text = "🔐 Permission Required";
+                LblMobileUpdateStatusTitle.TextColor = Color.FromArgb("#F59E0B");
+                LblMobileUpdateStatusNotes.Text = "Enable 'Allow from this source' in Android Settings, then tap Install again.";
+                BtnMobileInstallUpdateNow.Text = "📦 Install Downloaded APK";
+                await DisplayAlert("Allow Unknown Apps", "Android Settings was opened so you can allow Study Hub to install updates. Toggle 'Allow from this source', come back, and tap 'Install Downloaded APK'.", "OK");
+            }
+            else
+            {
+                LblMobileUpdateStatusTitle.Text = "⚠️ Could Not Launch Installer";
+                LblMobileUpdateStatusTitle.TextColor = Color.FromArgb("#F59E0B");
+                LblMobileUpdateStatusNotes.Text = launchErr;
+                await DisplayAlert("Installer Error", $"Could not open Android package installer: {launchErr}", "OK");
+            }
+#else
+            LblMobileUpdateStatusTitle.Text = "🚀 Restarting to Apply Update...";
+            ShowToast("Restarting Study Hub to apply update...");
+            Application.Current?.Quit();
+#endif
+        }
+        catch (Exception ex)
+        {
+            LblMobileUpdateStatusTitle.Text = "❌ Update Error";
+            LblMobileUpdateStatusTitle.TextColor = Color.FromArgb("#F43F5E");
+            LblMobileUpdateStatusNotes.Text = ex.Message;
+            await DisplayAlert("Update Error", ex.Message, "OK");
+        }
+        finally
+        {
+            _isUpdateInstalling = false;
+            BtnMobileInstallUpdateNow.IsEnabled = true;
+            BtnCheckGithubUpdate.IsEnabled = true;
         }
     }
 
