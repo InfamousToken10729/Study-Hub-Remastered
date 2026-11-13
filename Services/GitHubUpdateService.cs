@@ -108,19 +108,17 @@ namespace StudyHub.Services
                 LatestVersion = CurrentAppVersion
             };
 
-            if (string.IsNullOrWhiteSpace(rawUrl))
-            {
-                result.ErrorMessage = "Please paste a GitHub repository or release link first.";
-                return result;
-            }
+            rawUrl = StudyHub.Models.UserSettings.NormalizeGithubRepoUrl(rawUrl);
 
             try
             {
                 if (!TryParseGitHubRepo(rawUrl, out string owner, out string repo, out string branch))
                 {
-                    // Check if it's a direct link to a .exe or .zip file
+                    // Check if it's a direct link to a .exe, .apk, or .zip file
                     if (rawUrl.StartsWith("http", StringComparison.OrdinalIgnoreCase) &&
-                        (rawUrl.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) || rawUrl.EndsWith(".zip", StringComparison.OrdinalIgnoreCase)))
+                        (rawUrl.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ||
+                         rawUrl.EndsWith(".apk", StringComparison.OrdinalIgnoreCase) ||
+                         rawUrl.EndsWith(".zip", StringComparison.OrdinalIgnoreCase)))
                     {
                         result.Success = true;
                         result.IsUpdateAvailable = true;
@@ -128,7 +126,9 @@ namespace StudyHub.Services
                         result.ReleaseTitle = Path.GetFileName(new Uri(rawUrl).LocalPath);
                         result.ReleaseNotes = "Direct update package URL configured.";
                         result.DownloadUrl = rawUrl.Trim();
-                        result.DownloadType = rawUrl.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ? "exe" : "zip";
+                        result.DownloadType = rawUrl.EndsWith(".apk", StringComparison.OrdinalIgnoreCase) ? "apk"
+                            : rawUrl.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ? "exe"
+                            : "zip";
                         result.RepoDisplay = rawUrl.Trim();
                         return result;
                     }
@@ -185,12 +185,21 @@ namespace StudyHub.Services
                             {
                                 string aName = asset.TryGetProperty("name", out var an) ? (an.GetString() ?? "") : "";
                                 string aUrl = asset.TryGetProperty("browser_download_url", out var au) ? (au.GetString() ?? "") : "";
+#if ANDROID
+                                if (aName.EndsWith(".apk", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    assetUrl = aUrl;
+                                    assetType = "apk";
+                                    break;
+                                }
+#else
                                 if (aName.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
                                 {
                                     assetUrl = aUrl;
                                     assetType = "exe";
                                     break;
                                 }
+#endif
                                 if (aName.EndsWith(".zip", StringComparison.OrdinalIgnoreCase) && string.IsNullOrEmpty(assetUrl))
                                 {
                                     assetUrl = aUrl;
@@ -237,6 +246,12 @@ namespace StudyHub.Services
                         int remoteBuild = root.TryGetProperty("build", out var bEl) && bEl.TryGetInt32(out int bVal) ? bVal : 0;
                         string notes = root.TryGetProperty("notes", out var nEl) ? (nEl.GetString() ?? "") : "";
                         string customDl = root.TryGetProperty("download_url", out var dEl) ? (dEl.GetString() ?? "") : "";
+#if ANDROID
+                        if (root.TryGetProperty("apk_url", out var apkEl) && !string.IsNullOrWhiteSpace(apkEl.GetString()))
+                            customDl = apkEl.GetString() ?? customDl;
+                        else if (root.TryGetProperty("android_download_url", out var aApkEl) && !string.IsNullOrWhiteSpace(aApkEl.GetString()))
+                            customDl = aApkEl.GetString() ?? customDl;
+#endif
 
                         string cleanVer = CleanVersionString(remoteVer);
                         if (!string.IsNullOrWhiteSpace(cleanVer))
@@ -248,9 +263,11 @@ namespace StudyHub.Services
                             result.DownloadUrl = !string.IsNullOrWhiteSpace(customDl)
                                 ? customDl
                                 : $"https://github.com/{owner}/{repo}/archive/refs/heads/{defaultBranch}.zip";
-                            result.DownloadType = !string.IsNullOrWhiteSpace(customDl) && customDl.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)
-                                ? "exe"
-                                : "source_zip";
+                            result.DownloadType = !string.IsNullOrWhiteSpace(customDl) && customDl.EndsWith(".apk", StringComparison.OrdinalIgnoreCase)
+                                ? "apk"
+                                : !string.IsNullOrWhiteSpace(customDl) && customDl.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)
+                                    ? "exe"
+                                    : "source_zip";
 
                             if (CompareVersions(cleanVer, CurrentAppVersion) > 0 || remoteBuild > CurrentAppBuild)
                             {
@@ -305,16 +322,31 @@ namespace StudyHub.Services
                         else if (string.IsNullOrWhiteSpace(installedCommitSha) &&
                                  DateTimeOffset.TryParse(dateStr, out var commitTime))
                         {
-                            // Compare against local executable build time (with 10-minute grace window)
+                            DateTime localBuildTime = DateTime.MinValue;
+#if ANDROID
+                            try
+                            {
+                                var ctx = Android.App.Application.Context;
+                                var pm = ctx.PackageManager;
+                                string pkgName = ctx.PackageName ?? "";
+#pragma warning disable CA1422
+                                var pkgInfo = OperatingSystem.IsAndroidVersionAtLeast(33)
+                                    ? pm?.GetPackageInfo(pkgName, Android.Content.PM.PackageManager.PackageInfoFlags.Of(0L)!)
+                                    : pm?.GetPackageInfo(pkgName, 0);
+#pragma warning restore CA1422
+                                if (pkgInfo != null && pkgInfo.LastUpdateTime > 0)
+                                    localBuildTime = DateTimeOffset.FromUnixTimeMilliseconds(pkgInfo.LastUpdateTime).UtcDateTime;
+                            }
+                            catch { }
+#else
                             string exePath = Process.GetCurrentProcess().MainModule?.FileName ?? "";
                             if (File.Exists(exePath))
+                                localBuildTime = File.GetLastWriteTimeUtc(exePath);
+#endif
+                            if (localBuildTime > DateTime.MinValue && commitTime.UtcDateTime > localBuildTime.AddMinutes(10))
                             {
-                                var localBuildTime = File.GetLastWriteTimeUtc(exePath);
-                                if (commitTime.UtcDateTime > localBuildTime.AddMinutes(10))
-                                {
-                                    result.IsUpdateAvailable = true;
-                                    result.LatestVersion = $"{result.LatestVersion} ({shortSha})";
-                                }
+                                result.IsUpdateAvailable = true;
+                                result.LatestVersion = $"{result.LatestVersion} ({shortSha})";
                             }
                         }
 
@@ -351,8 +383,10 @@ namespace StudyHub.Services
 
                 bool isExe = updateInfo.DownloadType == "exe" ||
                              updateInfo.DownloadUrl.EndsWith(".exe", StringComparison.OrdinalIgnoreCase);
+                bool isApk = updateInfo.DownloadType == "apk" ||
+                             updateInfo.DownloadUrl.EndsWith(".apk", StringComparison.OrdinalIgnoreCase);
 
-                string downloadFile = Path.Combine(stagingDir, isExe ? "StudyHub_New.exe" : "update_package.zip");
+                string downloadFile = Path.Combine(stagingDir, isApk ? "StudyHub_Update.apk" : isExe ? "StudyHub_New.exe" : "update_package.zip");
 
                 using (var response = await _http.GetAsync(updateInfo.DownloadUrl, HttpCompletionOption.ResponseHeadersRead))
                 {

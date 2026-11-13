@@ -110,6 +110,14 @@ namespace StudyHub
         // Guard flag against recursive slider updates when rendering Sound Mixer
         private bool _isRenderingMixer = false;
 
+        // PC Calendar & Notification Engine State
+        private DateTime _pcCalDisplayMonth = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1);
+        private DateTime _pcCalSelectedDate = DateTime.Today;
+        private bool _pcHomeUpcomingExpanded = false;
+        private bool _pcIsUpdatingCalSettingsUi = false;
+        private DateTime _pcLastNotifCheckUtc = DateTime.MinValue;
+        private List<SubjectItem> _pcCalSubjectChoices = new();
+
         public MainWindow()
         {
             InitializeComponent();
@@ -129,7 +137,14 @@ namespace StudyHub
 
             // Real-time Top Bar Clock Timer (250ms cadence with change-detection prevents second skips and Zen HUD flicker)
             _clockTimer = new DispatcherTimer(DispatcherPriority.Normal) { Interval = TimeSpan.FromMilliseconds(250) };
-            _clockTimer.Tick += (s, e) => UpdateLiveClock();
+            _clockTimer.Tick += (s, e) =>
+            {
+                UpdateLiveClock();
+                if (!_isClosing && (DateTime.UtcNow - _pcLastNotifCheckUtc).TotalSeconds >= 25)
+                {
+                    CheckDueCalendarNotificationsPc(isLaunchCatchup: false);
+                }
+            };
             _clockTimer.Start();
             UpdateLiveClock(force: true);
 
@@ -159,12 +174,18 @@ namespace StudyHub
                     SetFullscreen(true);
                 }
 
-                if (!string.IsNullOrWhiteSpace(_state.Settings?.GithubRepoUrl))
-                {
-                    TxtSettingsGithubUrl.Text = _state.Settings.GithubRepoUrl;
-                }
+                _state.Settings ??= new UserSettings();
+                _state.Settings.GithubRepoUrl = UserSettings.NormalizeGithubRepoUrl(_state.Settings.GithubRepoUrl);
+                TxtSettingsGithubUrl.Text = _state.Settings.GithubRepoUrl;
 
-                ChkSettingsAutoCheckOnLaunch.IsChecked = _state.Settings?.AutoCheckUpdates ?? true;
+                _state.Settings.CalendarNotifStartHour = CalendarNotificationEngine.NormalizeMorningTimeString(_state.Settings.CalendarNotifStartHour);
+                _pcIsUpdatingCalSettingsUi = true;
+                if (ChkSettingsCalNotifs != null) ChkSettingsCalNotifs.IsChecked = _state.Settings.CalendarNotifsEnabled;
+                if (TxtSettingsMorningHour != null) TxtSettingsMorningHour.Text = _state.Settings.CalendarNotifStartHour;
+                if (TxtPcCalMorningInline != null) TxtPcCalMorningInline.Text = _state.Settings.CalendarNotifStartHour;
+                _pcIsUpdatingCalSettingsUi = false;
+
+                ChkSettingsAutoCheckOnLaunch.IsChecked = _state.Settings.AutoCheckUpdates;
                 _is24HourClock = string.Equals(_state.Settings?.TimeFormat, "24h", StringComparison.OrdinalIgnoreCase);
                 UpdateLiveClock(force: true);
 
@@ -210,6 +231,14 @@ namespace StudyHub
                 RenderControlCenterThemesAndEffects();
                 UpdateControlCenterUiState();
                 UpdateRenderLoopState();
+                RenderPcHomeUpcomingEvents();
+
+                // Check for missed calendar notifications while app was closed, once main window finishes appearing
+                _ = Task.Run(async () =>
+                {
+                    await Task.Delay(700);
+                    await Dispatcher.InvokeAsync(() => CheckDueCalendarNotificationsPc(isLaunchCatchup: true));
+                });
 
                 // Auto-check GitHub for updates on launch if configured
                 if (_state.Settings?.AutoCheckUpdates != false &&
@@ -335,7 +364,10 @@ namespace StudyHub
                 if (!_isPomoBreak)
                 {
                     _state.PomodorosCompleted++;
+                    string todayKey = DateTime.Today.ToString("yyyy-MM-dd");
+                    _state.PomodoroDays[todayKey] = _state.PomodoroDays.GetValueOrDefault(todayKey, 0) + 1;
                     SaveState();
+                    UpdateDashboardStats();
                     int brkMins = _state.Settings?.PomoBreak > 0 ? _state.Settings.PomoBreak : 5;
                     ShowToast($"Focus session complete! Take a {brkMins}-minute break 🏆");
                     _isPomoBreak = true;
@@ -2860,6 +2892,7 @@ namespace StudyHub
                     _state.Deadlines.Remove(dl);
                     SaveState();
                     RenderDeadlinesList();
+                    RenderPcHomeUpcomingEvents();
                     UpdateSubjectDetailStats();
                 };
                 Grid.SetColumn(delBtn, 1);
@@ -2890,6 +2923,7 @@ namespace StudyHub
             TxtDeadlineTitle.Text = "";
             SaveState();
             RenderDeadlinesList();
+            RenderPcHomeUpcomingEvents();
             UpdateSubjectDetailStats();
             ShowToast("Deadline added! 📅");
         }
@@ -5962,16 +5996,12 @@ namespace StudyHub
 
         private async Task CheckForGithubUpdatesAsync(bool silentOnNoUpdate)
         {
-            string url = TxtSettingsGithubUrl.Text.Trim();
-            if (string.IsNullOrEmpty(url))
-            {
-                if (!silentOnNoUpdate) ShowToast("Please enter a valid GitHub repository URL");
-                return;
-            }
+            string url = UserSettings.NormalizeGithubRepoUrl(TxtSettingsGithubUrl.Text);
+            TxtSettingsGithubUrl.Text = url;
 
             _state.Settings.GithubRepoUrl = url;
             _state.Settings.AutoCheckUpdates = ChkSettingsAutoCheckOnLaunch.IsChecked ?? true;
-            SaveState();
+            SaveState(countActivity: false);
 
             BdUpdateResultBox.Visibility = Visibility.Visible;
             TxtUpdateStatusHeader.Text = "Checking GitHub Releases...";
@@ -5981,7 +6011,7 @@ namespace StudyHub
 
             try
             {
-                var result = await _updater.CheckForUpdatesAsync(url);
+                var result = await _updater.CheckForUpdatesAsync(url, _state.Settings.InstalledCommitSha);
                 if (result.Success)
                 {
                     if (result.IsUpdateAvailable)
@@ -6862,6 +6892,595 @@ namespace StudyHub
                 ".txt" or ".md" => "📝",
                 _ => "📄"
             };
+        }
+
+        // ================= PC CALENDAR, UPCOMING EVENTS & NOTIFICATIONS =================
+
+        private static Color ParseHexColorOrDefault(string? hex, Color fallback)
+        {
+            try
+            {
+                if (!string.IsNullOrWhiteSpace(hex) && ColorConverter.ConvertFromString(hex) is Color c)
+                    return c;
+            }
+            catch { }
+            return fallback;
+        }
+
+        private void BtnNavCalendar_Click(object sender, RoutedEventArgs e)
+        {
+            OpenPcCalendarModal();
+        }
+
+        private void BtnDrawerCalendar_Click(object sender, RoutedEventArgs e)
+        {
+            AppNavigationDrawerGrid.Visibility = Visibility.Collapsed;
+            OpenPcCalendarModal();
+        }
+
+        private void BtnOpenAddCalendarNote_Click(object sender, RoutedEventArgs e)
+        {
+            _pcCalSelectedDate = DateTime.Today;
+            _pcCalDisplayMonth = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1);
+            OpenPcCalendarModal();
+        }
+
+        private void CalendarModalBackdrop_MouseDown(object sender, MouseButtonEventArgs e)
+        {
+            CalendarModalGrid.Visibility = Visibility.Collapsed;
+        }
+
+        private void BtnCloseCalendarModal_Click(object sender, RoutedEventArgs e)
+        {
+            CalendarModalGrid.Visibility = Visibility.Collapsed;
+        }
+
+        private void BtnHomeUpcomingExpand_Click(object sender, RoutedEventArgs e)
+        {
+            _pcHomeUpcomingExpanded = !_pcHomeUpcomingExpanded;
+            RenderPcHomeUpcomingEvents();
+        }
+
+        private void OpenPcCalendarModal()
+        {
+            _pcCalSubjectChoices = _state.Subjects.Where(s => !s.Archived).ToList();
+            CmbPcCalSubject.Items.Clear();
+            CmbPcCalSubject.Items.Add("General / Personal");
+            foreach (var sub in _pcCalSubjectChoices)
+            {
+                CmbPcCalSubject.Items.Add($"{sub.Name}");
+            }
+            CmbPcCalSubject.SelectedIndex = 0;
+
+            string m = CalendarNotificationEngine.NormalizeMorningTimeString(_state.Settings?.CalendarNotifStartHour);
+            TxtPcCalMorningInline.Text = m;
+            TxtPcCalMorningStatus.Text = $"Morning reminders trigger at {m} (and missed alerts pop up automatically when launching PC)";
+
+            RenderPcCalendarModalViews();
+            CalendarModalGrid.Visibility = Visibility.Visible;
+        }
+
+        private void BtnPcCalPrevMonth_Click(object sender, RoutedEventArgs e)
+        {
+            _pcCalDisplayMonth = _pcCalDisplayMonth.AddMonths(-1);
+            RenderPcCalendarModalViews();
+        }
+
+        private void BtnPcCalNextMonth_Click(object sender, RoutedEventArgs e)
+        {
+            _pcCalDisplayMonth = _pcCalDisplayMonth.AddMonths(1);
+            RenderPcCalendarModalViews();
+        }
+
+        private void BtnPcCalToday_Click(object sender, RoutedEventArgs e)
+        {
+            _pcCalSelectedDate = DateTime.Today;
+            _pcCalDisplayMonth = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1);
+            RenderPcCalendarModalViews();
+        }
+
+        private void BtnPcCalSelectAll4_Click(object sender, RoutedEventArgs e)
+        {
+            bool allOn = (ChkPcCal3Days.IsChecked == true) &&
+                         (ChkPcCal24Hours.IsChecked == true) &&
+                         (ChkPcCalMorning.IsChecked == true) &&
+                         (ChkPcCalCustom.IsChecked == true);
+            bool next = !allOn;
+            ChkPcCal3Days.IsChecked = next;
+            ChkPcCal24Hours.IsChecked = next;
+            ChkPcCalMorning.IsChecked = next;
+            ChkPcCalCustom.IsChecked = next;
+        }
+
+        private void ChkPcCalCustom_Changed(object sender, RoutedEventArgs e)
+        {
+            if (GridPcCalCustomOffset != null)
+                GridPcCalCustomOffset.Visibility = (ChkPcCalCustom.IsChecked == true) ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        private void BtnPcCalSaveMorningInline_Click(object sender, RoutedEventArgs e)
+        {
+            SavePcMorningHourSetting(TxtPcCalMorningInline.Text);
+        }
+
+        private void BtnSaveMorningHourSetting_Click(object sender, RoutedEventArgs e)
+        {
+            SavePcMorningHourSetting(TxtSettingsMorningHour.Text);
+        }
+
+        private void ChkSettingsCalNotifs_Changed(object sender, RoutedEventArgs e)
+        {
+            if (_pcIsUpdatingCalSettingsUi || _state?.Settings == null) return;
+            _state.Settings.CalendarNotifsEnabled = ChkSettingsCalNotifs.IsChecked == true;
+            SaveState(countActivity: false);
+            ShowToast(_state.Settings.CalendarNotifsEnabled ? "Calendar alerts enabled 🔔" : "Calendar alerts paused 🔕");
+        }
+
+        private void SavePcMorningHourSetting(string? rawTime)
+        {
+            if (_state?.Settings == null) return;
+            string normalized = CalendarNotificationEngine.NormalizeMorningTimeString(rawTime);
+            _state.Settings.CalendarNotifStartHour = normalized;
+            _pcIsUpdatingCalSettingsUi = true;
+            if (TxtSettingsMorningHour != null) TxtSettingsMorningHour.Text = normalized;
+            if (TxtPcCalMorningInline != null) TxtPcCalMorningInline.Text = normalized;
+            _pcIsUpdatingCalSettingsUi = false;
+
+            if (TxtPcCalMorningStatus != null)
+                TxtPcCalMorningStatus.Text = $"Morning reminders trigger at {normalized} (and missed alerts pop up automatically when launching PC)";
+
+            SaveState(countActivity: false);
+            RenderPcCalendarModalViews();
+            RenderPcHomeUpcomingEvents();
+            CheckDueCalendarNotificationsPc(isLaunchCatchup: false);
+            ShowToast($"Morning reminder time saved: {normalized} ⏰");
+        }
+
+        private void BtnPcCalSaveEvent_Click(object sender, RoutedEventArgs e)
+        {
+            string title = (TxtPcCalTitle.Text ?? "").Trim();
+            string note = (TxtPcCalNote.Text ?? "").Trim();
+            if (string.IsNullOrWhiteSpace(title) && string.IsNullOrWhiteSpace(note))
+            {
+                ShowToast("Enter a title or note for this calendar day first.");
+                return;
+            }
+            if (string.IsNullOrWhiteSpace(title)) title = "Calendar Note";
+
+            var parsedTime = CalendarNotificationEngine.ParseTimeOfDay(TxtPcCalTime.Text, new TimeSpan(9, 0, 0));
+            string eventTime = $"{parsedTime.Hours:D2}:{parsedTime.Minutes:D2}";
+
+            string subjectId = "";
+            if (CmbPcCalSubject.SelectedIndex > 0 && CmbPcCalSubject.SelectedIndex - 1 < _pcCalSubjectChoices.Count)
+                subjectId = _pcCalSubjectChoices[CmbPcCalSubject.SelectedIndex - 1].Id;
+
+            bool r3 = ChkPcCal3Days.IsChecked == true;
+            bool r24 = ChkPcCal24Hours.IsChecked == true;
+            bool rMorning = ChkPcCalMorning.IsChecked == true;
+            bool rCustom = ChkPcCalCustom.IsChecked == true;
+
+            int customMins = 120;
+            if (rCustom)
+            {
+                int amt = int.TryParse(TxtPcCalCustomAmount.Text, out int v) && v > 0 ? v : 2;
+                customMins = CmbPcCalCustomUnit.SelectedIndex switch
+                {
+                    1 => amt,
+                    2 => amt * 1440,
+                    _ => amt * 60
+                };
+            }
+
+            var ev = new CalendarEventItem
+            {
+                Id = "cal_" + DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+                Title = title,
+                Note = note,
+                Date = _pcCalSelectedDate.ToString("yyyy-MM-dd"),
+                EventTime = eventTime,
+                SubjectId = subjectId,
+                Notify3DaysBefore = r3,
+                Notify24HoursBefore = r24,
+                NotifyMorningOf = rMorning,
+                NotifyCustom = rCustom,
+                CustomOffsetMinutes = customMins,
+                CreatedAt = DateTime.UtcNow.ToString("O")
+            };
+
+            CalendarNotificationEngine.SuppressPreExistingPastTriggers(ev, _state, DateTime.Now);
+            _state.CalendarEvents.Add(ev);
+
+            TxtPcCalTitle.Text = "";
+            TxtPcCalNote.Text = "";
+
+            SaveState(countActivity: false);
+            RenderPcCalendarModalViews();
+            RenderPcHomeUpcomingEvents();
+            RenderSubjects();
+            CheckDueCalendarNotificationsPc(isLaunchCatchup: false);
+            ShowToast($"Saved calendar note for {_pcCalSelectedDate:MMM d} 📅");
+        }
+
+        private void RenderPcHomeUpcomingEvents()
+        {
+            if (HomeUpcomingStackPanel == null) return;
+            HomeUpcomingStackPanel.Children.Clear();
+
+            var upcoming = CalendarNotificationEngine.GetUpcomingEvents(_state, includeCompleted: false);
+            int count = upcoming.Count;
+            if (TxtHomeUpcomingCount != null) TxtHomeUpcomingCount.Text = count.ToString();
+            if (NavCalendarDot != null) NavCalendarDot.Visibility = count > 0 ? Visibility.Visible : Visibility.Collapsed;
+            if (TxtDrawerCalendarLabel != null)
+                TxtDrawerCalendarLabel.Text = count > 0 ? $"Calendar & Upcoming ({count})" : "Calendar & Upcoming Events";
+
+            if (count == 0)
+            {
+                if (BtnHomeUpcomingExpand != null) BtnHomeUpcomingExpand.Visibility = Visibility.Collapsed;
+                HomeUpcomingStackPanel.Children.Add(new Border
+                {
+                    Background = (Brush)FindResource("SubtleBgBrush"),
+                    BorderBrush = (Brush)FindResource("BorderBrushTheme"),
+                    BorderThickness = new Thickness(1),
+                    CornerRadius = new CornerRadius(12),
+                    Padding = new Thickness(14, 10, 14, 10),
+                    Child = new TextBlock
+                    {
+                        Text = "No upcoming events scheduled — click '+ Add Calendar Note' or 'Open Calendar' to schedule reminders.",
+                        FontSize = 12,
+                        Foreground = (Brush)FindResource("MutedTextBrush")
+                    }
+                });
+                return;
+            }
+
+            int showCount = _pcHomeUpcomingExpanded ? upcoming.Count : Math.Min(3, upcoming.Count);
+            for (int i = 0; i < showCount; i++)
+            {
+                HomeUpcomingStackPanel.Children.Add(BuildPcUpcomingEventRow(upcoming[i], compact: true));
+            }
+
+            if (BtnHomeUpcomingExpand != null)
+            {
+                if (upcoming.Count > 3)
+                {
+                    BtnHomeUpcomingExpand.Visibility = Visibility.Visible;
+                    TxtHomeUpcomingExpand.Text = _pcHomeUpcomingExpanded
+                        ? "Show Fewer ▴"
+                        : $"Show All ({upcoming.Count}) ▾";
+                }
+                else
+                {
+                    BtnHomeUpcomingExpand.Visibility = Visibility.Collapsed;
+                }
+            }
+        }
+
+        private void RenderPcCalendarModalViews()
+        {
+            if (PcCalMonthDaysGrid == null) return;
+            TxtPcCalMonthTitle.Text = _pcCalDisplayMonth.ToString("MMMM yyyy");
+            TxtPcCalSelectedDateHeader.Text = $"Selected Day: {_pcCalSelectedDate:ddd, MMM d, yyyy}";
+
+            var allEvents = CalendarNotificationEngine.GetUpcomingEvents(_state, includeCompleted: true);
+            var datesWithEvents = new HashSet<string>(
+                allEvents.Where(u => !u.Completed).Select(u => u.DateKey),
+                StringComparer.Ordinal);
+
+            PcCalMonthDaysGrid.Children.Clear();
+            DateTime first = new DateTime(_pcCalDisplayMonth.Year, _pcCalDisplayMonth.Month, 1);
+            DateTime cursor = first.AddDays(-(int)first.DayOfWeek);
+
+            for (int i = 0; i < 42; i++)
+            {
+                DateTime dayDate = cursor;
+                string dayKey = dayDate.ToString("yyyy-MM-dd");
+                bool isInMonth = dayDate.Month == _pcCalDisplayMonth.Month;
+                bool isSelected = dayDate.Date == _pcCalSelectedDate.Date;
+                bool isToday = dayDate.Date == DateTime.Today;
+                bool hasEv = datesWithEvents.Contains(dayKey);
+
+                Color bgCol = isSelected
+                    ? Color.FromRgb(124, 92, 255)
+                    : isToday
+                        ? Color.FromRgb(25, 42, 86)
+                        : (_isDarkMode ? Color.FromRgb(14, 19, 40) : Color.FromRgb(248, 250, 252));
+                Color borderCol = isSelected
+                    ? Color.FromRgb(196, 181, 253)
+                    : isToday
+                        ? Color.FromRgb(56, 189, 248)
+                        : (_isDarkMode ? Color.FromRgb(31, 38, 74) : Color.FromRgb(203, 213, 225));
+
+                var cell = new Border
+                {
+                    Background = new SolidColorBrush(bgCol),
+                    BorderBrush = new SolidColorBrush(borderCol),
+                    BorderThickness = new Thickness(isSelected || isToday ? 1.5 : 1),
+                    CornerRadius = new CornerRadius(9),
+                    Margin = new Thickness(2),
+                    Padding = new Thickness(4, 6, 4, 6),
+                    Opacity = isInMonth ? 1.0 : 0.4,
+                    Cursor = Cursors.Hand
+                };
+
+                var sp = new StackPanel { HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
+                sp.Children.Add(new TextBlock
+                {
+                    Text = dayDate.Day.ToString(),
+                    FontSize = 12,
+                    FontWeight = (isSelected || isToday) ? FontWeights.Bold : FontWeights.Normal,
+                    Foreground = isSelected
+                        ? Brushes.White
+                        : (isToday ? new SolidColorBrush(Color.FromRgb(56, 189, 248)) : (Brush)FindResource("PrimaryTextBrush")),
+                    HorizontalAlignment = HorizontalAlignment.Center
+                });
+
+                if (hasEv)
+                {
+                    sp.Children.Add(new Ellipse
+                    {
+                        Width = 6,
+                        Height = 6,
+                        Margin = new Thickness(0, 3, 0, 0),
+                        Fill = isSelected ? new SolidColorBrush(Color.FromRgb(250, 204, 21)) : new SolidColorBrush(Color.FromRgb(16, 185, 129)),
+                        HorizontalAlignment = HorizontalAlignment.Center
+                    });
+                }
+
+                cell.Child = sp;
+                cell.MouseLeftButtonDown += (_, _) =>
+                {
+                    _pcCalSelectedDate = dayDate;
+                    if (dayDate.Month != _pcCalDisplayMonth.Month || dayDate.Year != _pcCalDisplayMonth.Year)
+                        _pcCalDisplayMonth = new DateTime(dayDate.Year, dayDate.Month, 1);
+                    RenderPcCalendarModalViews();
+                };
+                PcCalMonthDaysGrid.Children.Add(cell);
+                cursor = cursor.AddDays(1);
+            }
+
+            // Selected Day Panel
+            PcCalSelectedDayEventsPanel.Children.Clear();
+            string selKey = _pcCalSelectedDate.ToString("yyyy-MM-dd");
+            var dayItems = allEvents.Where(u => u.DateKey == selKey).ToList();
+            if (dayItems.Count == 0)
+            {
+                PcCalSelectedDayEventsPanel.Children.Add(new TextBlock
+                {
+                    Text = "No notes or events on this day yet. Add one on the right!",
+                    FontSize = 11.5,
+                    Foreground = (Brush)FindResource("MutedTextBrush")
+                });
+            }
+            else
+            {
+                foreach (var item in dayItems)
+                    PcCalSelectedDayEventsPanel.Children.Add(BuildPcUpcomingEventRow(item, compact: false));
+            }
+
+            // Upcoming Menu inside Calendar Modal
+            var upcomingOnly = CalendarNotificationEngine.GetUpcomingEvents(_state, includeCompleted: false);
+            TxtPcCalUpcomingCount.Text = $"{upcomingOnly.Count} upcoming";
+            PcCalUpcomingStackPanel.Children.Clear();
+            if (upcomingOnly.Count == 0)
+            {
+                PcCalUpcomingStackPanel.Children.Add(new TextBlock
+                {
+                    Text = "No upcoming events scheduled.",
+                    FontSize = 11.5,
+                    Foreground = (Brush)FindResource("MutedTextBrush")
+                });
+            }
+            else
+            {
+                foreach (var item in upcomingOnly)
+                    PcCalUpcomingStackPanel.Children.Add(BuildPcUpcomingEventRow(item, compact: false));
+            }
+        }
+
+        private Border BuildPcUpcomingEventRow(UpcomingEventEntry entry, bool compact)
+        {
+            Color badgeCol = ParseHexColorOrDefault(entry.CountdownColorHex, Color.FromRgb(129, 140, 248));
+
+            var card = new Border
+            {
+                Background = _isDarkMode ? new SolidColorBrush(Color.FromRgb(15, 20, 42)) : Brushes.White,
+                BorderBrush = (Brush)FindResource("BorderBrushTheme"),
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(12),
+                Padding = new Thickness(12, 9, 12, 9),
+                Margin = new Thickness(0, 0, 0, 7),
+                Cursor = Cursors.Hand
+            };
+
+            var grid = new Grid();
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+            var badge = new Border
+            {
+                Background = new SolidColorBrush(Color.FromArgb(40, badgeCol.R, badgeCol.G, badgeCol.B)),
+                BorderBrush = new SolidColorBrush(badgeCol),
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(8),
+                Padding = new Thickness(8, 4, 8, 4),
+                Margin = new Thickness(0, 0, 10, 0),
+                VerticalAlignment = VerticalAlignment.Center,
+                Child = new TextBlock
+                {
+                    Text = entry.RelativeBadge,
+                    FontSize = 10.5,
+                    FontWeight = FontWeights.Bold,
+                    Foreground = new SolidColorBrush(badgeCol)
+                }
+            };
+            Grid.SetColumn(badge, 0);
+            grid.Children.Add(badge);
+
+            var info = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+            info.Children.Add(new TextBlock
+            {
+                Text = $"{entry.SubjectIcon} {entry.Title}",
+                FontSize = 13,
+                FontWeight = FontWeights.Bold,
+                Foreground = (Brush)FindResource("PrimaryTextBrush"),
+                TextTrimming = TextTrimming.CharacterEllipsis
+            });
+            info.Children.Add(new TextBlock
+            {
+                Text = $"{entry.DateTimeLocal:ddd, MMM d} • {entry.TimeDisplay} • {entry.SubjectName} • 🔔 {entry.ReminderSummary}",
+                FontSize = 11,
+                Foreground = (Brush)FindResource("SecondaryTextBrush"),
+                TextTrimming = TextTrimming.CharacterEllipsis,
+                Margin = new Thickness(0, 2, 0, 0)
+            });
+            if (!compact && !string.IsNullOrWhiteSpace(entry.Note))
+            {
+                info.Children.Add(new TextBlock
+                {
+                    Text = $"📝 {entry.Note}",
+                    FontSize = 11.5,
+                    Foreground = (Brush)FindResource("PrimaryTextBrush"),
+                    TextWrapping = TextWrapping.Wrap,
+                    Margin = new Thickness(0, 3, 0, 0)
+                });
+            }
+            Grid.SetColumn(info, 1);
+            grid.Children.Add(info);
+
+            var btns = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 0, 0) };
+            var doneBtn = new Button
+            {
+                Content = entry.Completed ? "↩" : "✓",
+                Style = (Style)FindResource("SecondaryButtonStyle"),
+                Padding = new Thickness(8, 3, 8, 3),
+                Margin = new Thickness(0, 0, 5, 0),
+                ToolTip = entry.Completed ? "Reopen Event" : "Mark Complete"
+            };
+            doneBtn.Click += (s, evArgs) =>
+            {
+                evArgs.Handled = true;
+                if (entry.SourceCalendarEvent != null) entry.SourceCalendarEvent.Completed = !entry.SourceCalendarEvent.Completed;
+                else if (entry.SourceDeadline != null) entry.SourceDeadline.Completed = !entry.SourceDeadline.Completed;
+                SaveState(countActivity: false);
+                RenderPcHomeUpcomingEvents();
+                if (CalendarModalGrid.Visibility == Visibility.Visible) RenderPcCalendarModalViews();
+                RenderSubjects();
+            };
+            btns.Children.Add(doneBtn);
+
+            var delBtn = new Button
+            {
+                Content = "✕",
+                Style = (Style)FindResource("SecondaryButtonStyle"),
+                Padding = new Thickness(8, 3, 8, 3),
+                ToolTip = "Delete Event"
+            };
+            delBtn.Click += (s, evArgs) =>
+            {
+                evArgs.Handled = true;
+                if (entry.SourceCalendarEvent != null) _state.CalendarEvents.Remove(entry.SourceCalendarEvent);
+                else if (entry.SourceDeadline != null) _state.Deadlines.Remove(entry.SourceDeadline);
+                SaveState(countActivity: false);
+                RenderPcHomeUpcomingEvents();
+                if (CalendarModalGrid.Visibility == Visibility.Visible) RenderPcCalendarModalViews();
+                RenderSubjects();
+            };
+            btns.Children.Add(delBtn);
+
+            Grid.SetColumn(btns, 2);
+            grid.Children.Add(btns);
+
+            card.Child = grid;
+            card.MouseLeftButtonDown += (_, _) =>
+            {
+                _pcCalSelectedDate = entry.DateTimeLocal.Date;
+                _pcCalDisplayMonth = new DateTime(_pcCalSelectedDate.Year, _pcCalSelectedDate.Month, 1);
+                OpenPcCalendarModal();
+            };
+            return card;
+        }
+
+        private void CheckDueCalendarNotificationsPc(bool isLaunchCatchup)
+        {
+            _pcLastNotifCheckUtc = DateTime.UtcNow;
+            if (_state?.Settings == null || !_state.Settings.CalendarNotifsEnabled) return;
+
+            var due = CalendarNotificationEngine.CollectDueNotifications(_state, DateTime.Now, markAsFired: true);
+            if (due.Count == 0) return;
+
+            SaveState(countActivity: false);
+
+            if (_state.Settings.Notifications)
+            {
+                _audio.PlayNotificationChime();
+            }
+
+            if (CalendarAlertModalGrid == null || CalAlertPopupItemsPanel == null) return;
+
+            CalAlertPopupItemsPanel.Children.Clear();
+            TxtCalAlertPopupHeader.Text = isLaunchCatchup
+                ? (due.Count > 1 ? $"🔔 {due.Count} Missed Calendar Reminders" : "🔔 Missed Calendar Reminder")
+                : (due.Count > 1 ? $"🔔 {due.Count} Upcoming Event Reminders" : "🔔 Upcoming Event Reminder");
+            TxtCalAlertPopupSub.Text = isLaunchCatchup
+                ? "These notifications became due while StudyHub was closed:"
+                : "Scheduled reminder alert:";
+
+            foreach (var trig in due)
+            {
+                string subTag = string.IsNullOrWhiteSpace(trig.SubjectName) ? "Calendar Event" : trig.SubjectName;
+                var itemCard = new Border
+                {
+                    Background = (Brush)FindResource("SubtleBgBrush"),
+                    BorderBrush = (Brush)FindResource("BorderBrushTheme"),
+                    BorderThickness = new Thickness(1),
+                    CornerRadius = new CornerRadius(12),
+                    Padding = new Thickness(14, 10, 14, 10),
+                    Margin = new Thickness(0, 0, 0, 8)
+                };
+                var sp = new StackPanel();
+                sp.Children.Add(new TextBlock
+                {
+                    Text = $"📅 {trig.Title}",
+                    FontSize = 14,
+                    FontWeight = FontWeights.Black,
+                    Foreground = (Brush)FindResource("PrimaryTextBrush")
+                });
+                sp.Children.Add(new TextBlock
+                {
+                    Text = $"{subTag} • {trig.RuleLabel} • Event: {trig.EventDateTime:ddd, MMM d at hh:mm tt}",
+                    FontSize = 11.5,
+                    FontWeight = FontWeights.Bold,
+                    Foreground = new SolidColorBrush(Color.FromRgb(56, 189, 248)),
+                    Margin = new Thickness(0, 3, 0, 0)
+                });
+                if (!string.IsNullOrWhiteSpace(trig.Note))
+                {
+                    sp.Children.Add(new TextBlock
+                    {
+                        Text = $"📝 {trig.Note}",
+                        FontSize = 12,
+                        Foreground = (Brush)FindResource("SecondaryTextBrush"),
+                        TextWrapping = TextWrapping.Wrap,
+                        Margin = new Thickness(0, 4, 0, 0)
+                    });
+                }
+                itemCard.Child = sp;
+                CalAlertPopupItemsPanel.Children.Add(itemCard);
+            }
+
+            CalendarAlertModalGrid.Visibility = Visibility.Visible;
+        }
+
+        private void BtnCalAlertDismiss_Click(object sender, RoutedEventArgs e)
+        {
+            CalendarAlertModalGrid.Visibility = Visibility.Collapsed;
+        }
+
+        private void BtnCalAlertOpenCalendar_Click(object sender, RoutedEventArgs e)
+        {
+            CalendarAlertModalGrid.Visibility = Visibility.Collapsed;
+            OpenPcCalendarModal();
         }
 
         private void Window_Closing(object? sender, CancelEventArgs e)

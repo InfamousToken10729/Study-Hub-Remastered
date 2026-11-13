@@ -14,4 +14,15 @@ public class MainApplication : MauiApplication
     }
 
     protected override MauiApp CreateMauiApp() => MauiProgram.CreateMauiApp();
+
+    public override void OnCreate()
+    {
+        base.OnCreate();
+        try
+        {
+            StudyHub.Platforms.Android.AndroidCalendarNotifications.EnsureNotificationChannel(this);
+            StudyHub.Platforms.Android.AndroidCalendarNotifications.RegisterDynamicUnlockReceiver(this);
+        }
+        catch { }
+    }
 }

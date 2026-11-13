@@ -101,7 +101,14 @@
                         </Grid>
                     </Border>
 
-                    <!-- Circular Action Buttons: Sound Mixer, Zen Mode, Theme, Fullscreen, Settings -->
+                    <!-- Circular Action Buttons: Calendar, Sound Mixer, Zen Mode, Theme, Fullscreen, Settings -->
+                    <Grid Margin="0,0,8,0">
+                        <Button x:Name="BtnNavCalendar" Click="BtnNavCalendar_Click" Style="{StaticResource CircularNavButtonStyle}" ToolTip="Calendar &amp; Upcoming Events">
+                            <TextBlock Text="📅" FontSize="14" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Button>
+                        <Ellipse x:Name="NavCalendarDot" Width="8" Height="8" Fill="#F59E0B" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,3,3,0" Visibility="Collapsed"/>
+                    </Grid>
+
                     <Grid Margin="0,0,8,0">
                         <Button x:Name="BtnNavSoundMixer" Click="BtnNavSoundMixer_Click" Style="{StaticResource CircularNavButtonStyle}" ToolTip="Sound Studio &amp; Mixer (Ctrl+M)">
                             <TextBlock Text="🎚️" FontSize="14" HorizontalAlignment="Center" VerticalAlignment="Center"/>
@@ -297,6 +304,37 @@
                                 </StackPanel>
                             </Border>
                         </Grid>
+                    </Border>
+
+                    <!-- Smart Upcoming Events Menu Card (Synced with Calendar & Subject Deadlines) -->
+                    <Border x:Name="BdHomeUpcomingEvents" Background="{DynamicResource CardBgBrush}" BorderBrush="{DynamicResource BorderBrushTheme}" BorderThickness="1" CornerRadius="20" Padding="20,14" Margin="0,0,0,22" HorizontalAlignment="Stretch">
+                        <StackPanel>
+                            <Grid Margin="0,0,0,10">
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <Border Width="32" Height="32" CornerRadius="10" Background="#20183E" Margin="0,0,10,0">
+                                        <TextBlock Text="📅" FontSize="15" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    </Border>
+                                    <TextBlock Text="Upcoming Events" FontSize="16" FontWeight="Black" Foreground="{DynamicResource PrimaryTextBrush}" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                    <Border Background="#232B54" CornerRadius="8" Padding="8,3" VerticalAlignment="Center">
+                                        <TextBlock x:Name="TxtHomeUpcomingCount" Text="0" FontSize="11" FontWeight="Bold" Foreground="#38BDF8"/>
+                                    </Border>
+                                </StackPanel>
+
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                    <Button x:Name="BtnHomeUpcomingExpand" Click="BtnHomeUpcomingExpand_Click" Style="{StaticResource SecondaryButtonStyle}" Padding="10,5" Margin="0,0,8,0" Visibility="Collapsed">
+                                        <TextBlock x:Name="TxtHomeUpcomingExpand" Text="Show All ▾" FontSize="11.5"/>
+                                    </Button>
+                                    <Button Click="BtnOpenAddCalendarNote_Click" Style="{StaticResource BrandButtonStyle}" Padding="12,6" Margin="0,0,8,0">
+                                        <TextBlock Text="+ Add Calendar Note" FontSize="12"/>
+                                    </Button>
+                                    <Button Click="BtnNavCalendar_Click" Style="{StaticResource SecondaryButtonStyle}" Padding="12,6">
+                                        <TextBlock Text="Open Calendar ▸" FontSize="12"/>
+                                    </Button>
+                                </StackPanel>
+                            </Grid>
+
+                            <StackPanel x:Name="HomeUpcomingStackPanel"/>
+                        </StackPanel>
                     </Border>
 
                     <!-- Subjects Section Header (Clean squircle book icon + bold title; no right button, matching Image 2) -->
@@ -1611,6 +1649,14 @@
                                 </StackPanel>
                             </Button>
 
+                            <!-- 1b. Calendar & Upcoming Events -->
+                            <Button Click="BtnDrawerCalendar_Click" Style="{StaticResource SettingsTabButtonStyle}">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="📅" FontSize="14" Margin="0,0,12,0"/>
+                                    <TextBlock x:Name="TxtDrawerCalendarLabel" Text="Calendar &amp; Upcoming Events" FontSize="13.5"/>
+                                </StackPanel>
+                            </Button>
+
                             <!-- 2. Focus Timer -->
                             <Button Click="BtnDrawerTimer_Click" Style="{StaticResource SettingsTabButtonStyle}">
                                 <StackPanel Orientation="Horizontal">
@@ -2534,7 +2580,7 @@
                                                     <ColumnDefinition Width="10"/>
                                                     <ColumnDefinition Width="Auto"/>
                                                 </Grid.ColumnDefinitions>
-                                                <TextBox x:Name="TxtSettingsGithubUrl" Grid.Column="0" Style="{StaticResource ModernTextBoxStyle}" Text="https://github.com/Mahmoud/StudyHub" Height="38"/>
+                                                <TextBox x:Name="TxtSettingsGithubUrl" Grid.Column="0" Style="{StaticResource ModernTextBoxStyle}" Text="https://github.com/InfamousToken10729/Study-Hub-Remastered/tree/study_hub" Height="38"/>
                                                 <Button Grid.Column="2" Click="BtnCheckGithubUpdates_Click" Style="{StaticResource BrandButtonStyle}" Padding="18,8" Height="38">
                                                     <TextBlock Text="🔍 Check for Updates" FontSize="12.5"/>
                                                 </Button>
@@ -2552,6 +2598,22 @@
                                                     </Button>
                                                 </StackPanel>
                                             </Border>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <!-- Calendar Reminders & Morning Time Section -->
+                                    <Border Background="{DynamicResource CardBgBrush}" BorderBrush="{DynamicResource BorderBrushTheme}" BorderThickness="1" CornerRadius="18" Padding="18" Margin="0,0,0,16">
+                                        <StackPanel>
+                                            <TextBlock Text="📅 Calendar Notifications &amp; Morning Time" FontWeight="Black" FontSize="14" Foreground="#A78BFA" Margin="0,0,0,4"/>
+                                            <TextBlock Text="Configure when morning calendar reminders trigger and catch missed notifications automatically on launch." FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}" TextWrapping="Wrap" Margin="0,0,0,10"/>
+                                            <CheckBox x:Name="ChkSettingsCalNotifs" Content="Enable Calendar &amp; Event Reminder Notifications" IsChecked="True" Checked="ChkSettingsCalNotifs_Changed" Unchecked="ChkSettingsCalNotifs_Changed" Foreground="{DynamicResource PrimaryTextBrush}" FontSize="12" Margin="0,0,0,10"/>
+                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                <TextBlock Text="Morning Notification Time (HH:mm):" FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                                <TextBox x:Name="TxtSettingsMorningHour" Style="{StaticResource ModernTextBoxStyle}" Text="08:00" Width="88" Height="32" Margin="0,0,8,0"/>
+                                                <Button Click="BtnSaveMorningHourSetting_Click" Style="{StaticResource BrandButtonStyle}" Padding="14,6" Height="32">
+                                                    <TextBlock Text="Save Time" FontSize="11.5"/>
+                                                </Button>
+                                            </StackPanel>
                                         </StackPanel>
                                     </Border>
 
@@ -2605,6 +2667,211 @@
                         </Button>
                     </StackPanel>
                 </StackPanel>
+            </Border>
+        </Grid>
+
+        <!-- ================= CALENDAR, DAY NOTES & UPCOMING EVENTS MODAL ================= -->
+        <Grid x:Name="CalendarModalGrid" Grid.Row="0" Grid.RowSpan="2" Visibility="Collapsed" Panel.ZIndex="355">
+            <Border Background="#AA000000" MouseDown="CalendarModalBackdrop_MouseDown"/>
+            <Border MaxWidth="1080" MaxHeight="720" Margin="32,24" Background="{DynamicResource CardBgBrush}" BorderBrush="{DynamicResource BorderBrushTheme}" BorderThickness="1" CornerRadius="24" Padding="24">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Header -->
+                    <Grid Grid.Row="0" Margin="0,0,0,16">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <Border Width="38" Height="38" CornerRadius="12" Background="#20183E" Margin="0,0,12,0">
+                                <TextBlock Text="📅" FontSize="18" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                            <StackPanel VerticalAlignment="Center">
+                                <TextBlock Text="StudyHub Calendar &amp; Event Reminders" FontSize="19" FontWeight="Black" Foreground="{DynamicResource PrimaryTextBrush}"/>
+                                <TextBlock x:Name="TxtPcCalMorningStatus" Text="Morning reminders trigger at 08:00 (and missed alerts notify on launch)" FontSize="11.5" Foreground="#38BDF8"/>
+                            </StackPanel>
+                        </StackPanel>
+
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                            <TextBlock Text="Morning time:" FontSize="11.5" Foreground="{DynamicResource SecondaryTextBrush}" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                            <TextBox x:Name="TxtPcCalMorningInline" Style="{StaticResource ModernTextBoxStyle}" Text="08:00" Width="70" Height="30" Margin="0,0,6,0"/>
+                            <Button Click="BtnPcCalSaveMorningInline_Click" Style="{StaticResource SecondaryButtonStyle}" Padding="10,4" Margin="0,0,12,0" Height="30">
+                                <TextBlock Text="Set" FontSize="11.5"/>
+                            </Button>
+                            <Button Click="BtnCloseCalendarModal_Click" Style="{StaticResource SecondaryButtonStyle}" Padding="10,4" Height="30">
+                                <TextBlock Text="✕" FontSize="13"/>
+                            </Button>
+                        </StackPanel>
+                    </Grid>
+
+                    <!-- 2-Column Interactive Calendar + Note/Upcoming Content -->
+                    <Grid Grid.Row="1">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="1.15*"/>
+                            <ColumnDefinition Width="18"/>
+                            <ColumnDefinition Width="0.95*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <!-- Left Column: Interactive Month Grid + Day Notes -->
+                        <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto">
+                            <StackPanel>
+                                <Border Background="{DynamicResource SubtleBgBrush}" BorderBrush="{DynamicResource BorderBrushTheme}" BorderThickness="1" CornerRadius="18" Padding="16" Margin="0,0,0,14">
+                                    <StackPanel>
+                                        <Grid Margin="0,0,0,12">
+                                            <Button Click="BtnPcCalPrevMonth_Click" Style="{StaticResource SecondaryButtonStyle}" HorizontalAlignment="Left" Padding="12,5">
+                                                <TextBlock Text="◀" FontSize="12"/>
+                                            </Button>
+                                            <TextBlock x:Name="TxtPcCalMonthTitle" Text="November 2026" FontSize="16" FontWeight="Black" Foreground="{DynamicResource PrimaryTextBrush}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                                <Button Click="BtnPcCalToday_Click" Style="{StaticResource SecondaryButtonStyle}" Padding="10,5" Margin="0,0,6,0">
+                                                    <TextBlock Text="Today" FontSize="11.5"/>
+                                                </Button>
+                                                <Button Click="BtnPcCalNextMonth_Click" Style="{StaticResource SecondaryButtonStyle}" Padding="12,5">
+                                                    <TextBlock Text="▶" FontSize="12"/>
+                                                </Button>
+                                            </StackPanel>
+                                        </Grid>
+
+                                        <!-- Weekday Header -->
+                                        <UniformGrid Columns="7" Margin="0,0,0,6">
+                                            <TextBlock Text="Sun" HorizontalAlignment="Center" FontWeight="Bold" FontSize="11" Foreground="{DynamicResource MutedTextBrush}"/>
+                                            <TextBlock Text="Mon" HorizontalAlignment="Center" FontWeight="Bold" FontSize="11" Foreground="{DynamicResource MutedTextBrush}"/>
+                                            <TextBlock Text="Tue" HorizontalAlignment="Center" FontWeight="Bold" FontSize="11" Foreground="{DynamicResource MutedTextBrush}"/>
+                                            <TextBlock Text="Wed" HorizontalAlignment="Center" FontWeight="Bold" FontSize="11" Foreground="{DynamicResource MutedTextBrush}"/>
+                                            <TextBlock Text="Thu" HorizontalAlignment="Center" FontWeight="Bold" FontSize="11" Foreground="{DynamicResource MutedTextBrush}"/>
+                                            <TextBlock Text="Fri" HorizontalAlignment="Center" FontWeight="Bold" FontSize="11" Foreground="{DynamicResource MutedTextBrush}"/>
+                                            <TextBlock Text="Sat" HorizontalAlignment="Center" FontWeight="Bold" FontSize="11" Foreground="{DynamicResource MutedTextBrush}"/>
+                                        </UniformGrid>
+
+                                        <UniformGrid x:Name="PcCalMonthDaysGrid" Columns="7" Rows="6"/>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- Selected Day Existing Events / Notes -->
+                                <Border Background="{DynamicResource SubtleBgBrush}" BorderBrush="{DynamicResource BorderBrushTheme}" BorderThickness="1" CornerRadius="16" Padding="14">
+                                    <StackPanel>
+                                        <TextBlock x:Name="TxtPcCalSelectedDateHeader" Text="Selected Day: Fri, Nov 13, 2026" FontWeight="Black" FontSize="13.5" Foreground="#FACC15" Margin="0,0,0,8"/>
+                                        <StackPanel x:Name="PcCalSelectedDayEventsPanel"/>
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+                        </ScrollViewer>
+
+                        <!-- Right Column: Add Event Form & All Upcoming Events Menu -->
+                        <ScrollViewer Grid.Column="2" VerticalScrollBarVisibility="Auto">
+                            <StackPanel>
+                                <!-- Composer -->
+                                <Border Background="{DynamicResource SubtleBgBrush}" BorderBrush="{DynamicResource BorderBrushTheme}" BorderThickness="1" CornerRadius="18" Padding="16" Margin="0,0,0,14">
+                                    <StackPanel>
+                                        <TextBlock Text="📝 Add Note / Event on Selected Day" FontWeight="Black" FontSize="14" Foreground="{DynamicResource PrimaryTextBrush}" Margin="0,0,0,10"/>
+
+                                        <TextBlock Text="Title" FontSize="11" FontWeight="Bold" Foreground="{DynamicResource SecondaryTextBrush}" Margin="0,0,0,4"/>
+                                        <TextBox x:Name="TxtPcCalTitle" Style="{StaticResource ModernTextBoxStyle}" Margin="0,0,0,8"/>
+
+                                        <TextBlock Text="Note" FontSize="11" FontWeight="Bold" Foreground="{DynamicResource SecondaryTextBrush}" Margin="0,0,0,4"/>
+                                        <TextBox x:Name="TxtPcCalNote" Style="{StaticResource ModernTextBoxStyle}" AcceptsReturn="True" TextWrapping="Wrap" Height="58" Margin="0,0,0,8"/>
+
+                                        <Grid Margin="0,0,0,10">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="110"/>
+                                                <ColumnDefinition Width="10"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Grid.Column="0">
+                                                <TextBlock Text="Time (HH:mm)" FontSize="11" FontWeight="Bold" Foreground="{DynamicResource SecondaryTextBrush}" Margin="0,0,0,4"/>
+                                                <TextBox x:Name="TxtPcCalTime" Style="{StaticResource ModernTextBoxStyle}" Text="09:00"/>
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="2">
+                                                <TextBlock Text="Link Subject (Optional)" FontSize="11" FontWeight="Bold" Foreground="{DynamicResource SecondaryTextBrush}" Margin="0,0,0,4"/>
+                                                <ComboBox x:Name="CmbPcCalSubject" Height="34"/>
+                                            </StackPanel>
+                                        </Grid>
+
+                                        <Grid Margin="0,0,0,6">
+                                            <TextBlock Text="Notify Me Before Event" FontSize="11.5" FontWeight="Bold" Foreground="{DynamicResource SecondaryTextBrush}" VerticalAlignment="Center"/>
+                                            <Button Click="BtnPcCalSelectAll4_Click" Style="{StaticResource SecondaryButtonStyle}" HorizontalAlignment="Right" Padding="10,4">
+                                                <TextBlock Text="✓ Select All 4" FontSize="11" Foreground="#38BDF8"/>
+                                            </Button>
+                                        </Grid>
+
+                                        <WrapPanel Margin="0,0,0,8">
+                                            <CheckBox x:Name="ChkPcCal3Days" Content="3 Days Before" IsChecked="True" Foreground="{DynamicResource PrimaryTextBrush}" FontSize="12" Margin="0,0,14,6"/>
+                                            <CheckBox x:Name="ChkPcCal24Hours" Content="24 Hours Before" IsChecked="True" Foreground="{DynamicResource PrimaryTextBrush}" FontSize="12" Margin="0,0,14,6"/>
+                                            <CheckBox x:Name="ChkPcCalMorning" Content="In the Morning" IsChecked="True" Foreground="{DynamicResource PrimaryTextBrush}" FontSize="12" Margin="0,0,14,6"/>
+                                            <CheckBox x:Name="ChkPcCalCustom" Content="Custom" Checked="ChkPcCalCustom_Changed" Unchecked="ChkPcCalCustom_Changed" Foreground="{DynamicResource PrimaryTextBrush}" FontSize="12" Margin="0,0,0,6"/>
+                                        </WrapPanel>
+
+                                        <Grid x:Name="GridPcCalCustomOffset" Visibility="Collapsed" Margin="0,0,0,10">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="85"/>
+                                                <ColumnDefinition Width="8"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBox x:Name="TxtPcCalCustomAmount" Grid.Column="0" Style="{StaticResource ModernTextBoxStyle}" Text="2"/>
+                                            <ComboBox x:Name="CmbPcCalCustomUnit" Grid.Column="2" SelectedIndex="0" Height="34">
+                                                <ComboBoxItem Content="Hours Before"/>
+                                                <ComboBoxItem Content="Minutes Before"/>
+                                                <ComboBoxItem Content="Days Before"/>
+                                            </ComboBox>
+                                        </Grid>
+
+                                        <Button Click="BtnPcCalSaveEvent_Click" Style="{StaticResource BrandButtonStyle}" Padding="14,9">
+                                            <TextBlock Text="💾 Save Calendar Note &amp; Schedule Alerts" FontSize="12.5" FontWeight="Bold"/>
+                                        </Button>
+                                    </StackPanel>
+                                </Border>
+
+                                <!-- Upcoming Events Menu -->
+                                <Border Background="{DynamicResource SubtleBgBrush}" BorderBrush="{DynamicResource BorderBrushTheme}" BorderThickness="1" CornerRadius="18" Padding="16">
+                                    <StackPanel>
+                                        <Grid Margin="0,0,0,10">
+                                            <TextBlock Text="🔔 Upcoming Events Menu" FontWeight="Black" FontSize="14" Foreground="{DynamicResource PrimaryTextBrush}" VerticalAlignment="Center"/>
+                                            <TextBlock x:Name="TxtPcCalUpcomingCount" Text="0 upcoming" FontSize="11.5" FontWeight="Bold" Foreground="#38BDF8" HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                                        </Grid>
+                                        <StackPanel x:Name="PcCalUpcomingStackPanel"/>
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </Grid>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- ================= PC CALENDAR REMINDER ALERT POPUP (LIVE + MISSED ON LAUNCH) ================= -->
+        <Grid x:Name="CalendarAlertModalGrid" Grid.Row="0" Grid.RowSpan="2" Visibility="Collapsed" Panel.ZIndex="420">
+            <Border Background="#AA000000"/>
+            <Border Width="520" MaxHeight="560" HorizontalAlignment="Center" VerticalAlignment="Center" Background="{DynamicResource CardBgBrush}" BorderBrush="#7C5CFF" BorderThickness="2" CornerRadius="22" Padding="24">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,14">
+                        <Border Width="40" Height="40" CornerRadius="12" Background="#2B2158" Margin="0,0,12,0">
+                            <TextBlock Text="🔔" FontSize="19" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock x:Name="TxtCalAlertPopupHeader" Text="Calendar Event Reminder" FontSize="17" FontWeight="Black" Foreground="{DynamicResource PrimaryTextBrush}"/>
+                            <TextBlock x:Name="TxtCalAlertPopupSub" Text="You have scheduled study reminders ready:" FontSize="11.5" Foreground="{DynamicResource SecondaryTextBrush}"/>
+                        </StackPanel>
+                    </StackPanel>
+
+                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" MaxHeight="340" Margin="0,0,0,16">
+                        <StackPanel x:Name="CalAlertPopupItemsPanel"/>
+                    </ScrollViewer>
+
+                    <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right">
+                        <Button Click="BtnCalAlertOpenCalendar_Click" Style="{StaticResource SecondaryButtonStyle}" Padding="14,8" Margin="0,0,10,0">
+                            <TextBlock Text="📅 Open Calendar"/>
+                        </Button>
+                        <Button Click="BtnCalAlertDismiss_Click" Style="{StaticResource BrandButtonStyle}" Padding="20,8">
+                            <TextBlock Text="Got It ✓"/>
+                        </Button>
+                    </StackPanel>
+                </Grid>
             </Border>
         </Grid>
 

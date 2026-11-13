@@ -33,10 +33,40 @@ public partial class MauiMainPage : ContentPage
     private int _currentFlashcardIndex = 0;
     private bool _isFlashcardFlipped = false;
 
-    // Responsive Screen Dimensions
-    private double _pageWidth = 390;
-    private double _pageHeight = 844;
+    // Responsive Screen Dimensions (init negative so initial OnSizeAllocated always lays out cleanly)
+    private double _pageWidth = -1;
+    private double _pageHeight = -1;
     private string _currentSearchQuery = "";
+
+    // Subject Editor Modal State
+    private SubjectItem? _editingSubjectTarget;
+    private string _editorSelectedIcon = "🎓";
+    private string _editorSelectedColor = "#7C5CFF";
+
+    // Calendar & Upcoming Events State
+    private DateTime _calDisplayMonth = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1);
+    private DateTime _calSelectedDate = DateTime.Today;
+    private bool _calRule3Days = true;
+    private bool _calRule24Hours = true;
+    private bool _calRuleMorning = true;
+    private bool _calRuleCustom = false;
+    private int _calCustomUnitIdx = 0; // 0 = Hours, 1 = Minutes, 2 = Days
+    private bool _homeUpcomingExpanded = false;
+    private bool _isInitializingSettingsUi = false;
+    private List<SubjectItem> _calSubjectChoices = new();
+    private DateTime _lastNotifCheckUtc = DateTime.MinValue;
+
+    private static readonly string[] SubjectEmojiPalette =
+    {
+        "🎓", "📚", "💻", "🔬", "📐", "✈️", "📡", "⚙️",
+        "⚛️", "🎨", "📈", "🧠", "🧬", "🌐", "🩺", "🔌"
+    };
+
+    private static readonly string[] SubjectColorPalette =
+    {
+        "#7C5CFF", "#22D3EE", "#10B981", "#F59E0B",
+        "#EC4899", "#3B82F6", "#A855F7", "#EF4444"
+    };
 
     // Focus Timer State
     private bool _isPomoRunning = false;
@@ -100,11 +130,29 @@ public partial class MauiMainPage : ContentPage
         UpdateDashboardStats();
         RenderHeatmap();
         RenderSubjectsGrid();
+        RenderHomeUpcomingEvents();
+        RenderActiveDrawerCourses();
         RenderArchivedDrawer();
         BuildSoundMixerChannelsUi();
         UpdateTimerUi();
 
+#if ANDROID
+        StudyHub.Platforms.Android.AndroidCalendarNotifications.BackgroundKeysFired += OnAndroidBackgroundNotificationKeysFired;
+#endif
+        CheckDueCalendarNotificationsMobile();
+        RescheduleAndroidCalendarAlarms();
         StartBackgroundLoops();
+    }
+
+    protected override void OnAppearing()
+    {
+        base.OnAppearing();
+        RenderSubjectsGrid(_currentSearchQuery);
+        RenderHomeUpcomingEvents();
+        RenderActiveDrawerCourses();
+        UpdateDashboardStats();
+        CheckDueCalendarNotificationsMobile();
+        RescheduleAndroidCalendarAlarms();
     }
 
     protected override void OnSizeAllocated(double width, double height)
@@ -112,7 +160,7 @@ public partial class MauiMainPage : ContentPage
         base.OnSizeAllocated(width, height);
         if (width <= 0 || height <= 0) return;
 
-        bool widthChangedSignificantly = Math.Abs(width - _pageWidth) > 4;
+        bool widthChangedSignificantly = _pageWidth <= 0 || Math.Abs(width - _pageWidth) > 4;
         _pageWidth = width;
         _pageHeight = height;
 
@@ -189,10 +237,17 @@ public partial class MauiMainPage : ContentPage
         clockTimer.Tick += (_, _) => UpdateClockDisplay();
         clockTimer.Start();
 
-        // 1-Second Focus Timer & Study Activity Tracker
+        // 1-Second Focus Timer & Study Activity Tracker + Periodic Calendar Notification Check
         var pomoTimer = Dispatcher.CreateTimer();
         pomoTimer.Interval = TimeSpan.FromSeconds(1);
-        pomoTimer.Tick += (_, _) => TickPomodoroSecond();
+        pomoTimer.Tick += (_, _) =>
+        {
+            TickPomodoroSecond();
+            if ((DateTime.UtcNow - _lastNotifCheckUtc).TotalSeconds >= 25)
+            {
+                CheckDueCalendarNotificationsMobile();
+            }
+        };
         pomoTimer.Start();
     }
 
@@ -345,7 +400,16 @@ public partial class MauiMainPage : ContentPage
 
         SliderMasterVolume.Value = Math.Clamp(_state.Settings.MixerMaster, 0, 100);
         LblMasterVolPct.Text = $"{(int)SliderMasterVolume.Value}%";
-        EntryGithubRepoUrl.Text = _state.Settings.GithubRepoUrl ?? "";
+
+        _state.Settings.GithubRepoUrl = UserSettings.NormalizeGithubRepoUrl(_state.Settings.GithubRepoUrl);
+        EntryGithubRepoUrl.Text = _state.Settings.GithubRepoUrl;
+
+        _state.Settings.CalendarNotifStartHour = CalendarNotificationEngine.NormalizeMorningTimeString(_state.Settings.CalendarNotifStartHour);
+        _isInitializingSettingsUi = true;
+        SwitchSettingsCalNotifs.IsToggled = _state.Settings.CalendarNotifsEnabled;
+        EntrySettingsMorningTime.Text = _state.Settings.CalendarNotifStartHour;
+        LblCalMorningBadge.Text = $"Morning reminders at {_state.Settings.CalendarNotifStartHour}";
+        _isInitializingSettingsUi = false;
 
         ApplyTimerDockPosition(_state.TimerDock ?? "bottom-right");
         ApplySurfaceThemeColors();
@@ -389,6 +453,9 @@ public partial class MauiMainPage : ContentPage
             LblHeroSubtitle.TextColor = Color.FromArgb("#475569");
             BdHeatmapCard.BackgroundColor = Color.FromArgb("#F8FAFC");
             BdHeatmapCard.Stroke = Color.FromArgb("#CBD5E1");
+            BdHomeUpcomingEvents.BackgroundColor = Color.FromArgb("#F2FFFFFF");
+            BdHomeUpcomingEvents.Stroke = Color.FromArgb("#CBD5E1");
+            LblHomeUpcomingHeader.TextColor = Color.FromArgb("#0F172A");
             LblMySubjectsHeader.TextColor = Color.FromArgb("#0F172A");
             BdSubjectHeader.BackgroundColor = Color.FromArgb("#F2FFFFFF");
             BdSubjectHeader.Stroke = Color.FromArgb("#CBD5E1");
@@ -442,6 +509,9 @@ public partial class MauiMainPage : ContentPage
             LblHeroSubtitle.TextColor = Color.FromArgb("#94A3C6");
             BdHeatmapCard.BackgroundColor = Color.FromArgb("#0D1124");
             BdHeatmapCard.Stroke = Color.FromArgb(strokeCol);
+            BdHomeUpcomingEvents.BackgroundColor = Color.FromArgb(cardBg);
+            BdHomeUpcomingEvents.Stroke = Color.FromArgb(strokeCol);
+            LblHomeUpcomingHeader.TextColor = Color.FromArgb("#F8FAFC");
             LblMySubjectsHeader.TextColor = Color.FromArgb("#F8FAFC");
             BdSubjectHeader.BackgroundColor = Color.FromArgb(cardBg);
             BdSubjectHeader.Stroke = Color.FromArgb(strokeCol);
@@ -515,10 +585,33 @@ public partial class MauiMainPage : ContentPage
             LblTopSubject.Text = "Top: None";
         }
 
+        string todayKey = DateTime.Today.ToString("yyyy-MM-dd");
+        int pomoToday = _state.PomodoroDays.TryGetValue(todayKey, out int pt) ? pt : 0;
+        int actToday = _state.Activity.TryGetValue(todayKey, out int at) ? at : 0;
         int totalTasks = _state.Tasks.Count;
         int doneTasks = _state.Tasks.Count(t => t.Completed);
-        int ratio = totalTasks > 0 ? (int)Math.Round(doneTasks * 100.0 / totalTasks) : 100;
+
+        int ratio;
+        if (pomoToday > 0)
+        {
+            double taskBonus = totalTasks > 0 ? (doneTasks * 20.0 / totalTasks) : 0;
+            ratio = (int)Math.Min(100, Math.Round((pomoToday / 4.0) * 100.0 + taskBonus));
+        }
+        else if (totalTasks > 0)
+        {
+            ratio = (int)Math.Min(100, Math.Round(doneTasks * 100.0 / totalTasks));
+        }
+        else
+        {
+            ratio = Math.Min(100, actToday * 25);
+        }
+
         LblFocusRatio.Text = $"{ratio}%";
+        LblFocusRatio.TextColor = ratio >= 100
+            ? Color.FromArgb("#10B981")
+            : ratio > 0
+                ? Color.FromArgb("#38BDF8")
+                : Color.FromArgb("#94A3C6");
     }
 
     private void RenderHeatmap()
@@ -550,45 +643,24 @@ public partial class MauiMainPage : ContentPage
 
     private void RenderSubjectsGrid(string searchFilter = "")
     {
-        SubjectsFlexGrid.Children.Clear();
+        SubjectsRowsContainer.Children.Clear();
         bool isDark = _backdrop.IsDarkMode;
 
-        // Calculate Responsive Card Width for Phone Portrait, Phone Landscape, and Tablet
-        double availW = Math.Max(280, _pageWidth - 28);
-        bool isPhonePortrait = _pageWidth < 540;
-        double cardW;
-        Thickness cardMargin;
-
-        if (isPhonePortrait)
-        {
-            // Full-width cards in Phone Portrait (no wasted space on the right!)
-            cardW = availW;
-            cardMargin = new Thickness(0, 0, 0, 12);
-        }
-        else if (_pageWidth < 880)
-        {
-            // 2-Column Grid in Phone Landscape & Compact Tablets
-            cardW = Math.Floor((availW - 14) / 2.0);
-            cardMargin = new Thickness(0, 0, 12, 12);
-        }
-        else
-        {
-            // 3-Column Grid on Large Tablets
-            cardW = Math.Floor((availW - 28) / 3.0);
-            cardMargin = new Thickness(0, 0, 12, 12);
-        }
+        double effectiveW = _pageWidth > 40 ? _pageWidth : 390;
+        bool isPhonePortrait = effectiveW < 540;
+        int colCount = isPhonePortrait ? 1 : (effectiveW < 880 ? 2 : 3);
+        var cards = new List<View>();
 
         // 1. "+ Add Subject" Dashed Card (Compact Horizontal Banner on Phone Portrait, Full Card on Landscape/Tablet)
         var addCard = new Border
         {
-            WidthRequest = cardW,
+            HorizontalOptions = LayoutOptions.Fill,
             HeightRequest = isPhonePortrait ? 76 : 150,
             BackgroundColor = isDark ? Color.FromArgb("#9911162B") : Color.FromArgb("#E6F8FAFC"),
             Stroke = isDark ? Color.FromArgb("#334170") : Color.FromArgb("#94A3B8"),
             StrokeThickness = 1.5,
             StrokeDashArray = new DoubleCollection { 4, 3 },
             StrokeShape = new RoundRectangle { CornerRadius = 18 },
-            Margin = cardMargin,
             Padding = new Thickness(14)
         };
         var addTap = new TapGestureRecognizer();
@@ -650,7 +722,7 @@ public partial class MauiMainPage : ContentPage
             addCard.Content = vStack;
         }
 
-        SubjectsFlexGrid.Children.Add(addCard);
+        cards.Add(addCard);
 
         // 2. Active Course Cards
         var visibleSubjects = _state.Subjects
@@ -661,20 +733,20 @@ public partial class MauiMainPage : ContentPage
         {
             Color accentColor = ResolveSubjectAccentColor(sub.Color);
             int fileCount = _state.Pdfs.Count(f => f.SubjectId == sub.Id);
-            int eventCount = _state.Deadlines.Count(d => d.SubjectId == sub.Id && !d.Completed);
+            int eventCount = _state.Deadlines.Count(d => d.SubjectId == sub.Id && !d.Completed)
+                           + _state.CalendarEvents.Count(c => c.SubjectId == sub.Id && !c.Completed);
             int subTasks = _state.Tasks.Count(t => t.SubjectId == sub.Id);
             int subDone = _state.Tasks.Count(t => t.SubjectId == sub.Id && t.Completed);
             int pct = subTasks > 0 ? (int)Math.Round(subDone * 100.0 / subTasks) : 0;
 
             var cardBorder = new Border
             {
-                WidthRequest = cardW,
+                HorizontalOptions = LayoutOptions.Fill,
                 HeightRequest = isPhonePortrait ? 142 : 150,
                 BackgroundColor = isDark ? Color.FromArgb("#E6131830") : Colors.White,
                 Stroke = isDark ? Color.FromArgb("#263056") : Color.FromArgb("#CBD5E1"),
                 StrokeThickness = 1,
                 StrokeShape = new RoundRectangle { CornerRadius = 18 },
-                Margin = cardMargin,
                 Padding = new Thickness(0)
             };
 
@@ -822,7 +894,65 @@ public partial class MauiMainPage : ContentPage
 
             cardGrid.Add(bodyStack, 0, 1);
             cardBorder.Content = cardGrid;
-            SubjectsFlexGrid.Children.Add(cardBorder);
+            cards.Add(cardBorder);
+        }
+
+        for (int i = 0; i < cards.Count; i += colCount)
+        {
+            if (colCount == 1)
+            {
+                SubjectsRowsContainer.Children.Add(cards[i]);
+            }
+            else
+            {
+                var rowGrid = new Grid { ColumnSpacing = 12, HorizontalOptions = LayoutOptions.Fill };
+                for (int c = 0; c < colCount; c++)
+                    rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Star });
+
+                for (int c = 0; c < colCount && (i + c) < cards.Count; c++)
+                    rowGrid.Add(cards[i + c], c, 0);
+
+                SubjectsRowsContainer.Children.Add(rowGrid);
+            }
+        }
+    }
+
+    private void RenderActiveDrawerCourses()
+    {
+        ActiveCoursesDrawerList.Children.Clear();
+        var active = _state.Subjects.Where(s => !s.Archived).ToList();
+        if (active.Count == 0)
+        {
+            ActiveCoursesDrawerList.Children.Add(new Label
+            {
+                Text = "No active courses yet.",
+                FontSize = 11.5,
+                TextColor = Color.FromArgb("#687296")
+            });
+            return;
+        }
+
+        foreach (var sub in active)
+        {
+            var btn = new Button
+            {
+                Text = $"{MapSubjectEmoji(sub.Icon)} {sub.Name}",
+                FontSize = 12.5,
+                FontAttributes = FontAttributes.Bold,
+                BackgroundColor = Color.FromArgb("#161B36"),
+                TextColor = Color.FromArgb("#F8FAFC"),
+                BorderColor = ResolveSubjectAccentColor(sub.Color),
+                BorderWidth = 1,
+                CornerRadius = 10,
+                Padding = new Thickness(12, 8)
+            };
+            var targetSub = sub;
+            btn.Clicked += (_, _) =>
+            {
+                LeftDrawerOverlay.IsVisible = false;
+                OpenSubject(targetSub);
+            };
+            ActiveCoursesDrawerList.Children.Add(btn);
         }
     }
 
@@ -881,6 +1011,7 @@ public partial class MauiMainPage : ContentPage
             {
                 sub.Archived = false;
                 RenderSubjectsGrid(_currentSearchQuery);
+                RenderActiveDrawerCourses();
                 RenderArchivedDrawer();
                 _ = _storage.SaveStateAsync(_state);
                 ShowToast($"Restored '{sub.Name}'");
@@ -893,30 +1024,24 @@ public partial class MauiMainPage : ContentPage
 
     private async Task OnSubjectQuickMenuClicked(SubjectItem sub)
     {
-        string action = await DisplayActionSheet($"Manage '{sub.Name}'", "Cancel", "🗑️ Delete Course", "📂 Open Workspace", "✏️ Rename Course", "📦 Archive Course");
+        string action = await DisplayActionSheet($"Manage '{sub.Name}'", "Cancel", "🗑️ Delete Course", "📂 Open Workspace", "🎨 Edit Name, Icon & Color", "📦 Archive Course");
         if (action == "📂 Open Workspace")
         {
             OpenSubject(sub);
         }
-        else if (action == "✏️ Rename Course")
+        else if (action == "🎨 Edit Name, Icon & Color")
         {
-            string? newName = await DisplayPromptAsync("Rename Course", "Enter new subject title:", initialValue: sub.Name);
-            if (!string.IsNullOrWhiteSpace(newName))
-            {
-                sub.Name = newName.Trim();
-                RenderSubjectsGrid(_currentSearchQuery);
-                UpdateDashboardStats();
-                _ = _storage.SaveStateAsync(_state);
-            }
+            OpenSubjectEditorModal(sub);
         }
         else if (action == "📦 Archive Course")
         {
             sub.Archived = true;
             RenderSubjectsGrid(_currentSearchQuery);
+            RenderActiveDrawerCourses();
             RenderArchivedDrawer();
             UpdateDashboardStats();
             _ = _storage.SaveStateAsync(_state);
-            ShowToast($"Archived '{sub.Name}' to left StudyHub drawer");
+            ShowToast($"Archived '{sub.Name}' to StudyHub menu");
         }
         else if (action == "🗑️ Delete Course")
         {
@@ -925,6 +1050,7 @@ public partial class MauiMainPage : ContentPage
             {
                 _state.Subjects.Remove(sub);
                 RenderSubjectsGrid(_currentSearchQuery);
+                RenderActiveDrawerCourses();
                 UpdateDashboardStats();
                 _ = _storage.SaveStateAsync(_state);
                 ShowToast($"Deleted '{sub.Name}'");
@@ -932,29 +1058,138 @@ public partial class MauiMainPage : ContentPage
         }
     }
 
-    private async void OnOpenAddSubjectModalClicked(object? sender, EventArgs e)
+    private void OnOpenAddSubjectModalClicked(object? sender, EventArgs e)
     {
-        string? name = await DisplayPromptAsync("Add New Subject", "Enter course or subject name:", "Create", "Cancel", "e.g., Digital Signal Processing");
-        if (string.IsNullOrWhiteSpace(name)) return;
+        OpenSubjectEditorModal(null);
+    }
 
-        string[] palette = { "#7C5CFF", "#22D3EE", "#10B981", "#F59E0B", "#EC4899", "#3B82F6" };
-        string[] icons = { "🎓", "📡", "✈️", "💻", "📐", "🔬" };
-        int idx = _state.Subjects.Count % palette.Length;
-
-        var newSub = new SubjectItem
+    private void OpenSubjectEditorModal(SubjectItem? existingSubject)
+    {
+        _editingSubjectTarget = existingSubject;
+        if (existingSubject != null)
         {
-            Id = "sub_" + DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
-            Name = name.Trim(),
-            Icon = icons[idx],
-            Color = palette[idx],
-            Folders = new List<string> { "Lectures", "Tutorials", "Assignments", "Quizzes", "Labs", "References" }
-        };
+            LblSubjectEditorTitle.Text = "✏️ Edit Subject";
+            EntrySubjectEditorName.Text = existingSubject.Name;
+            _editorSelectedIcon = MapSubjectEmoji(existingSubject.Icon);
+            if (string.IsNullOrWhiteSpace(_editorSelectedIcon)) _editorSelectedIcon = SubjectEmojiPalette[0];
+            _editorSelectedColor = existingSubject.Color;
+            if (string.IsNullOrWhiteSpace(_editorSelectedColor) || !_editorSelectedColor.StartsWith("#"))
+                _editorSelectedColor = SubjectColorPalette[0];
+        }
+        else
+        {
+            int idx = _state.Subjects.Count % SubjectColorPalette.Length;
+            LblSubjectEditorTitle.Text = "✨ Add New Subject";
+            EntrySubjectEditorName.Text = "";
+            _editorSelectedIcon = SubjectEmojiPalette[idx];
+            _editorSelectedColor = SubjectColorPalette[idx];
+        }
 
-        _state.Subjects.Add(newSub);
-        RenderSubjectsGrid(_currentSearchQuery);
-        UpdateDashboardStats();
-        await _storage.SaveStateAsync(_state);
-        ShowToast($"Created subject '{newSub.Name}'");
+        BuildSubjectEditorOptions();
+        SubjectEditorModalOverlay.IsVisible = true;
+    }
+
+    private void BuildSubjectEditorOptions()
+    {
+        SubjectEditorIconsFlex.Children.Clear();
+        foreach (string icon in SubjectEmojiPalette)
+        {
+            bool active = string.Equals(icon, _editorSelectedIcon, StringComparison.Ordinal);
+            var btn = new Button
+            {
+                Text = icon,
+                FontSize = 19,
+                WidthRequest = 44,
+                HeightRequest = 44,
+                Padding = 0,
+                Margin = new Thickness(0, 0, 8, 8),
+                CornerRadius = 12,
+                BackgroundColor = active ? Color.FromArgb("#2B265E") : Color.FromArgb("#151A36"),
+                BorderColor = active ? Color.FromArgb("#7C5CFF") : Color.FromArgb("#28315A"),
+                BorderWidth = active ? 2.0 : 1.0
+            };
+            string pickedIcon = icon;
+            btn.Clicked += (_, _) =>
+            {
+                _editorSelectedIcon = pickedIcon;
+                BuildSubjectEditorOptions();
+            };
+            SubjectEditorIconsFlex.Children.Add(btn);
+        }
+
+        SubjectEditorColorsFlex.Children.Clear();
+        foreach (string hex in SubjectColorPalette)
+        {
+            bool active = string.Equals(hex, _editorSelectedColor, StringComparison.OrdinalIgnoreCase);
+            var swatch = new Border
+            {
+                WidthRequest = 36,
+                HeightRequest = 36,
+                Margin = new Thickness(0, 0, 10, 8),
+                BackgroundColor = Color.FromArgb(hex),
+                Stroke = active ? Colors.White : Color.FromArgb("#28315A"),
+                StrokeThickness = active ? 3.0 : 1.0,
+                StrokeShape = new RoundRectangle { CornerRadius = 18 }
+            };
+            var tap = new TapGestureRecognizer();
+            string pickedHex = hex;
+            tap.Tapped += (_, _) =>
+            {
+                _editorSelectedColor = pickedHex;
+                BuildSubjectEditorOptions();
+            };
+            swatch.GestureRecognizers.Add(tap);
+            SubjectEditorColorsFlex.Children.Add(swatch);
+        }
+    }
+
+    private void OnCloseSubjectEditorClicked(object? sender, EventArgs e)
+    {
+        SubjectEditorModalOverlay.IsVisible = false;
+    }
+
+    private async void OnSaveSubjectEditorClicked(object? sender, EventArgs e)
+    {
+        string name = (EntrySubjectEditorName.Text ?? "").Trim();
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            await DisplayAlert("Subject Name", "Please enter a course or subject name.", "OK");
+            return;
+        }
+
+        if (_editingSubjectTarget != null)
+        {
+            _editingSubjectTarget.Name = name;
+            _editingSubjectTarget.Icon = _editorSelectedIcon;
+            _editingSubjectTarget.Color = _editorSelectedColor;
+            SubjectEditorModalOverlay.IsVisible = false;
+            UpdateSubjectHeaderInfo();
+            RenderSubjectsGrid(_currentSearchQuery);
+            RenderActiveDrawerCourses();
+            RenderHomeUpcomingEvents();
+            UpdateDashboardStats();
+            await _storage.SaveStateAsync(_state);
+            ShowToast($"Updated '{name}'");
+        }
+        else
+        {
+            var newSub = new SubjectItem
+            {
+                Id = "sub_" + DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+                Name = name,
+                Icon = _editorSelectedIcon,
+                Color = _editorSelectedColor,
+                Folders = new List<string> { "Lectures", "Tutorials", "Assignments", "Quizzes", "Labs", "References" }
+            };
+
+            _state.Subjects.Add(newSub);
+            SubjectEditorModalOverlay.IsVisible = false;
+            RenderSubjectsGrid(_currentSearchQuery);
+            RenderActiveDrawerCourses();
+            UpdateDashboardStats();
+            await _storage.SaveStateAsync(_state);
+            ShowToast($"Created subject '{newSub.Name}'");
+        }
     }
 
     // ================= SUBJECT WORKSPACE & TABS =================
@@ -980,16 +1215,10 @@ public partial class MauiMainPage : ContentPage
         UpdateDashboardStats();
     }
 
-    private async void OnEditCurrentSubjectClicked(object? sender, EventArgs e)
+    private void OnEditCurrentSubjectClicked(object? sender, EventArgs e)
     {
         if (_currentSubject == null) return;
-        string? newName = await DisplayPromptAsync("Edit Subject", "Course title:", initialValue: _currentSubject.Name);
-        if (!string.IsNullOrWhiteSpace(newName))
-        {
-            _currentSubject.Name = newName.Trim();
-            UpdateSubjectHeaderInfo();
-            await _storage.SaveStateAsync(_state);
-        }
+        OpenSubjectEditorModal(_currentSubject);
     }
 
     private void UpdateSubjectHeaderInfo()
@@ -1279,32 +1508,101 @@ public partial class MauiMainPage : ContentPage
         PdfPagesStack.Children.Clear();
         PdfPagesScroll.BackgroundColor = _isPdfDarkMode ? Color.FromArgb("#0B0D18") : Color.FromArgb("#1E2235");
 
+        double viewWidth = _pageWidth > 120 ? (_pageWidth - 28) : 340;
+        string ext = Path.GetExtension(fullPath).ToLowerInvariant();
+        if (ext == ".png" || ext == ".jpg" || ext == ".jpeg" || ext == ".webp" || ext == ".bmp")
+        {
+            var imgBorder = new Border
+            {
+                HorizontalOptions = LayoutOptions.Fill,
+                BackgroundColor = _isPdfDarkMode ? Color.FromArgb("#161822") : Colors.White,
+                Stroke = Color.FromArgb("#2E365E"),
+                StrokeThickness = 1,
+                StrokeShape = new RoundRectangle { CornerRadius = 8 },
+                Padding = new Thickness(4),
+                Content = new Image
+                {
+                    Source = ImageSource.FromFile(fullPath),
+                    WidthRequest = viewWidth,
+                    HeightRequest = Math.Round(viewWidth * 1.25),
+                    Aspect = Aspect.AspectFit
+                }
+            };
+            PdfPagesStack.Children.Add(imgBorder);
+            return;
+        }
+
+        var loadingLabel = new Label
+        {
+            Text = "⏳ Rendering PDF pages...",
+            FontSize = 13,
+            FontAttributes = FontAttributes.Bold,
+            TextColor = Color.FromArgb("#94A3C6"),
+            HorizontalOptions = LayoutOptions.Center,
+            Margin = new Thickness(0, 18)
+        };
+        PdfPagesStack.Children.Add(loadingLabel);
+
 #if ANDROID
         await Task.Run(() =>
         {
             try
             {
                 using var pfd = Android.OS.ParcelFileDescriptor.Open(new Java.IO.File(fullPath), Android.OS.ParcelFileMode.ReadOnly);
-                if (pfd == null) return;
-                using var renderer = new Android.Graphics.Pdf.PdfRenderer(pfd);
-                int pageCount = Math.Min(renderer.PageCount, 40);
+                if (pfd == null)
+                {
+                    MainThread.BeginInvokeOnMainThread(() =>
+                    {
+                        PdfPagesStack.Children.Remove(loadingLabel);
+                        PdfPagesStack.Children.Add(new Label
+                        {
+                            Text = "Could not open PDF file descriptor.",
+                            TextColor = Colors.OrangeRed,
+                            HorizontalOptions = LayoutOptions.Center
+                        });
+                    });
+                    return;
+                }
 
+                using var renderer = new Android.Graphics.Pdf.PdfRenderer(pfd);
+                int totalPages = renderer.PageCount;
+                int pageCount = Math.Min(totalPages, 50);
+
+                if (pageCount == 0)
+                {
+                    MainThread.BeginInvokeOnMainThread(() =>
+                    {
+                        PdfPagesStack.Children.Remove(loadingLabel);
+                        PdfPagesStack.Children.Add(new Label
+                        {
+                            Text = "This PDF document contains 0 pages.",
+                            TextColor = Color.FromArgb("#CBD5E1"),
+                            HorizontalOptions = LayoutOptions.Center
+                        });
+                    });
+                    return;
+                }
+
+                bool clearedLoading = false;
                 for (int i = 0; i < pageCount; i++)
                 {
                     using var page = renderer.OpenPage(i);
-                    int w = Math.Max(1, page.Width * 2);
-                    int h = Math.Max(1, page.Height * 2);
-                    using var bmp = Android.Graphics.Bitmap.CreateBitmap(w, h, Android.Graphics.Bitmap.Config.Argb8888!);
+                    double rawW = Math.Max(1, page.Width);
+                    double rawH = Math.Max(1, page.Height);
+                    int targetW = (int)Math.Clamp(viewWidth * 2.0, 720, 1280);
+                    int targetH = Math.Max(1, (int)Math.Round(targetW * rawH / rawW));
+
+                    using var bmp = Android.Graphics.Bitmap.CreateBitmap(targetW, targetH, Android.Graphics.Bitmap.Config.Argb8888!);
                     using var canvas = new Android.Graphics.Canvas(bmp);
                     canvas.DrawColor(Android.Graphics.Color.White);
-                    page.Render(bmp, null, null, Android.Graphics.Pdf.PdfRenderMode.ForDisplay);
+                    page.Render(bmp, new Android.Graphics.Rect(0, 0, targetW, targetH), null, Android.Graphics.Pdf.PdfRenderMode.ForDisplay);
 
                     Android.Graphics.Bitmap finalBmp = bmp;
                     Android.Graphics.Bitmap? darkBmp = null;
 
                     if (_isPdfDarkMode)
                     {
-                        darkBmp = Android.Graphics.Bitmap.CreateBitmap(w, h, Android.Graphics.Bitmap.Config.Argb8888!);
+                        darkBmp = Android.Graphics.Bitmap.CreateBitmap(targetW, targetH, Android.Graphics.Bitmap.Config.Argb8888!);
                         using var darkCanvas = new Android.Graphics.Canvas(darkBmp);
                         using var paint = new Android.Graphics.Paint();
                         // Smart Dark Paper Matrix: inverts white paper to dark #14161F while keeping text crisp
@@ -1321,14 +1619,28 @@ public partial class MauiMainPage : ContentPage
                     }
 
                     using var ms = new MemoryStream();
-                    finalBmp.Compress(Android.Graphics.Bitmap.CompressFormat.Png!, 92, ms);
+                    finalBmp.Compress(Android.Graphics.Bitmap.CompressFormat.Jpeg!, 90, ms);
                     darkBmp?.Dispose();
-                    byte[] pngBytes = ms.ToArray();
+                    byte[] imgBytes = ms.ToArray();
+
+                    int pageNum = i + 1;
+                    double displayW = Math.Max(240, viewWidth - 8);
+                    double displayH = Math.Max(120, Math.Round(displayW * rawH / rawW));
 
                     MainThread.BeginInvokeOnMainThread(() =>
                     {
+                        if (!clearedLoading)
+                        {
+                            PdfPagesStack.Children.Remove(loadingLabel);
+                            clearedLoading = true;
+                        }
+
+                        var pageContainer = new VerticalStackLayout { Spacing = 4, HorizontalOptions = LayoutOptions.Fill };
                         var pageBorder = new Border
                         {
+                            HorizontalOptions = LayoutOptions.Center,
+                            WidthRequest = displayW + 8,
+                            HeightRequest = displayH + 8,
                             BackgroundColor = _isPdfDarkMode ? Color.FromArgb("#161822") : Colors.White,
                             Stroke = Color.FromArgb("#2E365E"),
                             StrokeThickness = 1,
@@ -1337,10 +1649,35 @@ public partial class MauiMainPage : ContentPage
                         };
                         pageBorder.Content = new Image
                         {
-                            Source = ImageSource.FromStream(() => new MemoryStream(pngBytes)),
+                            Source = ImageSource.FromStream(() => new MemoryStream(imgBytes, false)),
+                            WidthRequest = displayW,
+                            HeightRequest = displayH,
                             Aspect = Aspect.AspectFit
                         };
-                        PdfPagesStack.Children.Add(pageBorder);
+                        pageContainer.Children.Add(pageBorder);
+                        pageContainer.Children.Add(new Label
+                        {
+                            Text = $"Page {pageNum} of {totalPages}",
+                            FontSize = 10.5,
+                            TextColor = Color.FromArgb("#8A95B7"),
+                            HorizontalOptions = LayoutOptions.Center
+                        });
+                        PdfPagesStack.Children.Add(pageContainer);
+                    });
+                }
+
+                if (totalPages > pageCount)
+                {
+                    MainThread.BeginInvokeOnMainThread(() =>
+                    {
+                        PdfPagesStack.Children.Add(new Label
+                        {
+                            Text = $"Showing first {pageCount} of {totalPages} pages. Tap external icon (↗) above to view all.",
+                            FontSize = 11.5,
+                            TextColor = Color.FromArgb("#FACC15"),
+                            HorizontalOptions = LayoutOptions.Center,
+                            Margin = new Thickness(8)
+                        });
                     });
                 }
             }
@@ -1348,16 +1685,19 @@ public partial class MauiMainPage : ContentPage
             {
                 MainThread.BeginInvokeOnMainThread(() =>
                 {
+                    PdfPagesStack.Children.Remove(loadingLabel);
                     PdfPagesStack.Children.Add(new Label
                     {
                         Text = $"Could not render PDF pages: {ex.Message}",
-                        TextColor = Colors.OrangeRed
+                        TextColor = Colors.OrangeRed,
+                        HorizontalOptions = LayoutOptions.Center
                     });
                 });
             }
         });
 #else
         await Task.CompletedTask;
+        PdfPagesStack.Children.Remove(loadingLabel);
         PdfPagesStack.Children.Add(new Label
         {
             Text = $"📄 {Path.GetFileName(fullPath)}",
@@ -1738,6 +2078,8 @@ public partial class MauiMainPage : ContentPage
             {
                 _state.Deadlines.Remove(d);
                 RenderSubjectDeadlinesTab();
+                RenderHomeUpcomingEvents();
+                RescheduleAndroidCalendarAlarms();
                 await _storage.SaveStateAsync(_state);
             };
             g.Add(delBtn, 1, 0);
@@ -1763,6 +2105,8 @@ public partial class MauiMainPage : ContentPage
             Type = "Exam"
         });
         RenderSubjectDeadlinesTab();
+        RenderHomeUpcomingEvents();
+        RescheduleAndroidCalendarAlarms();
         await _storage.SaveStateAsync(_state);
     }
 
@@ -1884,7 +2228,10 @@ public partial class MauiMainPage : ContentPage
             if (_isPomoWorkPhase)
             {
                 _state.PomodorosCompleted++;
+                string todayKey = DateTime.Today.ToString("yyyy-MM-dd");
+                _state.PomodoroDays[todayKey] = (_state.PomodoroDays.TryGetValue(todayKey, out int pc) ? pc : 0) + 1;
                 RecordStudyActivity();
+                UpdateDashboardStats();
                 _ = _storage.SaveStateAsync(_state);
                 ShowToast("🎉 Focus session complete! Time for a break.");
                 SwitchPomoPhase(false);
@@ -2234,14 +2581,698 @@ public partial class MauiMainPage : ContentPage
 
     private void OnToggleLeftDrawerClicked(object? sender, EventArgs e)
     {
+        if (!LeftDrawerOverlay.IsVisible)
+        {
+            RenderActiveDrawerCourses();
+            RenderArchivedDrawer();
+        }
         LeftDrawerOverlay.IsVisible = !LeftDrawerOverlay.IsVisible;
     }
 
     private void OnDrawerHomeClicked(object? sender, EventArgs e)
     {
         LeftDrawerOverlay.IsVisible = false;
+        CalendarModalOverlay.IsVisible = false;
         OnBackToHomeClicked(sender, e);
     }
+
+    private void OnDrawerCalendarClicked(object? sender, EventArgs e)
+    {
+        LeftDrawerOverlay.IsVisible = false;
+        OpenCalendarModal();
+    }
+
+    private void OnDrawerTimerClicked(object? sender, EventArgs e)
+    {
+        LeftDrawerOverlay.IsVisible = false;
+        FloatingTimerHost.IsVisible = true;
+        BdFloatingTimerExpanded.IsVisible = true;
+        BdFloatingTimerMinimized.IsVisible = false;
+        ShowToast("Focus Timer opened ⏱️");
+    }
+
+    private void OnDrawerZenModeClicked(object? sender, EventArgs e)
+    {
+        LeftDrawerOverlay.IsVisible = false;
+        OnToggleZenModeClicked(sender, e);
+    }
+
+    private void OnDrawerMixerClicked(object? sender, EventArgs e)
+    {
+        LeftDrawerOverlay.IsVisible = false;
+        OnToggleSoundMixerClicked(sender, e);
+    }
+
+    private void OnDrawerToggleThemeClicked(object? sender, EventArgs e)
+    {
+        LeftDrawerOverlay.IsVisible = false;
+        OnToggleThemeClicked(sender, e);
+    }
+
+    private void OnDrawerSettingsClicked(object? sender, EventArgs e)
+    {
+        LeftDrawerOverlay.IsVisible = false;
+        OnOpenSettingsClicked(sender, e);
+    }
+
+    private void OnDrawerAddSubjectClicked(object? sender, EventArgs e)
+    {
+        LeftDrawerOverlay.IsVisible = false;
+        OpenSubjectEditorModal(null);
+    }
+
+    // ================= UPCOMING EVENTS & CALENDAR FEATURE =================
+
+    private void RenderHomeUpcomingEvents()
+    {
+        var upcoming = CalendarNotificationEngine.GetUpcomingEvents(_state, includeCompleted: false);
+        int count = upcoming.Count;
+        LblHomeUpcomingCount.Text = count.ToString();
+        NavCalendarActiveDot.IsVisible = count > 0;
+        BtnDrawerCalendar.Text = count > 0 ? $"📅 Calendar & Upcoming ({count})" : "📅 Calendar & Upcoming Events";
+
+        HomeUpcomingEventsList.Children.Clear();
+        bool isDark = _backdrop.IsDarkMode;
+
+        if (count == 0)
+        {
+            BtnHomeUpcomingToggleMore.IsVisible = false;
+            HomeUpcomingEventsList.Children.Add(new Border
+            {
+                BackgroundColor = isDark ? Color.FromArgb("#0D1124") : Color.FromArgb("#F1F5F9"),
+                Stroke = isDark ? Color.FromArgb("#1E2648") : Color.FromArgb("#CBD5E1"),
+                StrokeThickness = 1,
+                StrokeShape = new RoundRectangle { CornerRadius = 12 },
+                Padding = new Thickness(12, 10),
+                Content = new Label
+                {
+                    Text = "No upcoming events scheduled — tap '+ Note' or open Calendar to plan ahead.",
+                    FontSize = 11.5,
+                    TextColor = isDark ? Color.FromArgb("#8A95B7") : Color.FromArgb("#475569")
+                }
+            });
+            return;
+        }
+
+        int limit = _homeUpcomingExpanded ? upcoming.Count : Math.Min(3, upcoming.Count);
+        for (int i = 0; i < limit; i++)
+        {
+            var item = upcoming[i];
+            HomeUpcomingEventsList.Children.Add(BuildUpcomingEventCard(item, compact: true));
+        }
+
+        if (upcoming.Count > 3)
+        {
+            BtnHomeUpcomingToggleMore.IsVisible = true;
+            BtnHomeUpcomingToggleMore.Text = _homeUpcomingExpanded
+                ? "Show Fewer ▴"
+                : $"Show All {upcoming.Count} Upcoming Events ▾";
+        }
+        else
+        {
+            BtnHomeUpcomingToggleMore.IsVisible = false;
+        }
+    }
+
+    private void OnToggleHomeUpcomingExpandClicked(object? sender, EventArgs e)
+    {
+        _homeUpcomingExpanded = !_homeUpcomingExpanded;
+        RenderHomeUpcomingEvents();
+    }
+
+    private Border BuildUpcomingEventCard(UpcomingEventEntry entry, bool compact)
+    {
+        bool isDark = _backdrop.IsDarkMode;
+        Color badgeColor = Color.FromArgb(entry.CountdownColorHex);
+
+        var card = new Border
+        {
+            BackgroundColor = isDark ? Color.FromArgb("#0D1124") : Color.FromArgb("#F8FAFC"),
+            Stroke = isDark ? Color.FromArgb("#232C54") : Color.FromArgb("#CBD5E1"),
+            StrokeThickness = 1,
+            StrokeShape = new RoundRectangle { CornerRadius = 12 },
+            Padding = new Thickness(10, 8)
+        };
+
+        var row = new Grid
+        {
+            ColumnDefinitions =
+            {
+                new ColumnDefinition { Width = GridLength.Auto },
+                new ColumnDefinition { Width = GridLength.Star },
+                new ColumnDefinition { Width = GridLength.Auto }
+            },
+            ColumnSpacing = 9,
+            VerticalOptions = LayoutOptions.Center
+        };
+
+        row.Add(new Border
+        {
+            BackgroundColor = badgeColor.WithAlpha(0.18f),
+            Stroke = badgeColor,
+            StrokeThickness = 1,
+            StrokeShape = new RoundRectangle { CornerRadius = 8 },
+            Padding = new Thickness(7, 4),
+            VerticalOptions = LayoutOptions.Center,
+            Content = new Label
+            {
+                Text = entry.RelativeBadge,
+                FontSize = 10,
+                FontAttributes = FontAttributes.Bold,
+                TextColor = badgeColor
+            }
+        }, 0, 0);
+
+        var info = new VerticalStackLayout { Spacing = 2, VerticalOptions = LayoutOptions.Center };
+        info.Children.Add(new Label
+        {
+            Text = $"{entry.SubjectIcon} {entry.Title}",
+            FontSize = 12.5,
+            FontAttributes = FontAttributes.Bold,
+            TextColor = isDark ? Color.FromArgb("#F8FAFC") : Color.FromArgb("#0F172A"),
+            LineBreakMode = LineBreakMode.TailTruncation
+        });
+
+        string subLine = $"{entry.DateTimeLocal:ddd, MMM d} • {entry.TimeDisplay} • {entry.SubjectName}";
+        if (!string.IsNullOrWhiteSpace(entry.ReminderSummary))
+            subLine += $" • 🔔 {entry.ReminderSummary}";
+
+        info.Children.Add(new Label
+        {
+            Text = subLine,
+            FontSize = 10.5,
+            TextColor = isDark ? Color.FromArgb("#8A95B7") : Color.FromArgb("#64748B"),
+            LineBreakMode = LineBreakMode.TailTruncation
+        });
+
+        if (!compact && !string.IsNullOrWhiteSpace(entry.Note))
+        {
+            info.Children.Add(new Label
+            {
+                Text = $"📝 {entry.Note}",
+                FontSize = 11,
+                TextColor = isDark ? Color.FromArgb("#CBD5E1") : Color.FromArgb("#334155"),
+                MaxLines = 2,
+                LineBreakMode = LineBreakMode.TailTruncation
+            });
+        }
+        row.Add(info, 1, 0);
+
+        if (compact)
+        {
+            row.Add(new Label
+            {
+                Text = "›",
+                FontSize = 16,
+                FontAttributes = FontAttributes.Bold,
+                TextColor = isDark ? Color.FromArgb("#687296") : Color.FromArgb("#64748B"),
+                VerticalOptions = LayoutOptions.Center
+            }, 2, 0);
+
+            var tap = new TapGestureRecognizer();
+            tap.Tapped += (_, _) =>
+            {
+                _calSelectedDate = entry.DateTimeLocal.Date;
+                _calDisplayMonth = new DateTime(_calSelectedDate.Year, _calSelectedDate.Month, 1);
+                OpenCalendarModal();
+            };
+            card.GestureRecognizers.Add(tap);
+        }
+        else
+        {
+            var actions = new HorizontalStackLayout { Spacing = 4, VerticalOptions = LayoutOptions.Center };
+            var doneBtn = new Button
+            {
+                Text = entry.Completed ? "↩" : "✓",
+                FontSize = 11,
+                WidthRequest = 30,
+                HeightRequest = 28,
+                Padding = 0,
+                BackgroundColor = entry.Completed ? Color.FromArgb("#1E2548") : Color.FromArgb("#13382D"),
+                TextColor = entry.Completed ? Color.FromArgb("#CBD5E1") : Color.FromArgb("#10B981"),
+                CornerRadius = 8
+            };
+            doneBtn.Clicked += async (_, _) => await ToggleUpcomingEntryCompletedAsync(entry);
+            actions.Children.Add(doneBtn);
+
+            var delBtn = new Button
+            {
+                Text = "🗑️",
+                FontSize = 11,
+                WidthRequest = 30,
+                HeightRequest = 28,
+                Padding = 0,
+                BackgroundColor = Color.FromArgb("#3B182A"),
+                TextColor = Color.FromArgb("#F43F5E"),
+                CornerRadius = 8
+            };
+            delBtn.Clicked += async (_, _) => await DeleteUpcomingEntryAsync(entry);
+            actions.Children.Add(delBtn);
+
+            row.Add(actions, 2, 0);
+
+            var tap = new TapGestureRecognizer();
+            tap.Tapped += (_, _) =>
+            {
+                _calSelectedDate = entry.DateTimeLocal.Date;
+                _calDisplayMonth = new DateTime(_calSelectedDate.Year, _calSelectedDate.Month, 1);
+                RefreshCalendarModalViews();
+            };
+            card.GestureRecognizers.Add(tap);
+        }
+
+        card.Content = row;
+        return card;
+    }
+
+    private void OnOpenCalendarModalClicked(object? sender, EventArgs e) => OpenCalendarModal();
+
+    private void OnOpenCalendarAddNoteClicked(object? sender, EventArgs e)
+    {
+        _calSelectedDate = DateTime.Today;
+        _calDisplayMonth = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1);
+        OpenCalendarModal();
+    }
+
+    private void OpenCalendarModal()
+    {
+        _calSubjectChoices = _state.Subjects.Where(s => !s.Archived).ToList();
+        var pickerItems = new List<string> { "General / Personal" };
+        pickerItems.AddRange(_calSubjectChoices.Select(s => $"{MapSubjectEmoji(s.Icon)} {s.Name}"));
+        PickerCalSubject.ItemsSource = pickerItems;
+        PickerCalSubject.SelectedIndex = 0;
+
+        LblCalMorningBadge.Text = $"Morning reminders at {CalendarNotificationEngine.NormalizeMorningTimeString(_state.Settings.CalendarNotifStartHour)}";
+        UpdateCalendarRuleButtonsUi();
+        RefreshCalendarModalViews();
+        CalendarModalOverlay.IsVisible = true;
+    }
+
+    private void OnCloseCalendarModalClicked(object? sender, EventArgs e)
+    {
+        CalendarModalOverlay.IsVisible = false;
+    }
+
+    private async void OnOpenCalMorningQuickConfigClicked(object? sender, EventArgs e)
+    {
+        string current = CalendarNotificationEngine.NormalizeMorningTimeString(_state.Settings.CalendarNotifStartHour);
+        string? res = await DisplayPromptAsync(
+            "Morning Notification Time",
+            "Receive morning reminders when you open your phone at or after (HH:mm, e.g. 07:00 or 08:00):",
+            "Save",
+            "Cancel",
+            "08:00",
+            initialValue: current);
+        if (string.IsNullOrWhiteSpace(res)) return;
+
+        await SaveMorningTimeSettingAsync(res);
+        RefreshCalendarModalViews();
+        UpdateCalendarRuleButtonsUi();
+    }
+
+    private void OnCalPrevMonthClicked(object? sender, EventArgs e)
+    {
+        _calDisplayMonth = _calDisplayMonth.AddMonths(-1);
+        RefreshCalendarModalViews();
+    }
+
+    private void OnCalNextMonthClicked(object? sender, EventArgs e)
+    {
+        _calDisplayMonth = _calDisplayMonth.AddMonths(1);
+        RefreshCalendarModalViews();
+    }
+
+    private void OnCalTodayClicked(object? sender, EventArgs e)
+    {
+        _calSelectedDate = DateTime.Today;
+        _calDisplayMonth = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1);
+        RefreshCalendarModalViews();
+    }
+
+    private void OnCalToggleAll4Clicked(object? sender, EventArgs e)
+    {
+        bool allCurrentlyOn = _calRule3Days && _calRule24Hours && _calRuleMorning && _calRuleCustom;
+        bool nextState = !allCurrentlyOn;
+        _calRule3Days = nextState;
+        _calRule24Hours = nextState;
+        _calRuleMorning = nextState;
+        _calRuleCustom = nextState;
+        UpdateCalendarRuleButtonsUi();
+    }
+
+    private void OnCalRule3DaysClicked(object? sender, EventArgs e) { _calRule3Days = !_calRule3Days; UpdateCalendarRuleButtonsUi(); }
+    private void OnCalRule24HoursClicked(object? sender, EventArgs e) { _calRule24Hours = !_calRule24Hours; UpdateCalendarRuleButtonsUi(); }
+    private void OnCalRuleMorningClicked(object? sender, EventArgs e) { _calRuleMorning = !_calRuleMorning; UpdateCalendarRuleButtonsUi(); }
+    private void OnCalRuleCustomClicked(object? sender, EventArgs e) { _calRuleCustom = !_calRuleCustom; UpdateCalendarRuleButtonsUi(); }
+
+    private void OnCalCycleCustomUnitClicked(object? sender, EventArgs e)
+    {
+        _calCustomUnitIdx = (_calCustomUnitIdx + 1) % 3;
+        BtnCalCustomUnit.Text = _calCustomUnitIdx switch
+        {
+            1 => "Minutes Before ▾",
+            2 => "Days Before ▾",
+            _ => "Hours Before ▾"
+        };
+    }
+
+    private void UpdateCalendarRuleButtonsUi()
+    {
+        static void StyleRuleBtn(Button b, bool active, string activeText, string inactiveText)
+        {
+            b.Text = active ? $"✓ {activeText}" : $"○ {inactiveText}";
+            b.BackgroundColor = active ? Color.FromArgb("#7C5CFF") : Color.FromArgb("#1B2142");
+            b.TextColor = active ? Colors.White : Color.FromArgb("#CBD5E1");
+        }
+
+        string m = CalendarNotificationEngine.NormalizeMorningTimeString(_state.Settings.CalendarNotifStartHour);
+        StyleRuleBtn(BtnCalRule3Days, _calRule3Days, "3 Days Before", "3 Days Before");
+        StyleRuleBtn(BtnCalRule24Hours, _calRule24Hours, "24 Hours Before", "24 Hours Before");
+        StyleRuleBtn(BtnCalRuleMorning, _calRuleMorning, $"Morning ({m})", $"Morning ({m})");
+        StyleRuleBtn(BtnCalRuleCustom, _calRuleCustom, "Custom", "Custom");
+
+        bool all4 = _calRule3Days && _calRule24Hours && _calRuleMorning && _calRuleCustom;
+        BtnCalSelectAll4.Text = all4 ? "✓ All 4 Active" : "✓ Select All 4";
+        BtnCalSelectAll4.BackgroundColor = all4 ? Color.FromArgb("#10B981") : Color.FromArgb("#232D58");
+        BtnCalSelectAll4.TextColor = Colors.White;
+
+        BdCalCustomOffsetRow.IsVisible = _calRuleCustom;
+    }
+
+    private void RefreshCalendarModalViews()
+    {
+        LblCalMonthTitle.Text = _calDisplayMonth.ToString("MMMM yyyy");
+        LblCalSelectedDayHeader.Text = $"Selected: {_calSelectedDate:ddd, MMM d, yyyy}";
+        LblCalMorningBadge.Text = $"Morning reminders at {CalendarNotificationEngine.NormalizeMorningTimeString(_state.Settings.CalendarNotifStartHour)}";
+
+        var allUpcoming = CalendarNotificationEngine.GetUpcomingEvents(_state, includeCompleted: true);
+        var datesWithEvents = new HashSet<string>(
+            allUpcoming.Where(u => !u.Completed).Select(u => u.DateKey),
+            StringComparer.Ordinal);
+
+        // Render 6x7 Month Grid
+        CalendarMonthGrid.Children.Clear();
+        CalendarMonthGrid.RowDefinitions.Clear();
+        CalendarMonthGrid.ColumnDefinitions.Clear();
+        for (int c = 0; c < 7; c++) CalendarMonthGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Star });
+        for (int r = 0; r < 6; r++) CalendarMonthGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(42) });
+
+        DateTime firstOfMonth = new DateTime(_calDisplayMonth.Year, _calDisplayMonth.Month, 1);
+        int startCol = (int)firstOfMonth.DayOfWeek;
+        DateTime cursor = firstOfMonth.AddDays(-startCol);
+
+        for (int r = 0; r < 6; r++)
+        {
+            for (int c = 0; c < 7; c++)
+            {
+                DateTime dayDate = cursor;
+                string dayKey = dayDate.ToString("yyyy-MM-dd");
+                bool isCurrentMonth = dayDate.Month == _calDisplayMonth.Month;
+                bool isSelected = dayDate.Date == _calSelectedDate.Date;
+                bool isToday = dayDate.Date == DateTime.Today;
+                bool hasEvents = datesWithEvents.Contains(dayKey);
+
+                Color bg = isSelected
+                    ? Color.FromArgb("#7C5CFF")
+                    : isToday
+                        ? Color.FromArgb("#1D2D58")
+                        : Color.FromArgb("#0E1328");
+                Color borderCol = isSelected
+                    ? Color.FromArgb("#C4B5FD")
+                    : isToday
+                        ? Color.FromArgb("#38BDF8")
+                        : Color.FromArgb("#1F264A");
+
+                var cell = new Border
+                {
+                    BackgroundColor = bg,
+                    Stroke = borderCol,
+                    StrokeThickness = (isSelected || isToday) ? 1.5 : 1.0,
+                    StrokeShape = new RoundRectangle { CornerRadius = 9 },
+                    Padding = new Thickness(2),
+                    Opacity = isCurrentMonth ? 1.0 : 0.42
+                };
+
+                var cellStack = new VerticalStackLayout
+                {
+                    HorizontalOptions = LayoutOptions.Center,
+                    VerticalOptions = LayoutOptions.Center,
+                    Spacing = 2
+                };
+                cellStack.Children.Add(new Label
+                {
+                    Text = dayDate.Day.ToString(),
+                    FontSize = 12,
+                    FontAttributes = (isSelected || isToday) ? FontAttributes.Bold : FontAttributes.None,
+                    TextColor = isSelected ? Colors.White : (isToday ? Color.FromArgb("#38BDF8") : Color.FromArgb("#E2E8F0")),
+                    HorizontalOptions = LayoutOptions.Center
+                });
+
+                if (hasEvents)
+                {
+                    cellStack.Children.Add(new BoxView
+                    {
+                        WidthRequest = 6,
+                        HeightRequest = 6,
+                        CornerRadius = 3,
+                        Color = isSelected ? Color.FromArgb("#FACC15") : Color.FromArgb("#10B981"),
+                        HorizontalOptions = LayoutOptions.Center
+                    });
+                }
+
+                cell.Content = cellStack;
+                var tap = new TapGestureRecognizer();
+                tap.Tapped += (_, _) =>
+                {
+                    _calSelectedDate = dayDate;
+                    if (dayDate.Month != _calDisplayMonth.Month || dayDate.Year != _calDisplayMonth.Year)
+                        _calDisplayMonth = new DateTime(dayDate.Year, dayDate.Month, 1);
+                    RefreshCalendarModalViews();
+                };
+                cell.GestureRecognizers.Add(tap);
+                CalendarMonthGrid.Add(cell, c, r);
+
+                cursor = cursor.AddDays(1);
+            }
+        }
+
+        // Selected Day Notes List
+        CalSelectedDayEventsList.Children.Clear();
+        string selKey = _calSelectedDate.ToString("yyyy-MM-dd");
+        var dayItems = allUpcoming.Where(u => u.DateKey == selKey).ToList();
+        if (dayItems.Count == 0)
+        {
+            CalSelectedDayEventsList.Children.Add(new Label
+            {
+                Text = "No notes or events on this day yet. Add one below!",
+                FontSize = 11.5,
+                TextColor = Color.FromArgb("#687296")
+            });
+        }
+        else
+        {
+            foreach (var item in dayItems)
+                CalSelectedDayEventsList.Children.Add(BuildUpcomingEventCard(item, compact: false));
+        }
+
+        // Upcoming Events List inside Calendar
+        var upcomingOnly = CalendarNotificationEngine.GetUpcomingEvents(_state, includeCompleted: false);
+        LblCalUpcomingTotalCount.Text = $"{upcomingOnly.Count} upcoming";
+        CalUpcomingEventsList.Children.Clear();
+        if (upcomingOnly.Count == 0)
+        {
+            CalUpcomingEventsList.Children.Add(new Label
+            {
+                Text = "No upcoming events scheduled.",
+                FontSize = 11.5,
+                TextColor = Color.FromArgb("#687296")
+            });
+        }
+        else
+        {
+            foreach (var item in upcomingOnly)
+                CalUpcomingEventsList.Children.Add(BuildUpcomingEventCard(item, compact: false));
+        }
+    }
+
+    private async void OnCalSaveEventClicked(object? sender, EventArgs e)
+    {
+        string title = (EntryCalTitle.Text ?? "").Trim();
+        string note = (EditorCalNote.Text ?? "").Trim();
+        if (string.IsNullOrWhiteSpace(title) && string.IsNullOrWhiteSpace(note))
+        {
+            await DisplayAlert("Calendar Note", "Please enter an event title or note for this day.", "OK");
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(title)) title = "Calendar Note";
+
+        var parsedTime = CalendarNotificationEngine.ParseTimeOfDay(EntryCalEventTime.Text, new TimeSpan(9, 0, 0));
+        string eventTime = $"{parsedTime.Hours:D2}:{parsedTime.Minutes:D2}";
+
+        string subjectId = "";
+        if (PickerCalSubject.SelectedIndex > 0 && PickerCalSubject.SelectedIndex - 1 < _calSubjectChoices.Count)
+            subjectId = _calSubjectChoices[PickerCalSubject.SelectedIndex - 1].Id;
+
+        int customOffsetMins = 120;
+        if (_calRuleCustom)
+        {
+            int rawAmount = int.TryParse(EntryCalCustomMinutes.Text, out int v) && v > 0 ? v : 2;
+            customOffsetMins = _calCustomUnitIdx switch
+            {
+                1 => rawAmount,
+                2 => rawAmount * 1440,
+                _ => rawAmount * 60
+            };
+        }
+
+        var ev = new CalendarEventItem
+        {
+            Id = "cal_" + DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+            Title = title,
+            Note = note,
+            Date = _calSelectedDate.ToString("yyyy-MM-dd"),
+            EventTime = eventTime,
+            SubjectId = subjectId,
+            Notify3DaysBefore = _calRule3Days,
+            Notify24HoursBefore = _calRule24Hours,
+            NotifyMorningOf = _calRuleMorning,
+            NotifyCustom = _calRuleCustom,
+            CustomOffsetMinutes = customOffsetMins,
+            CreatedAt = DateTime.UtcNow.ToString("O")
+        };
+
+        CalendarNotificationEngine.SuppressPreExistingPastTriggers(ev, _state, DateTime.Now);
+        _state.CalendarEvents.Add(ev);
+
+        EntryCalTitle.Text = "";
+        EditorCalNote.Text = "";
+
+        RefreshCalendarModalViews();
+        RenderHomeUpcomingEvents();
+        RenderSubjectsGrid(_currentSearchQuery);
+        CheckDueCalendarNotificationsMobile();
+        RescheduleAndroidCalendarAlarms();
+        await _storage.SaveStateAsync(_state);
+        ShowToast($"Saved calendar note for {_calSelectedDate:MMM d} 📅");
+    }
+
+    private async Task ToggleUpcomingEntryCompletedAsync(UpcomingEventEntry entry)
+    {
+        if (entry.SourceCalendarEvent != null)
+            entry.SourceCalendarEvent.Completed = !entry.SourceCalendarEvent.Completed;
+        else if (entry.SourceDeadline != null)
+            entry.SourceDeadline.Completed = !entry.SourceDeadline.Completed;
+
+        RefreshCalendarModalViews();
+        RenderHomeUpcomingEvents();
+        RenderSubjectsGrid(_currentSearchQuery);
+        RescheduleAndroidCalendarAlarms();
+        await _storage.SaveStateAsync(_state);
+    }
+
+    private async Task DeleteUpcomingEntryAsync(UpcomingEventEntry entry)
+    {
+        if (entry.SourceCalendarEvent != null)
+            _state.CalendarEvents.Remove(entry.SourceCalendarEvent);
+        else if (entry.SourceDeadline != null)
+            _state.Deadlines.Remove(entry.SourceDeadline);
+
+        RefreshCalendarModalViews();
+        RenderHomeUpcomingEvents();
+        RenderSubjectsGrid(_currentSearchQuery);
+        RescheduleAndroidCalendarAlarms();
+        await _storage.SaveStateAsync(_state);
+        ShowToast("Removed event");
+    }
+
+    private async void OnSettingsCalNotifToggled(object? sender, ToggledEventArgs e)
+    {
+        if (_isInitializingSettingsUi) return;
+        _state.Settings.CalendarNotifsEnabled = e.Value;
+        await _storage.SaveStateAsync(_state);
+        RescheduleAndroidCalendarAlarms();
+        ShowToast(e.Value ? "Calendar alerts enabled 🔔" : "Calendar alerts paused 🔕");
+    }
+
+    private async void OnSettingsMorningTimeCompleted(object? sender, EventArgs e)
+    {
+        await SaveMorningTimeSettingAsync(EntrySettingsMorningTime.Text);
+    }
+
+    private async void OnMorningPreset0700Clicked(object? sender, EventArgs e) => await SaveMorningTimeSettingAsync("07:00");
+    private async void OnMorningPreset0800Clicked(object? sender, EventArgs e) => await SaveMorningTimeSettingAsync("08:00");
+    private async void OnMorningPreset0900Clicked(object? sender, EventArgs e) => await SaveMorningTimeSettingAsync("09:00");
+
+    private async Task SaveMorningTimeSettingAsync(string? rawTime)
+    {
+        string normalized = CalendarNotificationEngine.NormalizeMorningTimeString(rawTime);
+        _state.Settings.CalendarNotifStartHour = normalized;
+        _isInitializingSettingsUi = true;
+        EntrySettingsMorningTime.Text = normalized;
+        _isInitializingSettingsUi = false;
+        LblCalMorningBadge.Text = $"Morning reminders at {normalized}";
+        await _storage.SaveStateAsync(_state);
+        UpdateCalendarRuleButtonsUi();
+        CheckDueCalendarNotificationsMobile();
+        RescheduleAndroidCalendarAlarms();
+        ShowToast($"Morning reminder time set to {normalized} ⏰");
+    }
+
+    private void CheckDueCalendarNotificationsMobile()
+    {
+        _lastNotifCheckUtc = DateTime.UtcNow;
+#if ANDROID
+        try
+        {
+            var fired = StudyHub.Platforms.Android.AndroidCalendarNotifications.CheckAndDispatchDue(
+                Android.App.Application.Context, _state, _storage);
+            if (fired.Count > 0)
+            {
+                _ = _storage.SaveStateAsync(_state);
+                var first = fired[0];
+                MainThread.BeginInvokeOnMainThread(() =>
+                    ShowToast($"🔔 {first.Title} ({first.RuleLabel})"));
+            }
+        }
+        catch { }
+#endif
+    }
+
+    private void RescheduleAndroidCalendarAlarms()
+    {
+#if ANDROID
+        try
+        {
+            StudyHub.Platforms.Android.AndroidCalendarNotifications.RescheduleAll(
+                Android.App.Application.Context, _state);
+        }
+        catch { }
+#endif
+    }
+
+#if ANDROID
+    private void OnAndroidBackgroundNotificationKeysFired(List<string> keys)
+    {
+        MainThread.BeginInvokeOnMainThread(() =>
+        {
+            _state.FiredNotificationKeys ??= new List<string>();
+            var set = new HashSet<string>(_state.FiredNotificationKeys, StringComparer.Ordinal);
+            bool changed = false;
+            foreach (var k in keys)
+            {
+                if (set.Add(k))
+                {
+                    _state.FiredNotificationKeys.Add(k);
+                    changed = true;
+                }
+            }
+            if (changed)
+            {
+                _ = _storage.SaveStateAsync(_state);
+            }
+        });
+    }
+#endif
 
     private void OnGlobalSearchTextChanged(object? sender, TextChangedEventArgs e)
     {
@@ -2333,8 +3364,12 @@ public partial class MauiMainPage : ContentPage
                 await _storage.SaveStateAsync(_state);
                 ApplySavedSettingsToUi();
                 RenderSubjectsGrid(_currentSearchQuery);
+                RenderHomeUpcomingEvents();
+                RenderActiveDrawerCourses();
                 RenderArchivedDrawer();
                 UpdateDashboardStats();
+                CheckDueCalendarNotificationsMobile();
+                RescheduleAndroidCalendarAlarms();
                 ShowToast("Workspace backup restored ✅");
             }
         }
@@ -2346,18 +3381,49 @@ public partial class MauiMainPage : ContentPage
 
     private async void OnCheckGithubUpdateClicked(object? sender, EventArgs e)
     {
-        _state.Settings.GithubRepoUrl = EntryGithubRepoUrl.Text?.Trim() ?? "";
+        string normalizedUrl = UserSettings.NormalizeGithubRepoUrl(EntryGithubRepoUrl.Text);
+        EntryGithubRepoUrl.Text = normalizedUrl;
+        _state.Settings.GithubRepoUrl = normalizedUrl;
         await _storage.SaveStateAsync(_state);
-        var res = await _updater.CheckForUpdatesAsync(_state.Settings.GithubRepoUrl, _state.Settings.InstalledCommitSha);
+
+        ShowToast("Checking GitHub for updates...");
+        var res = await _updater.CheckForUpdatesAsync(normalizedUrl, _state.Settings.InstalledCommitSha);
         if (!res.Success)
         {
             await DisplayAlert("GitHub Updater", res.ErrorMessage, "OK");
             return;
         }
-        string msg = res.IsUpdateAvailable
-            ? $"New update available: {res.LatestVersion}\n{res.ReleaseTitle}"
-            : $"You are up to date (v{res.CurrentVersion}).";
-        await DisplayAlert("GitHub Updater", msg, "OK");
+
+        if (res.IsUpdateAvailable)
+        {
+            string msg = $"New update available: {res.LatestVersion}\n{res.ReleaseTitle}\n\n{res.ReleaseNotes}";
+            if (!string.IsNullOrWhiteSpace(res.DownloadUrl))
+            {
+                bool openDl = await DisplayAlert("GitHub Updater", msg, "Download / Open", "Later");
+                if (openDl)
+                {
+                    try
+                    {
+                        await Launcher.Default.OpenAsync(new Uri(res.DownloadUrl));
+                    }
+                    catch (Exception ex)
+                    {
+                        await DisplayAlert("Open URL Error", ex.Message, "OK");
+                    }
+                }
+            }
+            else
+            {
+                await DisplayAlert("GitHub Updater", msg, "OK");
+            }
+        }
+        else
+        {
+            string commitInfo = string.IsNullOrWhiteSpace(res.LatestCommitSha)
+                ? ""
+                : $"\nLatest branch check: {res.ReleaseTitle}";
+            await DisplayAlert("GitHub Updater", $"You are up to date (v{res.CurrentVersion}).{commitInfo}", "OK");
+        }
     }
 
     // ================= HELPERS =================

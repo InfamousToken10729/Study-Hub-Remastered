@@ -67,6 +67,12 @@ namespace StudyHub.Models
         [JsonPropertyName("deadlines")]
         public List<DeadlineItem> Deadlines { get; set; } = new();
 
+        [JsonPropertyName("calendarEvents")]
+        public List<CalendarEventItem> CalendarEvents { get; set; } = new();
+
+        [JsonPropertyName("firedNotificationKeys")]
+        public List<string> FiredNotificationKeys { get; set; } = new();
+
         [JsonPropertyName("links")]
         public List<LinkItem> Links { get; set; } = new();
 
@@ -403,6 +409,8 @@ namespace StudyHub.Models
         [JsonPropertyName("notifications")]
         public bool Notifications { get; set; } = true;
 
+        public const string DefaultGithubRepoUrl = "https://github.com/InfamousToken10729/Study-Hub-Remastered/tree/study_hub";
+
         [JsonPropertyName("calendarNotifsEnabled")]
         public bool CalendarNotifsEnabled { get; set; } = true;
 
@@ -410,7 +418,7 @@ namespace StudyHub.Models
         public List<string> CalendarNotifPresets { get; set; } = new() { "start_of_day", "1_day", "3_days" };
 
         [JsonPropertyName("calendarNotifStartHour")]
-        public string CalendarNotifStartHour { get; set; } = "09:00";
+        public string CalendarNotifStartHour { get; set; } = "08:00";
 
         [JsonPropertyName("calendarNotifCustomHours")]
         public int CalendarNotifCustomHours { get; set; } = 2;
@@ -444,7 +452,19 @@ namespace StudyHub.Models
 
         // --- GitHub Auto-Updater Settings ---
         [JsonPropertyName("githubRepoUrl")]
-        public string GithubRepoUrl { get; set; } = "";
+        public string GithubRepoUrl { get; set; } = DefaultGithubRepoUrl;
+
+        public static string NormalizeGithubRepoUrl(string? url)
+        {
+            var trimmed = (url ?? "").Trim();
+            if (string.IsNullOrEmpty(trimmed) ||
+                string.Equals(trimmed, "https://github.com/Mahmoud/StudyHub", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(trimmed, "https://github.com/Mahmoud/StudyHub.git", StringComparison.OrdinalIgnoreCase))
+            {
+                return DefaultGithubRepoUrl;
+            }
+            return trimmed;
+        }
 
         [JsonPropertyName("autoCheckUpdates")]
         public bool AutoCheckUpdates { get; set; } = true;

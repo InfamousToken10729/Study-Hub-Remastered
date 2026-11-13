@@ -144,13 +144,33 @@
                             </Border>
                         </HorizontalStackLayout>
 
-                        <!-- Always-Visible Right Action Buttons: Sound Mixer, Zen Mode, Theme Toggle, Settings -->
-                        <HorizontalStackLayout Grid.Column="2" Spacing="6" VerticalOptions="Center">
-                            <Grid WidthRequest="36" HeightRequest="36" VerticalOptions="Center">
-                                <Button Text="🎚️"
-                                        FontSize="14"
+                        <!-- Always-Visible Right Action Buttons: Calendar, Sound Mixer, Zen Mode, Theme Toggle, Settings -->
+                        <HorizontalStackLayout Grid.Column="2" Spacing="5" VerticalOptions="Center">
+                            <Grid WidthRequest="33" HeightRequest="33" VerticalOptions="Center">
+                                <Button Text="📅"
+                                        FontSize="13.5"
                                         Padding="0"
-                                        CornerRadius="18"
+                                        CornerRadius="17"
+                                        BackgroundColor="#181D38"
+                                        BorderColor="#283056"
+                                        BorderWidth="1"
+                                        Clicked="OnOpenCalendarModalClicked" />
+                                <BoxView x:Name="NavCalendarActiveDot"
+                                         WidthRequest="8"
+                                         HeightRequest="8"
+                                         CornerRadius="4"
+                                         Color="#F59E0B"
+                                         HorizontalOptions="End"
+                                         VerticalOptions="Start"
+                                         Margin="0,2,2,0"
+                                         IsVisible="False" />
+                            </Grid>
+
+                            <Grid WidthRequest="33" HeightRequest="33" VerticalOptions="Center">
+                                <Button Text="🎚️"
+                                        FontSize="13.5"
+                                        Padding="0"
+                                        CornerRadius="17"
                                         BackgroundColor="#181D38"
                                         BorderColor="#283056"
                                         BorderWidth="1"
@@ -167,11 +187,11 @@
                             </Grid>
 
                             <Button Text="🧘"
-                                    FontSize="14"
-                                    WidthRequest="36"
-                                    HeightRequest="36"
+                                    FontSize="13.5"
+                                    WidthRequest="33"
+                                    HeightRequest="33"
                                     Padding="0"
-                                    CornerRadius="18"
+                                    CornerRadius="17"
                                     BackgroundColor="#181D38"
                                     BorderColor="#283056"
                                     BorderWidth="1"
@@ -179,23 +199,23 @@
 
                             <Button x:Name="BtnThemeToggle"
                                     Text="☀️"
-                                    FontSize="15"
+                                    FontSize="14"
                                     TextColor="#FACC15"
-                                    WidthRequest="36"
-                                    HeightRequest="36"
+                                    WidthRequest="33"
+                                    HeightRequest="33"
                                     Padding="0"
-                                    CornerRadius="18"
+                                    CornerRadius="17"
                                     BackgroundColor="#181D38"
                                     BorderColor="#283056"
                                     BorderWidth="1"
                                     Clicked="OnToggleThemeClicked" />
 
                             <Button Text="⚙️"
-                                    FontSize="14"
-                                    WidthRequest="36"
-                                    HeightRequest="36"
+                                    FontSize="13.5"
+                                    WidthRequest="33"
+                                    HeightRequest="33"
                                     Padding="0"
-                                    CornerRadius="18"
+                                    CornerRadius="17"
                                     BackgroundColor="#181D38"
                                     BorderColor="#283056"
                                     BorderWidth="1"
@@ -424,6 +444,60 @@
                             </Grid>
                         </Border>
 
+                        <!-- Smart Upcoming Events Menu Card (Synced with Calendar & Subject Deadlines) -->
+                        <Border x:Name="BdHomeUpcomingEvents"
+                                BackgroundColor="#D8131830"
+                                Stroke="#263056"
+                                StrokeThickness="1"
+                                StrokeShape="RoundRectangle 20"
+                                Padding="14,12">
+                            <VerticalStackLayout Spacing="10">
+                                <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="6" VerticalOptions="Center">
+                                    <HorizontalStackLayout Spacing="8" VerticalOptions="Center">
+                                        <Border WidthRequest="30" HeightRequest="30" BackgroundColor="#231D46" Stroke="#433878" StrokeThickness="1" StrokeShape="RoundRectangle 9">
+                                            <Label Text="📅" FontSize="14" HorizontalOptions="Center" VerticalOptions="Center" />
+                                        </Border>
+                                        <Label x:Name="LblHomeUpcomingHeader" Text="Upcoming Events" FontSize="15" FontAttributes="Bold" TextColor="#F8FAFC" VerticalOptions="Center" />
+                                        <Border BackgroundColor="#262E56" StrokeShape="RoundRectangle 8" Padding="7,2" VerticalOptions="Center">
+                                            <Label x:Name="LblHomeUpcomingCount" Text="0" FontSize="11" FontAttributes="Bold" TextColor="#38BDF8" />
+                                        </Border>
+                                    </HorizontalStackLayout>
+
+                                    <Button Grid.Column="1"
+                                            Text="+ Note"
+                                            FontSize="11"
+                                            FontAttributes="Bold"
+                                            BackgroundColor="#7C5CFF"
+                                            TextColor="White"
+                                            CornerRadius="9"
+                                            Padding="10,5"
+                                            Clicked="OnOpenCalendarAddNoteClicked" />
+                                    <Button Grid.Column="2"
+                                            Text="Calendar ▸"
+                                            FontSize="11"
+                                            FontAttributes="Bold"
+                                            BackgroundColor="#1E2548"
+                                            TextColor="#CBD5E1"
+                                            CornerRadius="9"
+                                            Padding="10,5"
+                                            Clicked="OnOpenCalendarModalClicked" />
+                                </Grid>
+
+                                <VerticalStackLayout x:Name="HomeUpcomingEventsList" Spacing="7" />
+
+                                <Button x:Name="BtnHomeUpcomingToggleMore"
+                                        IsVisible="False"
+                                        Text="Show All Events ▾"
+                                        FontSize="11"
+                                        FontAttributes="Bold"
+                                        BackgroundColor="#181F3D"
+                                        TextColor="#94A3C6"
+                                        CornerRadius="9"
+                                        Padding="10,5"
+                                        Clicked="OnToggleHomeUpcomingExpandClicked" />
+                            </VerticalStackLayout>
+                        </Border>
+
                         <!-- Section Header: My Subjects -->
                         <Grid ColumnDefinitions="*,Auto" VerticalOptions="Center">
                             <HorizontalStackLayout Spacing="10" VerticalOptions="Center">
@@ -454,11 +528,10 @@
                                     Clicked="OnOpenAddSubjectModalClicked" />
                         </Grid>
 
-                        <!-- Course Cards Responsive Wrap Grid -->
-                        <FlexLayout x:Name="SubjectsFlexGrid"
-                                    Wrap="Wrap"
-                                    JustifyContent="Start"
-                                    AlignItems="Start" />
+                        <!-- Course Cards Responsive Row Grid (Explicit Multi-Column Rows — Zero FlexLayout Collapse) -->
+                        <VerticalStackLayout x:Name="SubjectsRowsContainer"
+                                             Spacing="12"
+                                             HorizontalOptions="Fill" />
                     </VerticalStackLayout>
                 </ScrollView>
 
@@ -1110,7 +1183,7 @@
                     </Grid>
 
                     <ScrollView Grid.Row="1">
-                        <VerticalStackLayout Spacing="14">
+                        <VerticalStackLayout Spacing="9">
                             <Button Text="🏠 Home Study Dashboard"
                                     FontSize="13"
                                     FontAttributes="Bold"
@@ -1119,7 +1192,62 @@
                                     CornerRadius="12"
                                     Clicked="OnDrawerHomeClicked" />
 
-                            <Label Text="ARCHIVED COURSES" FontSize="10.5" FontAttributes="Bold" TextColor="#8A95B7" Margin="0,8,0,0" />
+                            <Button x:Name="BtnDrawerCalendar"
+                                    Text="📅 Calendar &amp; Upcoming Events"
+                                    FontSize="12.5"
+                                    FontAttributes="Bold"
+                                    BackgroundColor="#181F3D"
+                                    TextColor="#F8FAFC"
+                                    CornerRadius="12"
+                                    Clicked="OnDrawerCalendarClicked" />
+
+                            <Button Text="⏱️ Focus Timer"
+                                    FontSize="12.5"
+                                    FontAttributes="Bold"
+                                    BackgroundColor="#181F3D"
+                                    TextColor="#F8FAFC"
+                                    CornerRadius="12"
+                                    Clicked="OnDrawerTimerClicked" />
+
+                            <Button Text="🧘 Zen Focus Mode"
+                                    FontSize="12.5"
+                                    FontAttributes="Bold"
+                                    BackgroundColor="#181F3D"
+                                    TextColor="#F8FAFC"
+                                    CornerRadius="12"
+                                    Clicked="OnDrawerZenModeClicked" />
+
+                            <Button Text="🎚️ Ambient Sound Mixer"
+                                    FontSize="12.5"
+                                    FontAttributes="Bold"
+                                    BackgroundColor="#181F3D"
+                                    TextColor="#F8FAFC"
+                                    CornerRadius="12"
+                                    Clicked="OnDrawerMixerClicked" />
+
+                            <Button Text="🌓 Toggle Dark / Daylight Theme"
+                                    FontSize="12.5"
+                                    FontAttributes="Bold"
+                                    BackgroundColor="#181F3D"
+                                    TextColor="#F8FAFC"
+                                    CornerRadius="12"
+                                    Clicked="OnDrawerToggleThemeClicked" />
+
+                            <Button Text="⚙️ Settings &amp; Updates"
+                                    FontSize="12.5"
+                                    FontAttributes="Bold"
+                                    BackgroundColor="#181F3D"
+                                    TextColor="#F8FAFC"
+                                    CornerRadius="12"
+                                    Clicked="OnDrawerSettingsClicked" />
+
+                            <Grid ColumnDefinitions="*,Auto" Margin="0,10,0,0">
+                                <Label Text="ACTIVE COURSES" FontSize="10.5" FontAttributes="Bold" TextColor="#8A95B7" VerticalOptions="Center" />
+                                <Button Grid.Column="1" Text="+ Add" FontSize="10.5" FontAttributes="Bold" BackgroundColor="#232B54" TextColor="#C4B5FD" CornerRadius="8" Padding="8,3" Clicked="OnDrawerAddSubjectClicked" />
+                            </Grid>
+                            <VerticalStackLayout x:Name="ActiveCoursesDrawerList" Spacing="6" />
+
+                            <Label Text="ARCHIVED COURSES" FontSize="10.5" FontAttributes="Bold" TextColor="#8A95B7" Margin="0,10,0,0" />
                             <VerticalStackLayout x:Name="ArchivedCoursesDrawerList" Spacing="8" />
                         </VerticalStackLayout>
                     </ScrollView>
@@ -1312,7 +1440,7 @@
 
             <!-- Native Rendered PDF Pages Scroll -->
             <ScrollView Grid.Row="1" x:Name="PdfPagesScroll" Padding="10">
-                <VerticalStackLayout x:Name="PdfPagesStack" Spacing="12" HorizontalOptions="Center" />
+                <VerticalStackLayout x:Name="PdfPagesStack" Spacing="12" HorizontalOptions="Fill" />
             </ScrollView>
         </Grid>
 
@@ -1371,6 +1499,38 @@
                                     CornerRadius="10"
                                     Clicked="OnOpenZenSceneModalClicked" />
 
+                            <!-- Calendar Notifications & Morning Check Time -->
+                            <Label Text="CALENDAR REMINDERS &amp; MORNING TIME" FontSize="10.5" FontAttributes="Bold" TextColor="#94A3C6" />
+                            <Border BackgroundColor="#0D1124" Stroke="#252F58" StrokeThickness="1" StrokeShape="RoundRectangle 12" Padding="12,10">
+                                <VerticalStackLayout Spacing="8">
+                                    <Grid ColumnDefinitions="*,Auto" VerticalOptions="Center">
+                                        <VerticalStackLayout Spacing="1">
+                                            <Label Text="Enable Calendar Notifications" FontSize="12.5" FontAttributes="Bold" TextColor="#F8FAFC" />
+                                            <Label Text="Notifies when phone opens/unlocks after morning time" FontSize="10" TextColor="#8A95B7" />
+                                        </VerticalStackLayout>
+                                        <Switch x:Name="SwitchSettingsCalNotifs" Grid.Column="1" IsToggled="True" OnColor="#7C5CFF" Toggled="OnSettingsCalNotifToggled" />
+                                    </Grid>
+                                    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8" VerticalOptions="Center">
+                                        <Label Text="Morning time (HH:mm):" FontSize="11.5" TextColor="#CBD5E1" VerticalOptions="Center" />
+                                        <Entry x:Name="EntrySettingsMorningTime"
+                                               Grid.Column="1"
+                                               Text="08:00"
+                                               Placeholder="07:00 or 08:00"
+                                               PlaceholderColor="#687296"
+                                               TextColor="#F8FAFC"
+                                               BackgroundColor="#161D3D"
+                                               FontSize="12"
+                                               Completed="OnSettingsMorningTimeCompleted" />
+                                    </Grid>
+                                    <HorizontalStackLayout Spacing="6">
+                                        <Button Text="7:00 AM" FontSize="10.5" BackgroundColor="#182042" TextColor="#CBD5E1" CornerRadius="8" Padding="9,4" Clicked="OnMorningPreset0700Clicked" />
+                                        <Button Text="8:00 AM" FontSize="10.5" BackgroundColor="#182042" TextColor="#CBD5E1" CornerRadius="8" Padding="9,4" Clicked="OnMorningPreset0800Clicked" />
+                                        <Button Text="9:00 AM" FontSize="10.5" BackgroundColor="#182042" TextColor="#CBD5E1" CornerRadius="8" Padding="9,4" Clicked="OnMorningPreset0900Clicked" />
+                                        <Button Text="Save Time" FontSize="10.5" FontAttributes="Bold" BackgroundColor="#7C5CFF" TextColor="White" CornerRadius="8" Padding="10,4" Clicked="OnSettingsMorningTimeCompleted" />
+                                    </HorizontalStackLayout>
+                                </VerticalStackLayout>
+                            </Border>
+
                             <!-- Backup & Restore -->
                             <Label Text="DATA BACKUP &amp; GITHUB UPDATER" FontSize="10.5" FontAttributes="Bold" TextColor="#94A3C6" />
                             <FlexLayout Wrap="Wrap" JustifyContent="Start">
@@ -1379,7 +1539,7 @@
                             </FlexLayout>
 
                             <Entry x:Name="EntryGithubRepoUrl"
-                                   Placeholder="https://github.com/owner/repo"
+                                   Placeholder="https://github.com/InfamousToken10729/Study-Hub-Remastered/tree/study_hub"
                                    PlaceholderColor="#687296"
                                    TextColor="#F8FAFC"
                                    BackgroundColor="#0D1124"
@@ -1456,7 +1616,190 @@
             </Border>
         </Grid>
 
-        <!-- ================= 10. TOAST NOTIFICATION BANNER ================= -->
+        <!-- ================= 10. SUBJECT CREATE / EDIT MODAL (WITH ICON & COLOR PICKER) ================= -->
+        <Grid x:Name="SubjectEditorModalOverlay" IsVisible="False" BackgroundColor="#AA000000" Padding="14">
+            <BoxView Color="Transparent">
+                <BoxView.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="OnCloseSubjectEditorClicked" />
+                </BoxView.GestureRecognizers>
+            </BoxView>
+            <Border MaximumWidthRequest="460"
+                    BackgroundColor="#FA11152C"
+                    Stroke="#334175"
+                    StrokeThickness="1.5"
+                    StrokeShape="RoundRectangle 22"
+                    Padding="18"
+                    HorizontalOptions="Center"
+                    VerticalOptions="Center">
+                <Grid RowDefinitions="Auto,*,Auto" RowSpacing="12">
+                    <Grid Grid.Row="0" ColumnDefinitions="*,Auto" VerticalOptions="Center">
+                        <Label x:Name="LblSubjectEditorTitle" Text="✨ Add New Subject" FontSize="16" FontAttributes="Bold" TextColor="#F8FAFC" VerticalOptions="Center" />
+                        <Button Grid.Column="1" Text="✕" FontSize="13" WidthRequest="32" HeightRequest="32" Padding="0" BackgroundColor="#181D38" TextColor="#F8FAFC" CornerRadius="8" Clicked="OnCloseSubjectEditorClicked" />
+                    </Grid>
+
+                    <ScrollView Grid.Row="1" MaximumHeightRequest="430">
+                        <VerticalStackLayout Spacing="12">
+                            <Label Text="SUBJECT NAME" FontSize="10.5" FontAttributes="Bold" TextColor="#94A3C6" />
+                            <Entry x:Name="EntrySubjectEditorName"
+                                   Placeholder="e.g., Digital Signal Processing"
+                                   PlaceholderColor="#687296"
+                                   TextColor="#F8FAFC"
+                                   BackgroundColor="#0D1124"
+                                   FontSize="13.5" />
+
+                            <Label Text="PICK COURSE ICON" FontSize="10.5" FontAttributes="Bold" TextColor="#94A3C6" />
+                            <FlexLayout x:Name="SubjectEditorIconsFlex" Wrap="Wrap" JustifyContent="Start" />
+
+                            <Label Text="ACCENT COLOR" FontSize="10.5" FontAttributes="Bold" TextColor="#94A3C6" />
+                            <FlexLayout x:Name="SubjectEditorColorsFlex" Wrap="Wrap" JustifyContent="Start" />
+                        </VerticalStackLayout>
+                    </ScrollView>
+
+                    <Grid Grid.Row="2" ColumnDefinitions="*,*" ColumnSpacing="10">
+                        <Button Text="Cancel" FontSize="12.5" BackgroundColor="#181D38" TextColor="#CBD5E1" CornerRadius="12" Clicked="OnCloseSubjectEditorClicked" />
+                        <Button Grid.Column="1" Text="Save Subject" FontSize="12.5" FontAttributes="Bold" BackgroundColor="#7C5CFF" TextColor="White" CornerRadius="12" Clicked="OnSaveSubjectEditorClicked" />
+                    </Grid>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- ================= 11. CALENDAR, DAY NOTES & UPCOMING EVENTS MODAL ================= -->
+        <Grid x:Name="CalendarModalOverlay" IsVisible="False" BackgroundColor="#CC050712" Padding="10">
+            <Border BackgroundColor="#FA10142A"
+                    Stroke="#2D3768"
+                    StrokeThickness="1.5"
+                    StrokeShape="RoundRectangle 22"
+                    Padding="14"
+                    HorizontalOptions="Fill"
+                    VerticalOptions="Fill">
+                <Grid RowDefinitions="Auto,*" RowSpacing="10">
+                    <!-- Modal Header -->
+                    <Grid Grid.Row="0" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="6" VerticalOptions="Center">
+                        <VerticalStackLayout Spacing="1">
+                            <Label Text="📅 StudyHub Calendar" FontSize="16" FontAttributes="Bold" TextColor="#F8FAFC" />
+                            <Label x:Name="LblCalMorningBadge" Text="Morning reminders at 08:00" FontSize="10.5" TextColor="#38BDF8" />
+                        </VerticalStackLayout>
+                        <Button Grid.Column="1" Text="⚙️ Time" FontSize="11" BackgroundColor="#182042" TextColor="#CBD5E1" CornerRadius="10" Padding="10,6" Clicked="OnOpenCalMorningQuickConfigClicked" />
+                        <Button Grid.Column="2" Text="✕" FontSize="13" WidthRequest="34" HeightRequest="34" Padding="0" BackgroundColor="#181D38" TextColor="#F8FAFC" CornerRadius="10" Clicked="OnCloseCalendarModalClicked" />
+                    </Grid>
+
+                    <!-- Scrollable Calendar Body -->
+                    <ScrollView Grid.Row="1">
+                        <VerticalStackLayout Spacing="12">
+                            <!-- Month Navigator -->
+                            <Border BackgroundColor="#151A36" Stroke="#28315A" StrokeThickness="1" StrokeShape="RoundRectangle 14" Padding="10">
+                                <VerticalStackLayout Spacing="8">
+                                    <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="6" VerticalOptions="Center">
+                                        <Button Text="◀" FontSize="12" WidthRequest="34" HeightRequest="32" Padding="0" BackgroundColor="#1F274D" TextColor="#F8FAFC" CornerRadius="8" Clicked="OnCalPrevMonthClicked" />
+                                        <Label x:Name="LblCalMonthTitle" Grid.Column="1" Text="November 2026" FontSize="14.5" FontAttributes="Bold" TextColor="#F8FAFC" HorizontalOptions="Center" VerticalOptions="Center" />
+                                        <Button Grid.Column="2" Text="Today" FontSize="11" BackgroundColor="#232D58" TextColor="#38BDF8" CornerRadius="8" Padding="10,4" Clicked="OnCalTodayClicked" />
+                                        <Button Grid.Column="3" Text="▶" FontSize="12" WidthRequest="34" HeightRequest="32" Padding="0" BackgroundColor="#1F274D" TextColor="#F8FAFC" CornerRadius="8" Clicked="OnCalNextMonthClicked" />
+                                    </Grid>
+
+                                    <!-- Weekday Labels -->
+                                    <Grid ColumnDefinitions="*,*,*,*,*,*,*" ColumnSpacing="3">
+                                        <Label Grid.Column="0" Text="Sun" FontSize="10.5" FontAttributes="Bold" TextColor="#8A95B7" HorizontalOptions="Center" />
+                                        <Label Grid.Column="1" Text="Mon" FontSize="10.5" FontAttributes="Bold" TextColor="#8A95B7" HorizontalOptions="Center" />
+                                        <Label Grid.Column="2" Text="Tue" FontSize="10.5" FontAttributes="Bold" TextColor="#8A95B7" HorizontalOptions="Center" />
+                                        <Label Grid.Column="3" Text="Wed" FontSize="10.5" FontAttributes="Bold" TextColor="#8A95B7" HorizontalOptions="Center" />
+                                        <Label Grid.Column="4" Text="Thu" FontSize="10.5" FontAttributes="Bold" TextColor="#8A95B7" HorizontalOptions="Center" />
+                                        <Label Grid.Column="5" Text="Fri" FontSize="10.5" FontAttributes="Bold" TextColor="#8A95B7" HorizontalOptions="Center" />
+                                        <Label Grid.Column="6" Text="Sat" FontSize="10.5" FontAttributes="Bold" TextColor="#8A95B7" HorizontalOptions="Center" />
+                                    </Grid>
+
+                                    <!-- 6x7 Interactive Month Days Grid -->
+                                    <Grid x:Name="CalendarMonthGrid" RowSpacing="4" ColumnSpacing="3" />
+                                </VerticalStackLayout>
+                            </Border>
+
+                            <!-- Selected Day Notes & Event Composer -->
+                            <Border BackgroundColor="#151A36" Stroke="#334078" StrokeThickness="1" StrokeShape="RoundRectangle 16" Padding="12">
+                                <VerticalStackLayout Spacing="9">
+                                    <Label x:Name="LblCalSelectedDayHeader" Text="Selected: Fri, Nov 13, 2026" FontSize="13.5" FontAttributes="Bold" TextColor="#FACC15" />
+
+                                    <!-- Existing Events/Notes on Selected Day -->
+                                    <VerticalStackLayout x:Name="CalSelectedDayEventsList" Spacing="6" />
+
+                                    <!-- Add New Note/Event Form -->
+                                    <Label Text="ADD NOTE / EVENT FOR THIS DAY" FontSize="10" FontAttributes="Bold" TextColor="#94A3C6" Margin="0,4,0,0" />
+                                    <Entry x:Name="EntryCalTitle"
+                                           Placeholder="Event or reminder title..."
+                                           PlaceholderColor="#687296"
+                                           TextColor="#F8FAFC"
+                                           BackgroundColor="#0D1124"
+                                           FontSize="12.5" />
+                                    <Editor x:Name="EditorCalNote"
+                                            Placeholder="Optional note details..."
+                                            PlaceholderColor="#687296"
+                                            TextColor="#F8FAFC"
+                                            BackgroundColor="#0D1124"
+                                            FontSize="12"
+                                            HeightRequest="64"
+                                            AutoSize="TextChanges" />
+
+                                    <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+                                        <VerticalStackLayout Spacing="2">
+                                            <Label Text="Event Time (HH:mm)" FontSize="10" TextColor="#8A95B7" />
+                                            <Entry x:Name="EntryCalEventTime" Text="09:00" Placeholder="09:00" TextColor="#F8FAFC" BackgroundColor="#0D1124" FontSize="12" />
+                                        </VerticalStackLayout>
+                                        <VerticalStackLayout Grid.Column="1" Spacing="2">
+                                            <Label Text="Subject (Optional)" FontSize="10" TextColor="#8A95B7" />
+                                            <Picker x:Name="PickerCalSubject" Title="General / None" TextColor="#F8FAFC" TitleColor="#687296" BackgroundColor="#0D1124" FontSize="12" />
+                                        </VerticalStackLayout>
+                                    </Grid>
+
+                                    <!-- Notification Rules: 3 days, 24 hours, Morning, Custom, or All 4 -->
+                                    <Grid ColumnDefinitions="*,Auto" VerticalOptions="Center">
+                                        <Label Text="NOTIFY ME BEFORE EVENT" FontSize="10" FontAttributes="Bold" TextColor="#94A3C6" VerticalOptions="Center" />
+                                        <Button x:Name="BtnCalSelectAll4" Grid.Column="1" Text="✓ Select All 4" FontSize="10.5" FontAttributes="Bold" BackgroundColor="#232D58" TextColor="#38BDF8" CornerRadius="8" Padding="9,4" Clicked="OnCalToggleAll4Clicked" />
+                                    </Grid>
+
+                                    <FlexLayout Wrap="Wrap" JustifyContent="Start">
+                                        <Button x:Name="BtnCalRule3Days" Text="✓ 3 Days Before" FontSize="11" Margin="0,0,6,6" BackgroundColor="#7C5CFF" TextColor="White" CornerRadius="9" Padding="10,6" Clicked="OnCalRule3DaysClicked" />
+                                        <Button x:Name="BtnCalRule24Hours" Text="✓ 24 Hours Before" FontSize="11" Margin="0,0,6,6" BackgroundColor="#7C5CFF" TextColor="White" CornerRadius="9" Padding="10,6" Clicked="OnCalRule24HoursClicked" />
+                                        <Button x:Name="BtnCalRuleMorning" Text="✓ In the Morning" FontSize="11" Margin="0,0,6,6" BackgroundColor="#7C5CFF" TextColor="White" CornerRadius="9" Padding="10,6" Clicked="OnCalRuleMorningClicked" />
+                                        <Button x:Name="BtnCalRuleCustom" Text="○ Custom" FontSize="11" Margin="0,0,6,6" BackgroundColor="#1B2142" TextColor="#CBD5E1" CornerRadius="9" Padding="10,6" Clicked="OnCalRuleCustomClicked" />
+                                    </FlexLayout>
+
+                                    <!-- Custom Notification Offset Controls -->
+                                    <Border x:Name="BdCalCustomOffsetRow" IsVisible="False" BackgroundColor="#0D1124" Stroke="#2A3562" StrokeThickness="1" StrokeShape="RoundRectangle 10" Padding="10">
+                                        <VerticalStackLayout Spacing="6">
+                                            <Label Text="Custom reminder lead time before event:" FontSize="10.5" TextColor="#94A3C6" />
+                                            <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+                                                <Entry x:Name="EntryCalCustomMinutes" Text="2" Keyboard="Numeric" Placeholder="Amount" TextColor="#F8FAFC" BackgroundColor="#161D3D" FontSize="12" />
+                                                <Button x:Name="BtnCalCustomUnit" Grid.Column="1" Text="Hours Before ▾" FontSize="11.5" BackgroundColor="#1E2548" TextColor="#38BDF8" CornerRadius="8" Clicked="OnCalCycleCustomUnitClicked" />
+                                            </Grid>
+                                        </VerticalStackLayout>
+                                    </Border>
+
+                                    <Button Text="💾 Save Calendar Note &amp; Schedule Alerts"
+                                            FontSize="12.5"
+                                            FontAttributes="Bold"
+                                            BackgroundColor="#10B981"
+                                            TextColor="White"
+                                            CornerRadius="12"
+                                            Padding="12,9"
+                                            Clicked="OnCalSaveEventClicked" />
+                                </VerticalStackLayout>
+                            </Border>
+
+                            <!-- Full Upcoming Events Menu Inside Calendar -->
+                            <Border BackgroundColor="#151A36" Stroke="#28315A" StrokeThickness="1" StrokeShape="RoundRectangle 16" Padding="12">
+                                <VerticalStackLayout Spacing="8">
+                                    <Grid ColumnDefinitions="*,Auto" VerticalOptions="Center">
+                                        <Label Text="🔔 All Upcoming Events Menu" FontSize="14" FontAttributes="Bold" TextColor="#F8FAFC" VerticalOptions="Center" />
+                                        <Label x:Name="LblCalUpcomingTotalCount" Grid.Column="1" Text="0 events" FontSize="11" FontAttributes="Bold" TextColor="#38BDF8" VerticalOptions="Center" />
+                                    </Grid>
+                                    <VerticalStackLayout x:Name="CalUpcomingEventsList" Spacing="8" />
+                                </VerticalStackLayout>
+                            </Border>
+                        </VerticalStackLayout>
+                    </ScrollView>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- ================= 12. TOAST NOTIFICATION BANNER ================= -->
         <Border x:Name="ToastBanner"
                 IsVisible="False"
                 BackgroundColor="#F0181F3E"

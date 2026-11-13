@@ -6,6 +6,9 @@ using System.Linq;
 using System.Media;
 using NAudio.Wave;
 using NAudio.Wave.SampleProviders;
+#elif ANDROID
+using System.Threading;
+using Android.Media;
 #endif
 using StudyHub.Models;
 
@@ -26,7 +29,11 @@ namespace StudyHub.Services
 #if WINDOWS
         internal ChannelLoopSampleProvider? LoopProvider { get; set; }
 #elif ANDROID
-        internal Android.Media.MediaPlayer? AndroidPlayer { get; set; }
+        internal short[]? PcmBuffer { get; set; }
+        internal int PcmPos { get; set; }
+        internal float TargetGain { get; set; }
+        internal float CurrentGain { get; set; }
+        internal MediaPlayer? AndroidPlayer { get; set; }
 #endif
     }
 
@@ -177,6 +184,11 @@ namespace StudyHub.Services
         private readonly WaveFormat _mixerFormat = WaveFormat.CreateIeeeFloatWaveFormat(44100, 2);
         private readonly MixingSampleProvider _mixer;
         private WaveOutEvent? _waveOut;
+#elif ANDROID
+        private AudioTrack? _androidTrack;
+        private Thread? _androidMixThread;
+        private readonly ManualResetEventSlim _androidWakeEvent = new(false);
+        private volatile bool _androidDisposed;
 #endif
         private readonly object _audioLock = new();
 
@@ -285,8 +297,269 @@ namespace StudyHub.Services
                     // Graceful fallback if no audio hardware is present
                 }
             }
+#elif ANDROID
+            EnsureAndroidMixerThread();
 #endif
         }
+
+#if ANDROID
+        private void EnsureAndroidMixerThread()
+        {
+            if (_androidDisposed) return;
+            lock (_audioLock)
+            {
+                if (_androidMixThread != null || _androidDisposed) return;
+
+                _androidMixThread = new Thread(AndroidMixerLoop)
+                {
+                    IsBackground = true,
+                    Name = "StudyHub-AndroidAudioMixer",
+                    Priority = System.Threading.ThreadPriority.AboveNormal
+                };
+                _androidMixThread.Start();
+            }
+        }
+
+        private AudioTrack? CreateAndroidAudioTrack()
+        {
+            try
+            {
+                int minBytes = AudioTrack.GetMinBufferSize(44100, ChannelOut.Stereo, Encoding.Pcm16bit);
+                if (minBytes <= 0) minBytes = 16384;
+                int bufferBytes = Math.Max(minBytes * 2, 16384);
+
+                var attrs = new AudioAttributes.Builder()
+                    .SetUsage(AudioUsageKind.Media)!
+                    .SetContentType(AudioContentType.Music)!
+                    .Build()!;
+
+                var fmt = new AudioFormat.Builder()
+                    .SetEncoding(Encoding.Pcm16bit)!
+                    .SetSampleRate(44100)!
+                    .SetChannelMask(ChannelOut.Stereo)!
+                    .Build()!;
+
+                return new AudioTrack.Builder()
+                    .SetAudioAttributes(attrs)
+                    .SetAudioFormat(fmt)
+                    .SetBufferSizeInBytes(bufferBytes)
+                    .SetTransferMode(AudioTrackMode.Stream)
+                    .Build();
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private void AndroidMixerLoop()
+        {
+            const int chunkShorts = 4096; // 2048 stereo frames (~46ms)
+            float[] mix = new float[chunkShorts];
+            short[] outBuf = new short[chunkShorts];
+
+            while (!_androidDisposed)
+            {
+                try
+                {
+                    List<SoundChannel> activeChannels;
+                    lock (_audioLock)
+                    {
+                        activeChannels = Channels
+                            .Where(c => c.PcmBuffer != null && c.PcmBuffer.Length >= 2 &&
+                                        (c.TargetGain > 0.0001f || c.CurrentGain > 0.0001f))
+                            .ToList();
+                    }
+
+                    if (activeChannels.Count == 0)
+                    {
+                        try
+                        {
+                            if (_androidTrack != null && _androidTrack.PlayState == PlayState.Playing)
+                            {
+                                _androidTrack.Pause();
+                                _androidTrack.Flush();
+                            }
+                        }
+                        catch { }
+
+                        _androidWakeEvent.Reset();
+                        _androidWakeEvent.Wait(250);
+                        continue;
+                    }
+
+                    if (_androidTrack == null || _androidTrack.State == AudioTrackState.Uninitialized)
+                    {
+                        try { _androidTrack?.Release(); _androidTrack?.Dispose(); } catch { }
+                        _androidTrack = CreateAndroidAudioTrack();
+                        if (_androidTrack == null)
+                        {
+                            Thread.Sleep(250);
+                            continue;
+                        }
+                    }
+
+                    if (_androidTrack.PlayState != PlayState.Playing)
+                    {
+                        _androidTrack.Play();
+                    }
+
+                    Array.Clear(mix, 0, mix.Length);
+
+                    foreach (var ch in activeChannels)
+                    {
+                        var pcm = ch.PcmBuffer;
+                        if (pcm == null || pcm.Length == 0) continue;
+
+                        int pos = ch.PcmPos % pcm.Length;
+                        float g = ch.CurrentGain;
+                        float target = ch.TargetGain;
+                        float step = (target - g) / (chunkShorts / 2f);
+
+                        for (int i = 0; i < chunkShorts; i += 2)
+                        {
+                            g += step;
+                            mix[i] += pcm[pos] * g;
+                            int posR = (pos + 1) % pcm.Length;
+                            mix[i + 1] += pcm[posR] * g;
+                            pos = (pos + 2) % pcm.Length;
+                        }
+
+                        ch.CurrentGain = target;
+                        ch.PcmPos = pos;
+                    }
+
+                    for (int i = 0; i < chunkShorts; i++)
+                    {
+                        float s = mix[i];
+                        if (s > 32767f) s = 32767f;
+                        else if (s < -32767f) s = -32767f;
+                        outBuf[i] = (short)s;
+                    }
+
+                    int written = _androidTrack.Write(outBuf, 0, outBuf.Length);
+                    if (written < 0)
+                    {
+                        try { _androidTrack.Release(); _androidTrack.Dispose(); } catch { }
+                        _androidTrack = null;
+                        Thread.Sleep(50);
+                    }
+                }
+                catch
+                {
+                    Thread.Sleep(100);
+                }
+            }
+
+            try
+            {
+                _androidTrack?.Stop();
+                _androidTrack?.Release();
+                _androidTrack?.Dispose();
+                _androidTrack = null;
+            }
+            catch { }
+        }
+
+        private static short[]? TryLoadWavAsStereo44100Pcm16(string filePath)
+        {
+            if (!filePath.EndsWith(".wav", StringComparison.OrdinalIgnoreCase)) return null;
+            try
+            {
+                using var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+                using var br = new BinaryReader(fs);
+
+                if (fs.Length < 44) return null;
+                if (new string(br.ReadChars(4)) != "RIFF") return null;
+                br.ReadInt32();
+                if (new string(br.ReadChars(4)) != "WAVE") return null;
+
+                short audioFormat = 1;
+                short numChannels = 2;
+                int sampleRate = 44100;
+                short bitsPerSample = 16;
+                byte[]? dataBytes = null;
+
+                while (fs.Position + 8 <= fs.Length)
+                {
+                    string chunkId = new string(br.ReadChars(4));
+                    int chunkSize = br.ReadInt32();
+                    if (chunkSize < 0 || fs.Position + chunkSize > fs.Length) break;
+
+                    if (chunkId == "fmt ")
+                    {
+                        long next = fs.Position + chunkSize;
+                        audioFormat = br.ReadInt16();
+                        numChannels = br.ReadInt16();
+                        sampleRate = br.ReadInt32();
+                        br.ReadInt32();
+                        br.ReadInt16();
+                        bitsPerSample = br.ReadInt16();
+                        fs.Position = next;
+                    }
+                    else if (chunkId == "data")
+                    {
+                        dataBytes = br.ReadBytes(chunkSize);
+                        break;
+                    }
+                    else
+                    {
+                        fs.Position += chunkSize;
+                    }
+
+                    if ((chunkSize & 1) == 1 && fs.Position < fs.Length)
+                        fs.Position++;
+                }
+
+                if (dataBytes == null || dataBytes.Length == 0 || audioFormat != 1 || numChannels <= 0)
+                    return null;
+
+                if (sampleRate == 44100 && numChannels == 2 && bitsPerSample == 16)
+                {
+                    var pcm = new short[dataBytes.Length / 2];
+                    Buffer.BlockCopy(dataBytes, 0, pcm, 0, pcm.Length * 2);
+                    return pcm;
+                }
+
+                if (bitsPerSample != 16 && bitsPerSample != 8)
+                    return null;
+
+                int bytesPerSample = bitsPerSample / 8;
+                int srcFrames = dataBytes.Length / (bytesPerSample * numChannels);
+                if (srcFrames <= 0) return null;
+
+                int dstFrames = sampleRate == 44100
+                    ? srcFrames
+                    : Math.Max(1, (int)Math.Round(srcFrames * 44100.0 / sampleRate));
+                var dst = new short[dstFrames * 2];
+
+                for (int f = 0; f < dstFrames; f++)
+                {
+                    int srcF = sampleRate == 44100
+                        ? f
+                        : Math.Min(srcFrames - 1, (int)((long)f * srcFrames / dstFrames));
+                    int baseIdx = srcF * numChannels * bytesPerSample;
+
+                    short ReadSample(int chIdx)
+                    {
+                        int offset = baseIdx + Math.Min(chIdx, numChannels - 1) * bytesPerSample;
+                        if (bitsPerSample == 16)
+                            return BitConverter.ToInt16(dataBytes, offset);
+                        return (short)((dataBytes[offset] - 128) << 8);
+                    }
+
+                    dst[f * 2] = ReadSample(0);
+                    dst[f * 2 + 1] = numChannels > 1 ? ReadSample(1) : dst[f * 2];
+                }
+
+                return dst;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+#endif
 
         private void InitializeBuiltInAudioFiles()
         {
@@ -295,6 +568,7 @@ namespace StudyHub.Services
                 foreach (var ch in Channels)
                 {
                     string wavPath = Path.Combine(_soundsDir, $"{ch.Id}.wav");
+                    ch.CustomFilePath = wavPath;
                     bool needsRegen = !File.Exists(wavPath) || new FileInfo(wavPath).Length < 1_000_000;
 
                     if (needsRegen)
@@ -302,7 +576,9 @@ namespace StudyHub.Services
                         GenerateHighQualityProceduralWav(wavPath, ch.Id);
                     }
 
+#if WINDOWS
                     SetupChannelPlayer(ch, wavPath);
+#endif
                 }
             }
             catch
@@ -381,6 +657,8 @@ namespace StudyHub.Services
                     ch.CustomFilePath = filePath;
                     _mixer.AddMixerInput(streamingLoopProvider);
 #elif ANDROID
+                    ch.CustomFilePath = filePath;
+
                     if (ch.AndroidPlayer != null)
                     {
                         try
@@ -393,13 +671,29 @@ namespace StudyHub.Services
                         ch.AndroidPlayer = null;
                     }
 
-                    var mp = new Android.Media.MediaPlayer();
-                    mp.SetDataSource(filePath);
+                    var pcm = TryLoadWavAsStereo44100Pcm16(filePath);
+                    if (pcm != null)
+                    {
+                        ch.PcmBuffer = pcm;
+                        ch.PcmPos = 0;
+                        EnsureAndroidMixerThread();
+                        return;
+                    }
+
+                    ch.PcmBuffer = null;
+                    var mp = new MediaPlayer();
+                    mp.SetAudioAttributes(new AudioAttributes.Builder()
+                        .SetUsage(AudioUsageKind.Media)!
+                        .SetContentType(AudioContentType.Music)!
+                        .Build()!);
+                    using (var fis = new Java.IO.FileInputStream(filePath))
+                    {
+                        mp.SetDataSource(fis.FD);
+                    }
                     mp.Looping = true;
                     mp.Prepare();
                     mp.SetVolume(0f, 0f);
                     ch.AndroidPlayer = mp;
-                    ch.CustomFilePath = filePath;
 #endif
                 }
             }
@@ -444,13 +738,17 @@ namespace StudyHub.Services
 #if WINDOWS
                         existing.LoopProvider == null
 #elif ANDROID
-                        existing.AndroidPlayer == null
+                        string.IsNullOrEmpty(existing.CustomFilePath) && existing.PcmBuffer == null && existing.AndroidPlayer == null
 #else
                         false
 #endif
                         && File.Exists(fullPath))
                     {
+#if WINDOWS
                         SetupChannelPlayer(existing, fullPath);
+#elif ANDROID
+                        existing.CustomFilePath = fullPath;
+#endif
                     }
                 }
             }
@@ -694,6 +992,9 @@ namespace StudyHub.Services
         public void ApplyVolumes()
         {
             double masterScale = (IsMasterPaused || IsMasterMuted) ? 0 : (MasterVolume / 100.0);
+#if ANDROID
+            bool anyPcmActive = false;
+#endif
 
             foreach (var ch in Channels)
             {
@@ -702,27 +1003,52 @@ namespace StudyHub.Services
                 if (ch.LoopProvider == null) continue;
                 ch.LoopProvider.SetTargetGain((float)eff);
 #elif ANDROID
-                if (ch.AndroidPlayer == null && !string.IsNullOrEmpty(ch.CustomFilePath) && File.Exists(ch.CustomFilePath) && eff > 0.0001)
+                if (ch.PcmBuffer == null && ch.AndroidPlayer == null && eff > 0.0001)
                 {
-                    SetupChannelPlayer(ch, ch.CustomFilePath);
-                }
-                if (ch.AndroidPlayer == null) continue;
-                try
-                {
-                    float g = (float)Math.Clamp(eff, 0.0, 1.0);
-                    ch.AndroidPlayer.SetVolume(g, g);
-                    if (g > 0.001f)
+                    string pathToLoad = ch.CustomFilePath ?? Path.Combine(_soundsDir, $"{ch.Id}.wav");
+                    if (!File.Exists(pathToLoad) && !ch.IsCustom)
                     {
-                        if (!ch.AndroidPlayer.IsPlaying) ch.AndroidPlayer.Start();
+                        GenerateHighQualityProceduralWav(pathToLoad, ch.Id);
                     }
-                    else
+                    if (File.Exists(pathToLoad))
                     {
-                        if (ch.AndroidPlayer.IsPlaying) ch.AndroidPlayer.Pause();
+                        SetupChannelPlayer(ch, pathToLoad);
                     }
                 }
-                catch { }
+
+                float g = (float)Math.Clamp(eff, 0.0, 1.0);
+                if (ch.PcmBuffer != null)
+                {
+                    ch.TargetGain = g;
+                    if (g > 0.0001f || ch.CurrentGain > 0.0001f)
+                        anyPcmActive = true;
+                }
+                else if (ch.AndroidPlayer != null)
+                {
+                    try
+                    {
+                        ch.AndroidPlayer.SetVolume(g, g);
+                        if (g > 0.001f)
+                        {
+                            if (!ch.AndroidPlayer.IsPlaying) ch.AndroidPlayer.Start();
+                        }
+                        else
+                        {
+                            if (ch.AndroidPlayer.IsPlaying) ch.AndroidPlayer.Pause();
+                        }
+                    }
+                    catch { }
+                }
 #endif
             }
+
+#if ANDROID
+            if (anyPcmActive)
+            {
+                EnsureAndroidMixerThread();
+                _androidWakeEvent.Set();
+            }
+#endif
         }
 
         public void PlayNotificationChime()
@@ -781,15 +1107,20 @@ namespace StudyHub.Services
                         ch.LoopProvider?.DisposeStream();
                     }
 #elif ANDROID
-                    foreach (var ch in Channels)
+                _androidDisposed = true;
+                _androidWakeEvent.Set();
+                try { _androidTrack?.Stop(); _androidTrack?.Release(); _androidTrack?.Dispose(); _androidTrack = null; } catch { }
+                foreach (var ch in Channels)
+                {
+                    ch.PcmBuffer = null;
+                    ch.TargetGain = 0f;
+                    if (ch.AndroidPlayer != null)
                     {
-                        if (ch.AndroidPlayer != null)
-                        {
-                            try { ch.AndroidPlayer.Stop(); ch.AndroidPlayer.Release(); } catch { }
-                            ch.AndroidPlayer.Dispose();
-                            ch.AndroidPlayer = null;
-                        }
+                        try { ch.AndroidPlayer.Stop(); ch.AndroidPlayer.Release(); } catch { }
+                        ch.AndroidPlayer.Dispose();
+                        ch.AndroidPlayer = null;
                     }
+                }
 #endif
                 }
                 catch { }
