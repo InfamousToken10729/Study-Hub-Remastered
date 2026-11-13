@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<Application xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="StudyHub.StudyHubMauiApp">
+    <Application.Resources>
+        <ResourceDictionary>
+            <Color x:Key="AppBgColor">#090B1A</Color>
+            <Color x:Key="NavBgColor">#11152C</Color>
+            <Color x:Key="CardBgColor">#181D38</Color>
+            <Color x:Key="SubtleBgColor">#111428</Color>
+            <Color x:Key="BorderThemeColor">#283056</Color>
+            <Color x:Key="PrimaryTextColor">#F4F6FF</Color>
+            <Color x:Key="SecondaryTextColor">#9AA3C2</Color>
+            <Color x:Key="BrandAccentColor">#7C5CFF</Color>
+            <Color x:Key="BrandCyanColor">#22D3EE</Color>
+            <Color x:Key="BrandPinkColor">#F472B6</Color>
+            <Color x:Key="BrandEmeraldColor">#10B981</Color>
+            <Color x:Key="BrandAmberColor">#F59E0B</Color>
+            <Color x:Key="BrandRoseColor">#F43F5E</Color>
+        </ResourceDictionary>
+    </Application.Resources>
+</Application>

@@ -98,7 +98,10 @@ namespace StudyHub
         // Currently Open PDF Document in In-App Reader
         private StudyFileItem? _currentInAppPdfFile = null;
         private string? _currentInAppPdfFullPath = null;
-        private bool _isPdfDarkMode = true;
+        private string? _activePdfFrameSrc = null;
+        private int _pdfNavCounter = 0;
+        private Microsoft.Web.WebView2.Core.CoreWebView2Environment? _pdfWebViewEnv = null;
+        private bool _isPdfDarkMode = false;
 
         // Flashcards deck state
         private int _flashcardIndex = 0;
@@ -198,6 +201,8 @@ namespace StudyHub
                 UpdatePomoDisplay();
 
                 // Initialize Particle Effects & Zen Scenes (Surface theme already applied via ApplyTheme)
+                _isPdfDarkMode = _state.Settings?.PdfDarkMode ?? false;
+                UpdatePdfDarkModeButtonUi();
                 ApplyParticleEffect(_state.Settings?.ParticleEffect ?? "network", skipToast: true, saveToDisk: false);
                 RefreshZenCustomVideos();
                 ApplyZenScene(_state.Settings?.ZenScene ?? "north_pole", saveToDisk: false);
@@ -2029,46 +2034,178 @@ namespace StudyHub
             await OpenInAppPdfReaderAsync(file, fullPath);
         }
 
+        private static string BuildPdfViewerHtml(string pdfFrameSrc, bool darkMode)
+        {
+            string safeSrc = System.Net.WebUtility.HtmlEncode(pdfFrameSrc);
+            string frameClass = darkMode ? "pdf-dark" : "";
+            string bodyBg = darkMode ? "#0d0f17" : "#f1f5f9";
+            return $@"<!DOCTYPE html>
+<html>
+<head>
+<meta charset=""utf-8""/>
+<style>
+  html, body {{
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: {bodyBg};
+  }}
+  #pdfFrame {{
+    width: 100%;
+    height: 100%;
+    border: none;
+    display: block;
+    transition: filter 0.15s ease;
+  }}
+  #pdfFrame.pdf-dark {{
+    filter: invert(0.91) hue-rotate(180deg) brightness(0.95) contrast(1.08);
+    background-color: #121212;
+  }}
+</style>
+<script>
+  window.setPdfDarkMode = function(enabled) {{
+    var f = document.getElementById('pdfFrame');
+    if (f) f.classList.toggle('pdf-dark', !!enabled);
+    if (document.body) document.body.style.background = enabled ? '#0d0f17' : '#f1f5f9';
+  }};
+</script>
+</head>
+<body>
+  <iframe id=""pdfFrame"" class=""{frameClass}"" src=""{safeSrc}""></iframe>
+</body>
+</html>";
+        }
+
+        private void UpdatePdfDarkModeButtonUi()
+        {
+            if (GridPdfSunIcon != null) GridPdfSunIcon.Visibility = _isPdfDarkMode ? Visibility.Visible : Visibility.Collapsed;
+            if (GridPdfMoonIcon != null) GridPdfMoonIcon.Visibility = _isPdfDarkMode ? Visibility.Collapsed : Visibility.Visible;
+            if (TxtPdfDarkLabel != null) TxtPdfDarkLabel.Text = _isPdfDarkMode ? "Light Mode" : "Dark Mode";
+
+            if (BtnPdfToggleDarkMode != null)
+            {
+                if (_isPdfDarkMode)
+                {
+                    BtnPdfToggleDarkMode.Background = new SolidColorBrush(Color.FromArgb(42, 245, 158, 11));
+                    BtnPdfToggleDarkMode.BorderBrush = new SolidColorBrush(Color.FromArgb(145, 245, 158, 11));
+                    BtnPdfToggleDarkMode.Foreground = new SolidColorBrush(Color.FromRgb(252, 211, 77));
+                    BtnPdfToggleDarkMode.ToolTip = "Switch PDF paper to Light Mode";
+                }
+                else
+                {
+                    BtnPdfToggleDarkMode.ClearValue(Button.BackgroundProperty);
+                    BtnPdfToggleDarkMode.ClearValue(Button.BorderBrushProperty);
+                    BtnPdfToggleDarkMode.ClearValue(Button.ForegroundProperty);
+                    BtnPdfToggleDarkMode.ToolTip = "Invert PDF paper to Dark Mode";
+                }
+            }
+        }
+
+        private async Task ApplyPdfDarkModeToWebViewAsync()
+        {
+            if (PdfWebView?.CoreWebView2 == null) return;
+            try
+            {
+                // Keep Edge PDF chrome light before CSS filter so Dark Mode inverts toolbar & page consistently.
+                PdfWebView.CoreWebView2.Profile.PreferredColorScheme =
+                    Microsoft.Web.WebView2.Core.CoreWebView2PreferredColorScheme.Light;
+                string flag = _isPdfDarkMode ? "true" : "false";
+                await PdfWebView.CoreWebView2.ExecuteScriptAsync($"if (window.setPdfDarkMode) window.setPdfDarkMode({flag});");
+            }
+            catch { }
+        }
+
+        private void PdfWebView_WebResourceRequested(object? sender, Microsoft.Web.WebView2.Core.CoreWebView2WebResourceRequestedEventArgs e)
+        {
+            if (_pdfWebViewEnv == null || string.IsNullOrEmpty(_activePdfFrameSrc)) return;
+            if (!e.Request.Uri.StartsWith("https://studyhub.ui.local/", StringComparison.OrdinalIgnoreCase)) return;
+
+            string html = BuildPdfViewerHtml(_activePdfFrameSrc, _isPdfDarkMode);
+            var ms = new MemoryStream(System.Text.Encoding.UTF8.GetBytes(html));
+            e.Response = _pdfWebViewEnv.CreateWebResourceResponse(
+                ms,
+                200,
+                "OK",
+                "Content-Type: text/html; charset=utf-8\r\nCache-Control: no-store");
+        }
+
+        private async void PdfWebView_NavigationCompleted(object? sender, Microsoft.Web.WebView2.Core.CoreWebView2NavigationCompletedEventArgs e)
+        {
+            if (string.IsNullOrEmpty(_activePdfFrameSrc) || PdfViewerOverlayGrid.Visibility != Visibility.Visible) return;
+            int navId = _pdfNavCounter;
+            await ApplyPdfDarkModeToWebViewAsync();
+            await Task.Delay(180);
+            if (_pdfNavCounter == navId)
+            {
+                BdPdfLoader.Visibility = Visibility.Collapsed;
+            }
+        }
+
         private async Task OpenInAppPdfReaderAsync(StudyFileItem file, string fullPath)
         {
             _currentInAppPdfFile = file;
             _currentInAppPdfFullPath = fullPath;
+            _isPdfDarkMode = _state?.Settings?.PdfDarkMode ?? _isPdfDarkMode;
+            UpdatePdfDarkModeButtonUi();
 
             TxtPdfViewerTitle.Text = file.OriginalName;
             TxtPdfViewerSubject.Text = _currentSubject?.Name ?? "Course Document";
 
             PdfViewerOverlayGrid.Visibility = Visibility.Visible;
             BdPdfLoader.Visibility = Visibility.Visible;
+            int navId = ++_pdfNavCounter;
 
             try
             {
                 if (PdfWebView.CoreWebView2 == null)
                 {
-                    string dataFolder = Path.Combine(_storage.BaseDir, "webview_data");
-                    var env = await Microsoft.Web.WebView2.Core.CoreWebView2Environment.CreateAsync(
-                        userDataFolder: dataFolder,
-                        options: new Microsoft.Web.WebView2.Core.CoreWebView2EnvironmentOptions("--force-dark-mode --enable-features=WebContentsForceDark"));
-                    await PdfWebView.EnsureCoreWebView2Async(env);
+                    string dataFolder = _storage.WebViewDataDir;
+                    _pdfWebViewEnv = await Microsoft.Web.WebView2.Core.CoreWebView2Environment.CreateAsync(
+                        userDataFolder: dataFolder);
+                    await PdfWebView.EnsureCoreWebView2Async(_pdfWebViewEnv);
 
                     PdfWebView.CoreWebView2.Settings.IsStatusBarEnabled = false;
                     PdfWebView.CoreWebView2.Settings.AreDevToolsEnabled = false;
                     PdfWebView.DefaultBackgroundColor = System.Drawing.Color.FromArgb(6, 8, 20);
+
+                    PdfWebView.CoreWebView2.AddWebResourceRequestedFilter(
+                        "https://studyhub.ui.local/*",
+                        Microsoft.Web.WebView2.Core.CoreWebView2WebResourceContext.All);
+                    PdfWebView.CoreWebView2.WebResourceRequested += PdfWebView_WebResourceRequested;
+                    PdfWebView.CoreWebView2.NavigationCompleted += PdfWebView_NavigationCompleted;
                 }
 
-                PdfWebView.CoreWebView2.Navigate(new Uri(fullPath).AbsoluteUri);
+                string pdfDir = Path.GetDirectoryName(fullPath) ?? _storage.FilesDir;
+                string pdfFileName = Path.GetFileName(fullPath);
+
+                PdfWebView.CoreWebView2.SetVirtualHostNameToFolderMapping(
+                    "studyhub.pdf.local",
+                    pdfDir,
+                    Microsoft.Web.WebView2.Core.CoreWebView2HostResourceAccessKind.Allow);
+                PdfWebView.CoreWebView2.Profile.PreferredColorScheme =
+                    Microsoft.Web.WebView2.Core.CoreWebView2PreferredColorScheme.Light;
+
+                _activePdfFrameSrc = $"https://studyhub.pdf.local/{Uri.EscapeDataString(pdfFileName)}#toolbar=1&navpanes=0";
+                PdfWebView.CoreWebView2.Navigate($"https://studyhub.ui.local/__viewer.html?v={navId}");
             }
             catch (Exception ex)
             {
                 ShowToast($"In-app PDF viewer error: {ex.Message}. Opening externally...");
                 Process.Start(new ProcessStartInfo(fullPath) { UseShellExecute = true });
                 PdfViewerOverlayGrid.Visibility = Visibility.Collapsed;
+                BdPdfLoader.Visibility = Visibility.Collapsed;
             }
             finally
             {
                 _ = Task.Run(async () =>
                 {
-                    await Task.Delay(400);
-                    await Dispatcher.InvokeAsync(() => BdPdfLoader.Visibility = Visibility.Collapsed);
+                    await Task.Delay(2200);
+                    await Dispatcher.InvokeAsync(() =>
+                    {
+                        if (_pdfNavCounter == navId) BdPdfLoader.Visibility = Visibility.Collapsed;
+                    });
                 });
             }
         }
@@ -2080,7 +2217,10 @@ namespace StudyHub
 
         private void ClosePdfViewer()
         {
+            _pdfNavCounter++;
+            _activePdfFrameSrc = null;
             PdfViewerOverlayGrid.Visibility = Visibility.Collapsed;
+            BdPdfLoader.Visibility = Visibility.Collapsed;
             try
             {
                 PdfWebView.CoreWebView2?.Navigate("about:blank");
@@ -2090,24 +2230,18 @@ namespace StudyHub
             _currentInAppPdfFullPath = null;
         }
 
-        private void BtnPdfToggleDarkMode_Click(object sender, RoutedEventArgs e)
+        private async void BtnPdfToggleDarkMode_Click(object sender, RoutedEventArgs e)
         {
             _isPdfDarkMode = !_isPdfDarkMode;
-            if (GridPdfSunIcon != null) GridPdfSunIcon.Visibility = _isPdfDarkMode ? Visibility.Visible : Visibility.Collapsed;
-            if (GridPdfMoonIcon != null) GridPdfMoonIcon.Visibility = _isPdfDarkMode ? Visibility.Collapsed : Visibility.Visible;
-            TxtPdfDarkLabel.Text = _isPdfDarkMode ? "Light Mode" : "Dark Mode";
-
-            if (PdfWebView?.CoreWebView2 != null)
+            if (_state?.Settings != null)
             {
-                try
-                {
-                    PdfWebView.CoreWebView2.Profile.PreferredColorScheme = _isPdfDarkMode
-                        ? Microsoft.Web.WebView2.Core.CoreWebView2PreferredColorScheme.Dark
-                        : Microsoft.Web.WebView2.Core.CoreWebView2PreferredColorScheme.Light;
-                }
-                catch { }
+                _state.Settings.PdfDarkMode = _isPdfDarkMode;
+                SaveState(countActivity: false);
             }
-            ShowToast(_isPdfDarkMode ? "PDF Dark Mode enabled 🌙" : "PDF Light Mode enabled 🌤");
+
+            UpdatePdfDarkModeButtonUi();
+            ShowToast(_isPdfDarkMode ? "PDF Dark Mode enabled 🌙" : "PDF Light Mode enabled ☀️");
+            await ApplyPdfDarkModeToWebViewAsync();
         }
 
         private void BtnPdfSplitWithNotes_Click(object sender, RoutedEventArgs e)
@@ -5790,6 +5924,8 @@ namespace StudyHub
                 _state.Videos.Clear();
                 _state.Recordings.Clear();
                 _state.Settings = new UserSettings();
+                _isPdfDarkMode = _state.Settings.PdfDarkMode;
+                UpdatePdfDarkModeButtonUi();
                 SaveState();
 
                 RenderSubjects();
@@ -6456,16 +6592,10 @@ namespace StudyHub
                 RenderDeadlinesList();
             }
 
-            // 7. Sync PDF Dark Mode if open
+            // 7. Preserve PDF viewer's independent dark/light mode state
             if (PdfWebView?.CoreWebView2 != null)
             {
-                try
-                {
-                    PdfWebView.CoreWebView2.Profile.PreferredColorScheme = isDark
-                        ? Microsoft.Web.WebView2.Core.CoreWebView2PreferredColorScheme.Dark
-                        : Microsoft.Web.WebView2.Core.CoreWebView2PreferredColorScheme.Light;
-                }
-                catch { }
+                _ = ApplyPdfDarkModeToWebViewAsync();
             }
 
             // 8. Persist Theme Mode separately from Surface Theme

@@ -1,0 +1,1478 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="StudyHub.MauiMainPage"
+             NavigationPage.HasNavigationBar="False"
+             BackgroundColor="#090B1A">
+
+    <Grid x:Name="RootGrid">
+        <!-- 1. Global Animated Backdrop (Themes, 8 Particle Engines & 17 Zen Worlds) -->
+        <GraphicsView x:Name="BackdropCanvas"
+                      InputTransparent="True"
+                      HorizontalOptions="Fill"
+                      VerticalOptions="Fill" />
+
+        <!-- 2. Main Application Shell (Adaptive Top Nav + Active Content Area) -->
+        <Grid x:Name="MainShellGrid" RowDefinitions="Auto,*">
+
+            <!-- ================= ADAPTIVE TOP NAVIGATION BAR ================= -->
+            <Border x:Name="TopNavBorder"
+                    Grid.Row="0"
+                    BackgroundColor="#E611152C"
+                    Stroke="#252D50"
+                    StrokeThickness="0,0,0,1"
+                    Padding="12,8">
+                <VerticalStackLayout Spacing="8">
+                    <!-- Top Row: Brand on Left + Desktop/Landscape Pills + Action Buttons on Right -->
+                    <Grid ColumnDefinitions="Auto,*,Auto" VerticalOptions="Center">
+                        <!-- Brand Button (Opens Left Expandable Drawer with Archived Courses) -->
+                        <Border x:Name="BtnBrandDrawer"
+                                Grid.Column="0"
+                                BackgroundColor="Transparent"
+                                StrokeThickness="0"
+                                Padding="2,2">
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnToggleLeftDrawerClicked" />
+                            </Border.GestureRecognizers>
+                            <HorizontalStackLayout Spacing="8" VerticalOptions="Center">
+                                <Border WidthRequest="34" HeightRequest="34" StrokeThickness="0" StrokeShape="RoundRectangle 10">
+                                    <Border.Background>
+                                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                            <GradientStop Color="#7C5CFF" Offset="0.0" />
+                                            <GradientStop Color="#A855F7" Offset="0.5" />
+                                            <GradientStop Color="#22D3EE" Offset="1.0" />
+                                        </LinearGradientBrush>
+                                    </Border.Background>
+                                    <Label Text="🎓" FontSize="17" HorizontalOptions="Center" VerticalOptions="Center" />
+                                </Border>
+                                <Label x:Name="LblBrandTitle"
+                                       Text="StudyHub"
+                                       FontSize="17"
+                                       FontAttributes="Bold"
+                                       TextColor="#F8FAFC"
+                                       VerticalOptions="Center" />
+                            </HorizontalStackLayout>
+                        </Border>
+
+                        <!-- Center/Right Pills for Landscape & Tablet (Hidden in Portrait, where Row 2 shows them) -->
+                        <HorizontalStackLayout x:Name="WideNavCenterPills"
+                                               Grid.Column="1"
+                                               Spacing="8"
+                                               HorizontalOptions="End"
+                                               VerticalOptions="Center"
+                                               Margin="8,0"
+                                               IsVisible="False">
+                            <!-- Live Clock Pill (Wide) -->
+                            <Border x:Name="NavClockBorderWide"
+                                    BackgroundColor="#CC12172E"
+                                    Stroke="#485C94"
+                                    StrokeThickness="1"
+                                    StrokeShape="RoundRectangle 12"
+                                    Padding="10,5"
+                                    VerticalOptions="Center">
+                                <Border.GestureRecognizers>
+                                    <TapGestureRecognizer Tapped="OnClockFormatToggleTapped" />
+                                </Border.GestureRecognizers>
+                                <HorizontalStackLayout Spacing="6" VerticalOptions="Center">
+                                    <Label Text="🕒" FontSize="11" VerticalOptions="Center" />
+                                    <Label x:Name="LblNavClockTimeWide"
+                                           Text="12:00:00 PM"
+                                           FontSize="11.5"
+                                           FontAttributes="Bold"
+                                           FontFamily="monospace"
+                                           TextColor="#F8FAFC"
+                                           VerticalOptions="Center" />
+                                    <Label x:Name="LblNavClockDateWide"
+                                           Text="Wed, Nov 11"
+                                           FontSize="10"
+                                           TextColor="#8A95B7"
+                                           VerticalOptions="Center" />
+                                </HorizontalStackLayout>
+                            </Border>
+
+                            <!-- Top-Bar Focus Timer Pill (Wide) -->
+                            <Border x:Name="NavTimerPillWide"
+                                    BackgroundColor="#D8261324"
+                                    Stroke="#4A1C36"
+                                    StrokeThickness="1"
+                                    StrokeShape="RoundRectangle 12"
+                                    Padding="10,5"
+                                    VerticalOptions="Center">
+                                <Border.GestureRecognizers>
+                                    <TapGestureRecognizer Tapped="OnNavTimerPillTapped" />
+                                </Border.GestureRecognizers>
+                                <HorizontalStackLayout Spacing="5" VerticalOptions="Center">
+                                    <Label Text="⏱" FontSize="11.5" TextColor="#F43F5E" VerticalOptions="Center" />
+                                    <Label x:Name="LblNavTimerDisplayWide"
+                                           Text="25:00"
+                                           FontSize="11.5"
+                                           FontAttributes="Bold"
+                                           FontFamily="monospace"
+                                           TextColor="#F472B6"
+                                           VerticalOptions="Center" />
+                                    <BoxView x:Name="NavTimerDotWide"
+                                             WidthRequest="6"
+                                             HeightRequest="6"
+                                             CornerRadius="3"
+                                             Color="#10B981"
+                                             VerticalOptions="Center" />
+                                </HorizontalStackLayout>
+                            </Border>
+
+                            <!-- Search Box (Wide) -->
+                            <Border x:Name="NavSearchPillWide"
+                                    WidthRequest="150"
+                                    HeightRequest="34"
+                                    BackgroundColor="#CC151930"
+                                    Stroke="#252D50"
+                                    StrokeThickness="1"
+                                    StrokeShape="RoundRectangle 12"
+                                    Padding="8,0"
+                                    VerticalOptions="Center">
+                                <Grid ColumnDefinitions="Auto,*" VerticalOptions="Center">
+                                    <Label Grid.Column="0" Text="🔍" FontSize="11" VerticalOptions="Center" Margin="0,0,4,0" />
+                                    <Entry x:Name="EntryGlobalSearchWide"
+                                           Grid.Column="1"
+                                           Placeholder="Search..."
+                                           PlaceholderColor="#8A95B7"
+                                           TextColor="#F8FAFC"
+                                           FontSize="11.5"
+                                           BackgroundColor="Transparent"
+                                           TextChanged="OnGlobalSearchTextChanged"
+                                           Completed="OnGlobalSearchCompleted" />
+                                </Grid>
+                            </Border>
+                        </HorizontalStackLayout>
+
+                        <!-- Always-Visible Right Action Buttons: Sound Mixer, Zen Mode, Theme Toggle, Settings -->
+                        <HorizontalStackLayout Grid.Column="2" Spacing="6" VerticalOptions="Center">
+                            <Grid WidthRequest="36" HeightRequest="36" VerticalOptions="Center">
+                                <Button Text="🎚️"
+                                        FontSize="14"
+                                        Padding="0"
+                                        CornerRadius="18"
+                                        BackgroundColor="#181D38"
+                                        BorderColor="#283056"
+                                        BorderWidth="1"
+                                        Clicked="OnToggleSoundMixerClicked" />
+                                <BoxView x:Name="NavMixerActiveDot"
+                                         WidthRequest="8"
+                                         HeightRequest="8"
+                                         CornerRadius="4"
+                                         Color="#10B981"
+                                         HorizontalOptions="End"
+                                         VerticalOptions="Start"
+                                         Margin="0,2,2,0"
+                                         IsVisible="False" />
+                            </Grid>
+
+                            <Button Text="🧘"
+                                    FontSize="14"
+                                    WidthRequest="36"
+                                    HeightRequest="36"
+                                    Padding="0"
+                                    CornerRadius="18"
+                                    BackgroundColor="#181D38"
+                                    BorderColor="#283056"
+                                    BorderWidth="1"
+                                    Clicked="OnToggleZenModeClicked" />
+
+                            <Button x:Name="BtnThemeToggle"
+                                    Text="☀️"
+                                    FontSize="15"
+                                    TextColor="#FACC15"
+                                    WidthRequest="36"
+                                    HeightRequest="36"
+                                    Padding="0"
+                                    CornerRadius="18"
+                                    BackgroundColor="#181D38"
+                                    BorderColor="#283056"
+                                    BorderWidth="1"
+                                    Clicked="OnToggleThemeClicked" />
+
+                            <Button Text="⚙️"
+                                    FontSize="14"
+                                    WidthRequest="36"
+                                    HeightRequest="36"
+                                    Padding="0"
+                                    CornerRadius="18"
+                                    BackgroundColor="#181D38"
+                                    BorderColor="#283056"
+                                    BorderWidth="1"
+                                    Clicked="OnOpenSettingsClicked" />
+                        </HorizontalStackLayout>
+                    </Grid>
+
+                    <!-- Second Row for Compact Portrait Phones: Clock Pill + Timer Pill + Expanding Search Bar -->
+                    <Grid x:Name="CompactNavSecondRow"
+                          ColumnDefinitions="Auto,Auto,*"
+                          ColumnSpacing="6"
+                          VerticalOptions="Center">
+                        <!-- Live Clock Pill (Compact) -->
+                        <Border x:Name="NavClockBorder"
+                                Grid.Column="0"
+                                BackgroundColor="#CC12172E"
+                                Stroke="#485C94"
+                                StrokeThickness="1"
+                                StrokeShape="RoundRectangle 10"
+                                Padding="8,5"
+                                VerticalOptions="Center">
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnClockFormatToggleTapped" />
+                            </Border.GestureRecognizers>
+                            <HorizontalStackLayout Spacing="4" VerticalOptions="Center">
+                                <Label Text="🕒" FontSize="10" VerticalOptions="Center" />
+                                <Label x:Name="LblNavClockTime"
+                                       Text="12:00:00 PM"
+                                       FontSize="10.5"
+                                       FontAttributes="Bold"
+                                       FontFamily="monospace"
+                                       TextColor="#F8FAFC"
+                                       VerticalOptions="Center" />
+                                <Label x:Name="LblNavClockDate"
+                                       Text="Nov 11"
+                                       FontSize="9.5"
+                                       TextColor="#8A95B7"
+                                       VerticalOptions="Center" />
+                            </HorizontalStackLayout>
+                        </Border>
+
+                        <!-- Top-Bar Focus Timer Pill (Compact) -->
+                        <Border x:Name="NavTimerPill"
+                                Grid.Column="1"
+                                BackgroundColor="#D8261324"
+                                Stroke="#4A1C36"
+                                StrokeThickness="1"
+                                StrokeShape="RoundRectangle 10"
+                                Padding="8,5"
+                                VerticalOptions="Center">
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnNavTimerPillTapped" />
+                            </Border.GestureRecognizers>
+                            <HorizontalStackLayout Spacing="4" VerticalOptions="Center">
+                                <Label Text="⏱" FontSize="10.5" TextColor="#F43F5E" VerticalOptions="Center" />
+                                <Label x:Name="LblNavTimerDisplay"
+                                       Text="25:00"
+                                       FontSize="10.5"
+                                       FontAttributes="Bold"
+                                       FontFamily="monospace"
+                                       TextColor="#F472B6"
+                                       VerticalOptions="Center" />
+                                <BoxView x:Name="NavTimerDot"
+                                         WidthRequest="5"
+                                         HeightRequest="5"
+                                         CornerRadius="2.5"
+                                         Color="#10B981"
+                                         VerticalOptions="Center" />
+                            </HorizontalStackLayout>
+                        </Border>
+
+                        <!-- Expanding Search Pill (Compact) -->
+                        <Border x:Name="NavSearchPill"
+                                Grid.Column="2"
+                                HeightRequest="32"
+                                BackgroundColor="#CC151930"
+                                Stroke="#252D50"
+                                StrokeThickness="1"
+                                StrokeShape="RoundRectangle 10"
+                                Padding="8,0"
+                                VerticalOptions="Center">
+                            <Grid ColumnDefinitions="Auto,*" VerticalOptions="Center">
+                                <Label Grid.Column="0" Text="🔍" FontSize="10.5" VerticalOptions="Center" Margin="0,0,4,0" />
+                                <Entry x:Name="EntryGlobalSearch"
+                                       Grid.Column="1"
+                                       Placeholder="Search courses..."
+                                       PlaceholderColor="#8A95B7"
+                                       TextColor="#F8FAFC"
+                                       FontSize="11"
+                                       BackgroundColor="Transparent"
+                                       TextChanged="OnGlobalSearchTextChanged"
+                                       Completed="OnGlobalSearchCompleted" />
+                            </Grid>
+                        </Border>
+                    </Grid>
+                </VerticalStackLayout>
+            </Border>
+
+            <!-- ================= MAIN WORKSPACE AREA ================= -->
+            <Grid Grid.Row="1">
+
+                <!-- A. HOME DASHBOARD VIEW -->
+                <ScrollView x:Name="HomeDashboardScroll" Padding="14,14,14,115">
+                    <VerticalStackLayout Spacing="16">
+
+                        <!-- Welcome Hero Card + 30-Day Heatmap (Responsive Stack on Portrait / Side-by-Side on Landscape & Tablet) -->
+                        <Border x:Name="HeroBannerBorder"
+                                BackgroundColor="#D8131830"
+                                Stroke="#263056"
+                                StrokeThickness="1"
+                                StrokeShape="RoundRectangle 22"
+                                Padding="16">
+                            <Grid x:Name="HeroInnerGrid" ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
+                                <VerticalStackLayout x:Name="HeroTextStack" Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="2" Spacing="8">
+                                    <Border x:Name="BdGreetingChip"
+                                            BackgroundColor="#241B42"
+                                            Stroke="#3B2B63"
+                                            StrokeThickness="1"
+                                            StrokeShape="RoundRectangle 10"
+                                            Padding="10,4"
+                                            HorizontalOptions="Start">
+                                        <Label x:Name="LblGreetingTag"
+                                               Text="🌙 LATE NIGHT GRIND ⚡"
+                                               FontSize="10"
+                                               FontAttributes="Bold"
+                                               LineBreakMode="NoWrap"
+                                               TextColor="#C084FC" />
+                                    </Border>
+
+                                    <FlexLayout Wrap="Wrap" AlignItems="Center">
+                                        <Label x:Name="LblWelcomeYour"
+                                               Text="Your "
+                                               FontSize="22"
+                                               FontAttributes="Bold"
+                                               TextColor="#F8FAFC" />
+                                        <Label x:Name="LblWelcomeAccent"
+                                               Text="study workspace"
+                                               FontSize="22"
+                                               FontAttributes="Bold"
+                                               TextColor="#C084FC" />
+                                        <Label Text=" 🚀" FontSize="20" />
+                                    </FlexLayout>
+
+                                    <Label x:Name="LblHeroSubtitle"
+                                           Text="Organize your study materials, focus deeply, and crush your goals."
+                                           FontSize="12.5"
+                                           TextColor="#94A3C6" />
+
+                                    <FlexLayout Wrap="Wrap" JustifyContent="Start" AlignItems="Center" Margin="0,4,0,0">
+                                        <Border BackgroundColor="#0E1328"
+                                                Stroke="#222B50"
+                                                StrokeThickness="1"
+                                                StrokeShape="RoundRectangle 12"
+                                                Padding="10,6"
+                                                Margin="0,0,8,6">
+                                            <HorizontalStackLayout Spacing="6">
+                                                <Label Text="⏱" FontSize="11.5" TextColor="#22D3EE" VerticalOptions="Center" />
+                                                <Label x:Name="LblSessionUptime"
+                                                       Text="0m active"
+                                                       FontSize="11"
+                                                       FontAttributes="Bold"
+                                                       LineBreakMode="NoWrap"
+                                                       TextColor="#F8FAFC"
+                                                       VerticalOptions="Center" />
+                                            </HorizontalStackLayout>
+                                        </Border>
+
+                                        <Border BackgroundColor="#0E1328"
+                                                Stroke="#222B50"
+                                                StrokeThickness="1"
+                                                StrokeShape="RoundRectangle 12"
+                                                Padding="10,6"
+                                                Margin="0,0,0,6">
+                                            <HorizontalStackLayout Spacing="6">
+                                                <Label Text="👑" FontSize="11.5" TextColor="#F59E0B" VerticalOptions="Center" />
+                                                <Label x:Name="LblTopSubject"
+                                                       Text="Top: None"
+                                                       FontSize="11"
+                                                       FontAttributes="Bold"
+                                                       LineBreakMode="TailTruncation"
+                                                       MaximumWidthRequest="190"
+                                                       TextColor="#F8FAFC"
+                                                       VerticalOptions="Center" />
+                                            </HorizontalStackLayout>
+                                        </Border>
+                                    </FlexLayout>
+                                </VerticalStackLayout>
+
+                                <!-- 30-Day Study Heatmap & Focus Ratio Card -->
+                                <Border x:Name="BdHeatmapCard"
+                                        Grid.Row="1"
+                                        Grid.Column="0"
+                                        Grid.ColumnSpan="2"
+                                        BackgroundColor="#0D1124"
+                                        Stroke="#222A4C"
+                                        StrokeThickness="1"
+                                        StrokeShape="RoundRectangle 16"
+                                        Padding="14,10"
+                                        Margin="0,12,0,0"
+                                        VerticalOptions="Center">
+                                    <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="14" VerticalOptions="Center">
+                                        <VerticalStackLayout Grid.Column="0" Spacing="6" VerticalOptions="Center">
+                                            <Label Text="Study Heatmap (30 Days) 🔥"
+                                                   FontSize="10.5"
+                                                   FontAttributes="Bold"
+                                                   LineBreakMode="NoWrap"
+                                                   TextColor="#94A3C6" />
+                                            <FlexLayout x:Name="HeatmapFlex"
+                                                        Wrap="Wrap"
+                                                        WidthRequest="135"
+                                                        HorizontalOptions="Start"
+                                                        JustifyContent="Start" />
+                                        </VerticalStackLayout>
+                                        <BoxView Grid.Column="1" WidthRequest="1" HeightRequest="44" Color="#222A4C" VerticalOptions="Center" />
+                                        <VerticalStackLayout Grid.Column="2" VerticalOptions="Center" HorizontalOptions="Center" Padding="4,0">
+                                            <Label Text="Focus Ratio" FontSize="10" TextColor="#94A3C6" HorizontalOptions="Center" />
+                                            <Label x:Name="LblFocusRatio"
+                                                   Text="100%"
+                                                   FontSize="18"
+                                                   FontAttributes="Bold"
+                                                   TextColor="#10B981"
+                                                   HorizontalOptions="Center" />
+                                        </VerticalStackLayout>
+                                    </Grid>
+                                </Border>
+                            </Grid>
+                        </Border>
+
+                        <!-- Section Header: My Subjects -->
+                        <Grid ColumnDefinitions="*,Auto" VerticalOptions="Center">
+                            <HorizontalStackLayout Spacing="10" VerticalOptions="Center">
+                                <Border WidthRequest="34"
+                                        HeightRequest="34"
+                                        BackgroundColor="#20183E"
+                                        Stroke="#3B2B63"
+                                        StrokeThickness="1"
+                                        StrokeShape="RoundRectangle 10">
+                                    <Label Text="📖" FontSize="15" HorizontalOptions="Center" VerticalOptions="Center" />
+                                </Border>
+                                <Label x:Name="LblMySubjectsHeader"
+                                       Text="My Subjects"
+                                       FontSize="18"
+                                       FontAttributes="Bold"
+                                       TextColor="#F8FAFC"
+                                       VerticalOptions="Center" />
+                            </HorizontalStackLayout>
+
+                            <Button Grid.Column="1"
+                                    Text="+ Add Subject"
+                                    FontSize="12"
+                                    FontAttributes="Bold"
+                                    TextColor="White"
+                                    BackgroundColor="#7C5CFF"
+                                    CornerRadius="12"
+                                    Padding="14,8"
+                                    Clicked="OnOpenAddSubjectModalClicked" />
+                        </Grid>
+
+                        <!-- Course Cards Responsive Wrap Grid -->
+                        <FlexLayout x:Name="SubjectsFlexGrid"
+                                    Wrap="Wrap"
+                                    JustifyContent="Start"
+                                    AlignItems="Start" />
+                    </VerticalStackLayout>
+                </ScrollView>
+
+                <!-- B. SUBJECT DETAIL WORKSPACE VIEW -->
+                <Grid x:Name="SubjectWorkspaceGrid" IsVisible="False" RowDefinitions="Auto,Auto,*" Padding="12,10,12,105">
+                    <!-- Subject Header -->
+                    <Border x:Name="BdSubjectHeader"
+                            Grid.Row="0"
+                            BackgroundColor="#D8131830"
+                            Stroke="#263056"
+                            StrokeThickness="1"
+                            StrokeShape="RoundRectangle 18"
+                            Padding="12,10"
+                            Margin="0,0,0,8">
+                        <Grid ColumnDefinitions="Auto,*,Auto" VerticalOptions="Center">
+                            <Button Grid.Column="0"
+                                    Text="← Back"
+                                    FontSize="12"
+                                    FontAttributes="Bold"
+                                    TextColor="#F8FAFC"
+                                    BackgroundColor="#1E2548"
+                                    CornerRadius="10"
+                                    Padding="10,6"
+                                    Margin="0,0,10,0"
+                                    Clicked="OnBackToHomeClicked" />
+                            <VerticalStackLayout Grid.Column="1" VerticalOptions="Center">
+                                <Label x:Name="LblCurrentSubjectTitle"
+                                       Text="Course Name"
+                                       FontSize="16"
+                                       FontAttributes="Bold"
+                                       LineBreakMode="TailTruncation"
+                                       TextColor="#F8FAFC" />
+                                <Label x:Name="LblCurrentSubjectStats"
+                                       Text="0 Files • 0 Tasks • 0 Flashcards"
+                                       FontSize="11"
+                                       LineBreakMode="TailTruncation"
+                                       TextColor="#94A3C6" />
+                            </VerticalStackLayout>
+                            <HorizontalStackLayout Grid.Column="2" Spacing="6">
+                                <Button Text="✏️"
+                                        FontSize="13"
+                                        WidthRequest="34"
+                                        HeightRequest="34"
+                                        Padding="0"
+                                        CornerRadius="10"
+                                        BackgroundColor="#1E2548"
+                                        Clicked="OnEditCurrentSubjectClicked" />
+                            </HorizontalStackLayout>
+                        </Grid>
+                    </Border>
+
+                    <!-- Workspace Tabs Bar -->
+                    <ScrollView Grid.Row="1" Orientation="Horizontal" HorizontalScrollBarVisibility="Never" Margin="0,0,0,8">
+                        <HorizontalStackLayout x:Name="SubjectTabsContainer" Spacing="6" />
+                    </ScrollView>
+
+                    <!-- Active Tab Content Host -->
+                    <Border x:Name="BdSubjectTabHost"
+                            Grid.Row="2"
+                            BackgroundColor="#CC11152C"
+                            Stroke="#252D50"
+                            StrokeThickness="1"
+                            StrokeShape="RoundRectangle 18"
+                            Padding="12">
+                        <Grid>
+                            <!-- Tab 1: Files & Folders + PDF Converter -->
+                            <ScrollView x:Name="TabFilesView" IsVisible="True">
+                                <VerticalStackLayout Spacing="12">
+                                    <FlexLayout Wrap="Wrap" JustifyContent="SpaceBetween" AlignItems="Center">
+                                        <Label Text="Course Folders &amp; Study Materials"
+                                               FontSize="14"
+                                               FontAttributes="Bold"
+                                               TextColor="#F8FAFC"
+                                               Margin="0,0,8,6"
+                                               VerticalOptions="Center" />
+                                        <HorizontalStackLayout Spacing="6" Margin="0,0,0,6">
+                                            <Button Text="+ Folder"
+                                                    FontSize="11"
+                                                    FontAttributes="Bold"
+                                                    BackgroundColor="#1E2548"
+                                                    TextColor="#F8FAFC"
+                                                    CornerRadius="10"
+                                                    Padding="10,6"
+                                                    Clicked="OnAddFolderClicked" />
+                                            <Button Text="⚡ To PDF"
+                                                    FontSize="11"
+                                                    FontAttributes="Bold"
+                                                    BackgroundColor="#0E4F63"
+                                                    TextColor="#22D3EE"
+                                                    CornerRadius="10"
+                                                    Padding="10,6"
+                                                    Clicked="OnConvertFileToPdfClicked" />
+                                            <Button Text="+ Upload"
+                                                    FontSize="11"
+                                                    FontAttributes="Bold"
+                                                    BackgroundColor="#7C5CFF"
+                                                    TextColor="White"
+                                                    CornerRadius="10"
+                                                    Padding="10,6"
+                                                    Clicked="OnUploadStudyFileClicked" />
+                                        </HorizontalStackLayout>
+                                    </FlexLayout>
+                                    <VerticalStackLayout x:Name="FoldersListContainer" Spacing="10" />
+                                </VerticalStackLayout>
+                            </ScrollView>
+
+                            <!-- Tab 2: Notes -->
+                            <Grid x:Name="TabNotesView" IsVisible="False" RowDefinitions="Auto,*,Auto" RowSpacing="10">
+                                <Grid Grid.Row="0" ColumnDefinitions="*,Auto">
+                                    <Label Text="📝 Course Study Notes" FontSize="14.5" FontAttributes="Bold" TextColor="#F8FAFC" VerticalOptions="Center" />
+                                    <Button Grid.Column="1"
+                                            Text="💾 Save Notes"
+                                            FontSize="11.5"
+                                            FontAttributes="Bold"
+                                            BackgroundColor="#10B981"
+                                            TextColor="White"
+                                            CornerRadius="10"
+                                            Padding="12,6"
+                                            Clicked="OnSaveSubjectNotesClicked" />
+                                </Grid>
+                                <Editor x:Name="EditorSubjectNotes"
+                                        Grid.Row="1"
+                                        Placeholder="Write lecture summaries, formulas, and key insights..."
+                                        PlaceholderColor="#687296"
+                                        TextColor="#F8FAFC"
+                                        BackgroundColor="#0D1124"
+                                        FontSize="13.5"
+                                        AutoSize="Disabled"
+                                        TextChanged="OnSubjectNotesTextChanged" />
+                                <Label x:Name="LblNotesWordCount"
+                                       Grid.Row="2"
+                                       Text="0 words • 0 characters"
+                                       FontSize="11"
+                                       TextColor="#8A95B7" />
+                            </Grid>
+
+                            <!-- Tab 3: Tasks -->
+                            <Grid x:Name="TabTasksView" IsVisible="False" RowDefinitions="Auto,*" RowSpacing="10">
+                                <Grid Grid.Row="0" ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                    <Entry x:Name="EntryNewTask"
+                                           Placeholder="Add a new study task..."
+                                           PlaceholderColor="#687296"
+                                           TextColor="#F8FAFC"
+                                           BackgroundColor="#0D1124"
+                                           FontSize="13" />
+                                    <Button Grid.Column="1"
+                                            Text="+ Add"
+                                            FontSize="12"
+                                            FontAttributes="Bold"
+                                            BackgroundColor="#7C5CFF"
+                                            TextColor="White"
+                                            CornerRadius="10"
+                                            Padding="14,8"
+                                            Clicked="OnAddTaskClicked" />
+                                </Grid>
+                                <ScrollView Grid.Row="1">
+                                    <VerticalStackLayout x:Name="TasksListContainer" Spacing="8" />
+                                </ScrollView>
+                            </Grid>
+
+                            <!-- Tab 4: Flashcards -->
+                            <ScrollView x:Name="TabFlashcardsView" IsVisible="False">
+                                <VerticalStackLayout Spacing="12">
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <Label x:Name="LblFlashcardCounter"
+                                               Text="🃏 Flashcards Deck (0 / 0)"
+                                               FontSize="14.5"
+                                               FontAttributes="Bold"
+                                               TextColor="#F8FAFC"
+                                               VerticalOptions="Center" />
+                                        <Button Grid.Column="1"
+                                                Text="+ New Card"
+                                                FontSize="11.5"
+                                                FontAttributes="Bold"
+                                                BackgroundColor="#7C5CFF"
+                                                TextColor="White"
+                                                CornerRadius="10"
+                                                Padding="12,6"
+                                                Clicked="OnAddFlashcardClicked" />
+                                    </Grid>
+
+                                    <Border x:Name="BdFlashcardCard"
+                                            HeightRequest="200"
+                                            BackgroundColor="#181F3E"
+                                            Stroke="#38467E"
+                                            StrokeThickness="1.5"
+                                            StrokeShape="RoundRectangle 20"
+                                            Padding="20">
+                                        <Border.GestureRecognizers>
+                                            <TapGestureRecognizer Tapped="OnFlipFlashcardTapped" />
+                                        </Border.GestureRecognizers>
+                                        <Grid RowDefinitions="Auto,*,Auto">
+                                            <Label x:Name="LblFlashcardSideBadge"
+                                                   Text="QUESTION (Tap to flip)"
+                                                   FontSize="10.5"
+                                                   FontAttributes="Bold"
+                                                   TextColor="#22D3EE" />
+                                            <Label x:Name="LblFlashcardContent"
+                                                   Grid.Row="1"
+                                                   Text="No flashcards yet. Tap '+ New Card' to create one!"
+                                                   FontSize="15.5"
+                                                   FontAttributes="Bold"
+                                                   TextColor="#F8FAFC"
+                                                   HorizontalTextAlignment="Center"
+                                                   VerticalTextAlignment="Center" />
+                                            <Label Grid.Row="2"
+                                                   Text="🔄 Tap card to flip between Question &amp; Answer"
+                                                   FontSize="10"
+                                                   TextColor="#8A95B7"
+                                                   HorizontalOptions="Center" />
+                                        </Grid>
+                                    </Border>
+
+                                    <HorizontalStackLayout HorizontalOptions="Center" Spacing="8">
+                                        <Button Text="◀ Prev"
+                                                FontSize="12"
+                                                BackgroundColor="#1E2548"
+                                                TextColor="#F8FAFC"
+                                                CornerRadius="10"
+                                                Clicked="OnPrevFlashcardClicked" />
+                                        <Button Text="🔄 Flip"
+                                                FontSize="12"
+                                                BackgroundColor="#7C5CFF"
+                                                TextColor="White"
+                                                CornerRadius="10"
+                                                Clicked="OnFlipFlashcardClicked" />
+                                        <Button Text="Next ▶"
+                                                FontSize="12"
+                                                BackgroundColor="#1E2548"
+                                                TextColor="#F8FAFC"
+                                                CornerRadius="10"
+                                                Clicked="OnNextFlashcardClicked" />
+                                        <Button Text="🗑️"
+                                                FontSize="12"
+                                                BackgroundColor="#3B182A"
+                                                TextColor="#F43F5E"
+                                                CornerRadius="10"
+                                                Clicked="OnDeleteCurrentFlashcardClicked" />
+                                    </HorizontalStackLayout>
+                                </VerticalStackLayout>
+                            </ScrollView>
+
+                            <!-- Tab 5: Interactive Touch Whiteboard -->
+                            <Grid x:Name="TabWhiteboardView" IsVisible="False" RowDefinitions="Auto,*" RowSpacing="10">
+                                <ScrollView Grid.Row="0" Orientation="Horizontal" HorizontalScrollBarVisibility="Never">
+                                    <HorizontalStackLayout Spacing="6" VerticalOptions="Center">
+                                        <Label Text="🎨 Sketch:" FontSize="12.5" FontAttributes="Bold" TextColor="#F8FAFC" VerticalOptions="Center" />
+                                        <Button Text="🟣" FontSize="11" BackgroundColor="#7C5CFF" TextColor="White" CornerRadius="8" Padding="8,4" Clicked="OnWbColorVioletClicked" />
+                                        <Button Text="🔵" FontSize="11" BackgroundColor="#22D3EE" TextColor="#090B1A" CornerRadius="8" Padding="8,4" Clicked="OnWbColorCyanClicked" />
+                                        <Button Text="🟢" FontSize="11" BackgroundColor="#10B981" TextColor="White" CornerRadius="8" Padding="8,4" Clicked="OnWbColorEmeraldClicked" />
+                                        <Button Text="🟡" FontSize="11" BackgroundColor="#F59E0B" TextColor="#090B1A" CornerRadius="8" Padding="8,4" Clicked="OnWbColorAmberClicked" />
+                                        <Button Text="⚪" FontSize="11" BackgroundColor="#F8FAFC" TextColor="#090B1A" CornerRadius="8" Padding="8,4" Clicked="OnWbColorWhiteClicked" />
+                                        <Button Text="↩ Undo" FontSize="11" BackgroundColor="#1E2548" TextColor="#F8FAFC" CornerRadius="8" Padding="8,4" Clicked="OnWbUndoClicked" />
+                                        <Button Text="🗑️ Clear" FontSize="11" BackgroundColor="#3B182A" TextColor="#F43F5E" CornerRadius="8" Padding="8,4" Clicked="OnWbClearClicked" />
+                                    </HorizontalStackLayout>
+                                </ScrollView>
+                                <Border Grid.Row="1" Stroke="#283056" StrokeThickness="1" StrokeShape="RoundRectangle 14">
+                                    <GraphicsView x:Name="WhiteboardCanvas"
+                                                  StartInteraction="OnWhiteboardStartInteraction"
+                                                  DragInteraction="OnWhiteboardDragInteraction"
+                                                  EndInteraction="OnWhiteboardEndInteraction" />
+                                </Border>
+                            </Grid>
+
+                            <!-- Tab 6: Deadlines -->
+                            <Grid x:Name="TabDeadlinesView" IsVisible="False" RowDefinitions="Auto,*" RowSpacing="10">
+                                <Grid Grid.Row="0" ColumnDefinitions="*,Auto">
+                                    <Label Text="📅 Upcoming Exams &amp; Deadlines" FontSize="14.5" FontAttributes="Bold" TextColor="#F8FAFC" VerticalOptions="Center" />
+                                    <Button Grid.Column="1"
+                                            Text="+ Deadline"
+                                            FontSize="11.5"
+                                            FontAttributes="Bold"
+                                            BackgroundColor="#7C5CFF"
+                                            TextColor="White"
+                                            CornerRadius="10"
+                                            Padding="12,6"
+                                            Clicked="OnAddDeadlineClicked" />
+                                </Grid>
+                                <ScrollView Grid.Row="1">
+                                    <VerticalStackLayout x:Name="DeadlinesListContainer" Spacing="8" />
+                                </ScrollView>
+                            </Grid>
+
+                            <!-- Tab 7: Links, Videos & Recordings -->
+                            <Grid x:Name="TabLinksView" IsVisible="False" RowDefinitions="Auto,*" RowSpacing="10">
+                                <Grid Grid.Row="0" ColumnDefinitions="*,Auto">
+                                    <Label Text="🔗 Course Links &amp; Resources" FontSize="14.5" FontAttributes="Bold" TextColor="#F8FAFC" VerticalOptions="Center" />
+                                    <Button Grid.Column="1"
+                                            Text="+ Add Link"
+                                            FontSize="11.5"
+                                            FontAttributes="Bold"
+                                            BackgroundColor="#7C5CFF"
+                                            TextColor="White"
+                                            CornerRadius="10"
+                                            Padding="12,6"
+                                            Clicked="OnAddLinkClicked" />
+                                </Grid>
+                                <ScrollView Grid.Row="1">
+                                    <VerticalStackLayout x:Name="LinksListContainer" Spacing="8" />
+                                </ScrollView>
+                            </Grid>
+                        </Grid>
+                    </Border>
+                </Grid>
+            </Grid>
+        </Grid>
+
+        <!-- ================= 3. ZEN MODE FULLSCREEN OVERLAY (BELOW FLOATING TIMER & MIXER) ================= -->
+        <Grid x:Name="ZenModeOverlay"
+              IsVisible="False"
+              InputTransparent="False"
+              RowDefinitions="Auto,*,Auto"
+              Padding="12,12,12,12">
+            <!-- Row 0: Responsive Controls Bar (Never overlaps Zen Clock!) -->
+            <FlexLayout Grid.Row="0"
+                        Wrap="Wrap"
+                        JustifyContent="End"
+                        AlignItems="Center"
+                        HorizontalOptions="Fill">
+                <Button x:Name="BtnZenSceneSelector"
+                        Text="🌌 Northern Lights ▾"
+                        FontSize="12"
+                        FontAttributes="Bold"
+                        BackgroundColor="#D811152C"
+                        TextColor="#FACC15"
+                        BorderColor="#334175"
+                        BorderWidth="1"
+                        CornerRadius="12"
+                        Padding="12,7"
+                        Margin="0,0,6,6"
+                        Clicked="OnOpenZenSceneModalClicked" />
+                <Button x:Name="BtnZenTimerToggle"
+                        Text="⏱ Timer"
+                        FontSize="11.5"
+                        FontAttributes="Bold"
+                        BackgroundColor="#D811152C"
+                        TextColor="#38BDF8"
+                        BorderColor="#334175"
+                        BorderWidth="1"
+                        CornerRadius="12"
+                        Padding="11,7"
+                        Margin="0,0,6,6"
+                        Clicked="OnToggleZenTimerClicked" />
+                <Button Text="🎚️ Mixer"
+                        FontSize="11.5"
+                        FontAttributes="Bold"
+                        BackgroundColor="#7C5CFF"
+                        TextColor="White"
+                        CornerRadius="12"
+                        Padding="12,7"
+                        Margin="0,0,6,6"
+                        Clicked="OnToggleSoundMixerClicked" />
+                <Button Text="✕ Exit Zen"
+                        FontSize="11.5"
+                        FontAttributes="Bold"
+                        BackgroundColor="#E11D48"
+                        TextColor="White"
+                        CornerRadius="12"
+                        Padding="12,7"
+                        Margin="0,0,0,6"
+                        Clicked="OnToggleZenModeClicked" />
+            </FlexLayout>
+
+            <!-- Row 1: Center Floating Zen Clock & Focus Timer HUD -->
+            <VerticalStackLayout Grid.Row="1"
+                                 HorizontalOptions="Center"
+                                 VerticalOptions="Start"
+                                 Margin="12,12,12,0"
+                                 Spacing="8">
+                <Border BackgroundColor="#CC0D1124"
+                        Stroke="#334175"
+                        StrokeThickness="1.2"
+                        StrokeShape="RoundRectangle 22"
+                        Padding="24,12">
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="OnClockFormatToggleTapped" />
+                    </Border.GestureRecognizers>
+                    <VerticalStackLayout Spacing="4" HorizontalOptions="Center">
+                        <HorizontalStackLayout Spacing="6" HorizontalOptions="Center">
+                            <Label x:Name="LblZenClockMain"
+                                   Text="08:15"
+                                   FontSize="40"
+                                   FontAttributes="Bold"
+                                   FontFamily="monospace"
+                                   TextColor="#F8FAFC" />
+                            <Label x:Name="LblZenClockAmPm"
+                                   Text="PM"
+                                   FontSize="14"
+                                   FontAttributes="Bold"
+                                   TextColor="#22D3EE"
+                                   VerticalOptions="End"
+                                   Margin="0,0,0,6" />
+                        </HorizontalStackLayout>
+                        <Label x:Name="LblZenTimerSub"
+                               Text="⏱ Focus Timer • 25:00"
+                               FontSize="11.5"
+                               FontAttributes="Bold"
+                               TextColor="#CBD5E1"
+                               HorizontalOptions="Center" />
+                    </VerticalStackLayout>
+                </Border>
+                <Border BackgroundColor="#CC0D1124"
+                        Stroke="#334175"
+                        StrokeThickness="1"
+                        StrokeShape="RoundRectangle 12"
+                        Padding="12,4"
+                        HorizontalOptions="Center">
+                    <Border.GestureRecognizers>
+                        <TapGestureRecognizer Tapped="OnOpenZenSceneModalClicked" />
+                    </Border.GestureRecognizers>
+                    <Label x:Name="LblZenSceneBadge"
+                           Text="● Northern Lights • North Pole &amp; Ice Mountains"
+                           FontSize="10.5"
+                           HorizontalTextAlignment="Center"
+                           TextColor="#10B981" />
+                </Border>
+            </VerticalStackLayout>
+        </Grid>
+
+        <!-- ================= 4. DOCKABLE & MINIMIZABLE FOCUS TIMER WIDGET ================= -->
+        <Grid x:Name="FloatingTimerHost"
+              InputTransparent="False"
+              HorizontalOptions="End"
+              VerticalOptions="End"
+              Margin="12,64,12,12">
+
+            <!-- A. Expanded Focus Timer Card -->
+            <Border x:Name="BdFloatingTimerExpanded"
+                    IsVisible="False"
+                    WidthRequest="258"
+                    BackgroundColor="#F4131832"
+                    Stroke="#2A3562"
+                    StrokeThickness="1.5"
+                    StrokeShape="RoundRectangle 22"
+                    Padding="15,12">
+                <VerticalStackLayout Spacing="10">
+                    <!-- Header: Title + Settings Gear + Minimize Drop Arrow -->
+                    <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="6" VerticalOptions="Center">
+                        <HorizontalStackLayout Spacing="6" VerticalOptions="Center">
+                            <Label Text="⏱" FontSize="13" TextColor="#F43F5E" VerticalOptions="Center" />
+                            <Label x:Name="LblTimerHeaderTitle"
+                                   Text="Focus Timer"
+                                   FontSize="13"
+                                   FontAttributes="Bold"
+                                   TextColor="#F8FAFC"
+                                   VerticalOptions="Center" />
+                        </HorizontalStackLayout>
+                        <Button Grid.Column="1"
+                                Text="⚙"
+                                FontSize="13"
+                                WidthRequest="30"
+                                HeightRequest="28"
+                                Padding="0"
+                                CornerRadius="8"
+                                BackgroundColor="#1E2648"
+                                TextColor="#E2E8F0"
+                                Clicked="OnToggleTimerSettingsClicked" />
+                        <Button Grid.Column="2"
+                                Text="▾"
+                                FontSize="14"
+                                WidthRequest="30"
+                                HeightRequest="28"
+                                Padding="0"
+                                CornerRadius="8"
+                                BackgroundColor="#1E2648"
+                                TextColor="#E2E8F0"
+                                Clicked="OnMinimizeTimerClicked" />
+                    </Grid>
+
+                    <!-- Large Countdown Display -->
+                    <Label x:Name="LblFloatingTimerDigits"
+                           Text="25:00"
+                           FontSize="40"
+                           FontAttributes="Bold"
+                           FontFamily="monospace"
+                           TextColor="#38BDF8"
+                           HorizontalOptions="Center" />
+
+                    <!-- Play / Pause (|| parallel vertical lines) / Reset Controls -->
+                    <Grid ColumnDefinitions="*,*,Auto" ColumnSpacing="6">
+                        <Button x:Name="BtnPomoStart"
+                                Grid.Column="0"
+                                Text="▶ Start"
+                                FontSize="12"
+                                FontAttributes="Bold"
+                                BackgroundColor="#10B981"
+                                TextColor="White"
+                                CornerRadius="10"
+                                Padding="0,8"
+                                Clicked="OnPomoStartClicked" />
+
+                        <Border x:Name="BtnPomoPause"
+                                Grid.Column="1"
+                                BackgroundColor="#F59E0B"
+                                StrokeThickness="0"
+                                StrokeShape="RoundRectangle 10"
+                                Padding="8,8">
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnPomoPauseTapped" />
+                            </Border.GestureRecognizers>
+                            <HorizontalStackLayout Spacing="6" HorizontalOptions="Center" VerticalOptions="Center">
+                                <!-- 2 Parallel Vertical Lines Icon inside Rounded Square -->
+                                <Border WidthRequest="16" HeightRequest="16" Stroke="White" StrokeThickness="1.3" StrokeShape="RoundRectangle 4" BackgroundColor="Transparent">
+                                    <HorizontalStackLayout Spacing="3" HorizontalOptions="Center" VerticalOptions="Center">
+                                        <BoxView WidthRequest="2" HeightRequest="8" Color="White" CornerRadius="1" />
+                                        <BoxView WidthRequest="2" HeightRequest="8" Color="White" CornerRadius="1" />
+                                    </HorizontalStackLayout>
+                                </Border>
+                                <Label Text="Pause" FontSize="12" FontAttributes="Bold" TextColor="White" VerticalOptions="Center" />
+                            </HorizontalStackLayout>
+                        </Border>
+
+                        <Button Grid.Column="2"
+                                Text="↻"
+                                FontSize="14"
+                                FontAttributes="Bold"
+                                WidthRequest="38"
+                                BackgroundColor="#252C4E"
+                                TextColor="#E2E8F0"
+                                CornerRadius="10"
+                                Padding="0,8"
+                                Clicked="OnPomoResetClicked" />
+                    </Grid>
+
+                    <!-- Work / Break Phase Pills -->
+                    <Grid ColumnDefinitions="*,*" ColumnSpacing="6">
+                        <Button x:Name="BtnPomoWorkMode"
+                                Grid.Column="0"
+                                Text="25m Work"
+                                FontSize="11"
+                                FontAttributes="Bold"
+                                BackgroundColor="#1E2548"
+                                TextColor="#F8FAFC"
+                                CornerRadius="10"
+                                Padding="0,6"
+                                Clicked="OnPomoWorkModeClicked" />
+                        <Button x:Name="BtnPomoBreakMode"
+                                Grid.Column="1"
+                                Text="5m Break"
+                                FontSize="11"
+                                FontAttributes="Bold"
+                                BackgroundColor="#151A36"
+                                TextColor="#94A3C6"
+                                CornerRadius="10"
+                                Padding="0,6"
+                                Clicked="OnPomoBreakModeClicked" />
+                    </Grid>
+
+                    <!-- Collapsible Timer Settings Drawer (Work/Break Minutes + Dock Position) -->
+                    <Border x:Name="BdPomoSettingsPanel"
+                            IsVisible="False"
+                            BackgroundColor="#10152D"
+                            Stroke="#2A335C"
+                            StrokeThickness="1"
+                            StrokeShape="RoundRectangle 14"
+                            Padding="10">
+                        <VerticalStackLayout Spacing="8">
+                            <Label Text="TIMER DOCK &amp; DURATIONS" FontSize="9.5" FontAttributes="Bold" TextColor="#94A3B8" />
+                            <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+                                <VerticalStackLayout Spacing="2">
+                                    <Label Text="Work (min)" FontSize="10" TextColor="#94A3B8" />
+                                    <Entry x:Name="EntryPomoWorkMin" Text="25" Keyboard="Numeric" FontSize="12" TextColor="#F8FAFC" BackgroundColor="#161D3D" Completed="OnPomoDurationChanged" />
+                                </VerticalStackLayout>
+                                <VerticalStackLayout Grid.Column="1" Spacing="2">
+                                    <Label Text="Break (min)" FontSize="10" TextColor="#94A3B8" />
+                                    <Entry x:Name="EntryPomoBreakMin" Text="5" Keyboard="Numeric" FontSize="12" TextColor="#F8FAFC" BackgroundColor="#161D3D" Completed="OnPomoDurationChanged" />
+                                </VerticalStackLayout>
+                            </Grid>
+                            <Grid ColumnDefinitions="*,*,*" ColumnSpacing="4">
+                                <Button Text="↙ Left" FontSize="10" BackgroundColor="#1E2548" TextColor="#F8FAFC" CornerRadius="8" Padding="4,5" Clicked="OnDockBottomLeftClicked" />
+                                <Button Text="⬆ Top" FontSize="10" BackgroundColor="#1E2548" TextColor="#F8FAFC" CornerRadius="8" Padding="4,5" Clicked="OnDockTopBarClicked" />
+                                <Button Text="↘ Right" FontSize="10" BackgroundColor="#1E2548" TextColor="#F8FAFC" CornerRadius="8" Padding="4,5" Clicked="OnDockBottomRightClicked" />
+                            </Grid>
+                        </VerticalStackLayout>
+                    </Border>
+                </VerticalStackLayout>
+            </Border>
+
+            <!-- B. Minimized Focus Timer Pill with Decreasing Bottom Glow Bar (Default Compact State on Mobile) -->
+            <Border x:Name="BdFloatingTimerMinimized"
+                    IsVisible="True"
+                    WidthRequest="228"
+                    BackgroundColor="#F512172E"
+                    Stroke="#2E3B6E"
+                    StrokeThickness="1.5"
+                    StrokeShape="RoundRectangle 18"
+                    Padding="12,8,12,8">
+                <Border.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="OnExpandTimerClicked" />
+                </Border.GestureRecognizers>
+                <VerticalStackLayout Spacing="6">
+                    <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="6" VerticalOptions="Center">
+                        <Label Text="⏱" FontSize="12.5" TextColor="#F43F5E" VerticalOptions="Center" />
+                        <Label x:Name="LblMinimizedTimerTitle" Text="Focus Timer" FontSize="12" FontAttributes="Bold" TextColor="#F8FAFC" VerticalOptions="Center" />
+                        <Border Grid.Column="2" BackgroundColor="#1A2242" Stroke="#334175" StrokeThickness="1" StrokeShape="RoundRectangle 8" Padding="7,2" VerticalOptions="Center">
+                            <Label x:Name="LblMinimizedTimerDigits" Text="25:00" FontSize="11.5" FontAttributes="Bold" FontFamily="monospace" TextColor="#38BDF8" />
+                        </Border>
+                        <Button Grid.Column="3"
+                                Text="▴"
+                                FontSize="13"
+                                WidthRequest="28"
+                                HeightRequest="26"
+                                Padding="0"
+                                CornerRadius="8"
+                                BackgroundColor="#1E2648"
+                                TextColor="#F8FAFC"
+                                Clicked="OnExpandTimerClicked" />
+                    </Grid>
+
+                    <!-- Decreasing Glowing Progress Bar Safely Inset Inside Rounded Pill -->
+                    <Grid HeightRequest="5" HorizontalOptions="Fill" Margin="2,0">
+                        <BoxView Color="#222B4D" CornerRadius="2.5" HorizontalOptions="Fill" />
+                        <BoxView x:Name="MinimizedTimerGlowBar"
+                                 WidthRequest="198"
+                                 HorizontalOptions="Start"
+                                 CornerRadius="2.5">
+                            <BoxView.Background>
+                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                                    <GradientStop Color="#10B981" Offset="0.0" />
+                                    <GradientStop Color="#22D3EE" Offset="0.5" />
+                                    <GradientStop Color="#3B82F6" Offset="1.0" />
+                                </LinearGradientBrush>
+                            </BoxView.Background>
+                        </BoxView>
+                    </Grid>
+                </VerticalStackLayout>
+            </Border>
+        </Grid>
+
+        <!-- ================= 4. EXPANDABLE LEFT NAVIGATION DRAWER (WITH ARCHIVED COURSES) ================= -->
+        <Grid x:Name="LeftDrawerOverlay" IsVisible="False" ColumnDefinitions="Auto,*">
+            <Border x:Name="LeftDrawerPanel"
+                    Grid.Column="0"
+                    WidthRequest="300"
+                    BackgroundColor="#FA0E1225"
+                    Stroke="#252D50"
+                    StrokeThickness="0,0,1,0"
+                    Padding="18">
+                <Grid RowDefinitions="Auto,*,Auto">
+                    <Grid Grid.Row="0" ColumnDefinitions="*,Auto" Margin="0,0,0,16">
+                        <HorizontalStackLayout Spacing="10" VerticalOptions="Center">
+                            <Label Text="🎓" FontSize="20" />
+                            <VerticalStackLayout>
+                                <Label Text="StudyHub Workspace" FontSize="15" FontAttributes="Bold" TextColor="#F8FAFC" />
+                                <Label Text="v3.0 Remastered Mobile &amp; Desktop" FontSize="10.5" TextColor="#8A95B7" />
+                            </VerticalStackLayout>
+                        </HorizontalStackLayout>
+                        <Button Grid.Column="1" Text="✕" FontSize="13" WidthRequest="32" HeightRequest="32" Padding="0" BackgroundColor="#181D38" TextColor="#F8FAFC" CornerRadius="8" Clicked="OnToggleLeftDrawerClicked" />
+                    </Grid>
+
+                    <ScrollView Grid.Row="1">
+                        <VerticalStackLayout Spacing="14">
+                            <Button Text="🏠 Home Study Dashboard"
+                                    FontSize="13"
+                                    FontAttributes="Bold"
+                                    BackgroundColor="#7C5CFF"
+                                    TextColor="White"
+                                    CornerRadius="12"
+                                    Clicked="OnDrawerHomeClicked" />
+
+                            <Label Text="ARCHIVED COURSES" FontSize="10.5" FontAttributes="Bold" TextColor="#8A95B7" Margin="0,8,0,0" />
+                            <VerticalStackLayout x:Name="ArchivedCoursesDrawerList" Spacing="8" />
+                        </VerticalStackLayout>
+                    </ScrollView>
+
+                    <Label Grid.Row="2"
+                           Text="SQLite + JSON Dual Persistence Active ✅"
+                           FontSize="10.5"
+                           TextColor="#10B981"
+                           Margin="0,12,0,0" />
+                </Grid>
+            </Border>
+            <BoxView Grid.Column="1" Color="#88000000">
+                <BoxView.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="OnToggleLeftDrawerClicked" />
+                </BoxView.GestureRecognizers>
+            </BoxView>
+        </Grid>
+
+        <!-- ================= 5. AMBIENT SOUND MIXER DRAWER ================= -->
+        <Grid x:Name="SoundMixerOverlay" IsVisible="False" ColumnDefinitions="*,Auto">
+            <BoxView Grid.Column="0" Color="#66000000">
+                <BoxView.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="OnToggleSoundMixerClicked" />
+                </BoxView.GestureRecognizers>
+            </BoxView>
+            <Border x:Name="SoundMixerPanel"
+                    Grid.Column="1"
+                    WidthRequest="330"
+                    BackgroundColor="#FA11152C"
+                    Stroke="#283056"
+                    StrokeThickness="1,0,0,0"
+                    Padding="14">
+                <Grid RowDefinitions="Auto,Auto,*,Auto" RowSpacing="10">
+                    <!-- Mixer Header -->
+                    <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto">
+                        <Border WidthRequest="34" HeightRequest="34" BackgroundColor="#1D2856" Stroke="#38BDF8" StrokeThickness="1" StrokeShape="RoundRectangle 10" Margin="0,0,8,0">
+                            <Label Text="🎚️" FontSize="16" HorizontalOptions="Center" VerticalOptions="Center" />
+                        </Border>
+                        <VerticalStackLayout Grid.Column="1" VerticalOptions="Center">
+                            <HorizontalStackLayout Spacing="6">
+                                <Label Text="Ambient Sound Mixer" FontSize="13.5" FontAttributes="Bold" TextColor="#F8FAFC" />
+                                <Border BackgroundColor="#7C5CFF" StrokeShape="RoundRectangle 8" Padding="6,1">
+                                    <Label x:Name="LblMixerActiveCount" Text="0 active" FontSize="9.5" FontAttributes="Bold" TextColor="White" />
+                                </Border>
+                            </HorizontalStackLayout>
+                            <Label Text="Seamless studio ambient &amp; white noise" FontSize="10" TextColor="#8A95B7" />
+                        </VerticalStackLayout>
+                        <Button Grid.Column="2" Text="✕" FontSize="12" WidthRequest="30" HeightRequest="30" Padding="0" BackgroundColor="#181D38" TextColor="#F8FAFC" CornerRadius="8" Clicked="OnToggleSoundMixerClicked" />
+                    </Grid>
+
+                    <!-- Master Transport + Presets -->
+                    <Border Grid.Row="1" BackgroundColor="#181D38" Stroke="#283056" StrokeThickness="1" StrokeShape="RoundRectangle 14" Padding="10">
+                        <VerticalStackLayout Spacing="8">
+                            <Grid ColumnDefinitions="Auto,Auto,Auto,*" ColumnSpacing="6" VerticalOptions="Center">
+                                <Button x:Name="BtnMixerPlayPause"
+                                        Text="▶"
+                                        FontSize="13"
+                                        WidthRequest="36"
+                                        HeightRequest="34"
+                                        Padding="0"
+                                        BackgroundColor="#F59E0B"
+                                        TextColor="White"
+                                        CornerRadius="10"
+                                        Clicked="OnMixerMasterPlayPauseClicked" />
+                                <Button Text="⏹"
+                                        FontSize="13"
+                                        WidthRequest="36"
+                                        HeightRequest="34"
+                                        Padding="0"
+                                        BackgroundColor="#222846"
+                                        TextColor="#F8FAFC"
+                                        CornerRadius="10"
+                                        Clicked="OnMixerStopAllClicked" />
+                                <Button x:Name="BtnMixerMute"
+                                        Text="🔊"
+                                        FontSize="13"
+                                        WidthRequest="36"
+                                        HeightRequest="34"
+                                        Padding="0"
+                                        BackgroundColor="#7C5CFF"
+                                        TextColor="White"
+                                        CornerRadius="10"
+                                        Clicked="OnMixerMasterMuteClicked" />
+                                <VerticalStackLayout Grid.Column="3" Spacing="2">
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <Label Text="Master" FontSize="10.5" FontAttributes="Bold" TextColor="#94A3C6" />
+                                        <Label x:Name="LblMasterVolPct" Grid.Column="1" Text="80%" FontSize="10.5" FontAttributes="Bold" TextColor="#A78BFA" />
+                                    </Grid>
+                                    <Slider x:Name="SliderMasterVolume" Minimum="0" Maximum="100" Value="80" MinimumTrackColor="#8B5CF6" MaximumTrackColor="#2C355D" ThumbColor="#C4B5FD" ValueChanged="OnMasterVolumeChanged" />
+                                </VerticalStackLayout>
+                            </Grid>
+
+                            <ScrollView Orientation="Horizontal" HorizontalScrollBarVisibility="Never">
+                                <HorizontalStackLayout Spacing="6">
+                                    <Button Text="🌧️ Rainy Study" FontSize="10.5" BackgroundColor="#222846" TextColor="#F8FAFC" CornerRadius="8" Padding="8,4" Clicked="OnPresetRainyClicked" />
+                                    <Button Text="🔥 Cozy Campfire" FontSize="10.5" BackgroundColor="#222846" TextColor="#F8FAFC" CornerRadius="8" Padding="8,4" Clicked="OnPresetCozyClicked" />
+                                    <Button Text="🌸 Zen Garden" FontSize="10.5" BackgroundColor="#222846" TextColor="#F8FAFC" CornerRadius="8" Padding="8,4" Clicked="OnPresetSanctuaryClicked" />
+                                    <Button Text="🎧 Deep Brown" FontSize="10.5" BackgroundColor="#222846" TextColor="#F8FAFC" CornerRadius="8" Padding="8,4" Clicked="OnPresetBrownClicked" />
+                                </HorizontalStackLayout>
+                            </ScrollView>
+                        </VerticalStackLayout>
+                    </Border>
+
+                    <!-- 9 Built-in + Custom Sound Channels Scroll -->
+                    <ScrollView Grid.Row="2">
+                        <VerticalStackLayout x:Name="MixerChannelsContainer" Spacing="8" />
+                    </ScrollView>
+
+                    <!-- Footer: Import Custom Sounds -->
+                    <Grid Grid.Row="3" ColumnDefinitions="*,Auto" VerticalOptions="Center">
+                        <Label Text="Zero-fade continuous loops" FontSize="10" TextColor="#8A95B7" VerticalOptions="Center" />
+                        <Button Grid.Column="1"
+                                Text="+ Import Sounds"
+                                FontSize="11"
+                                FontAttributes="Bold"
+                                BackgroundColor="#2A225A"
+                                TextColor="#C4B5FD"
+                                CornerRadius="10"
+                                Padding="10,6"
+                                Clicked="OnImportCustomSoundClicked" />
+                    </Grid>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- ================= 7. IN-APP PDF READER OVERLAY (WITH NATIVE DARK MODE) ================= -->
+        <Grid x:Name="PdfReaderOverlay" IsVisible="False" BackgroundColor="#0B0D18" RowDefinitions="56,*">
+            <Border Grid.Row="0" BackgroundColor="#11152C" Stroke="#252D54" StrokeThickness="0,0,0,1" Padding="10,0">
+                <Grid ColumnDefinitions="Auto,*,Auto" VerticalOptions="Center">
+                    <Button Grid.Column="0"
+                            Text="←"
+                            FontSize="14"
+                            FontAttributes="Bold"
+                            WidthRequest="34"
+                            HeightRequest="32"
+                            Padding="0"
+                            BackgroundColor="#181D38"
+                            TextColor="#F8FAFC"
+                            CornerRadius="10"
+                            Margin="0,0,8,0"
+                            Clicked="OnClosePdfReaderClicked" />
+                    <VerticalStackLayout Grid.Column="1" VerticalOptions="Center">
+                        <Label x:Name="LblPdfTitle"
+                               Text="Document.pdf"
+                               FontSize="13"
+                               FontAttributes="Bold"
+                               TextColor="#F8FAFC"
+                               LineBreakMode="TailTruncation" />
+                        <Label x:Name="LblPdfSubject"
+                               Text="StudyHub In-App PDF Reader"
+                               FontSize="10"
+                               LineBreakMode="TailTruncation"
+                               TextColor="#8A95B7" />
+                    </VerticalStackLayout>
+                    <HorizontalStackLayout Grid.Column="2" Spacing="5" VerticalOptions="Center">
+                        <Button x:Name="BtnPdfDarkModeToggle"
+                                Text="🌙 Dark"
+                                FontSize="11"
+                                FontAttributes="Bold"
+                                BackgroundColor="#181D38"
+                                TextColor="#F8FAFC"
+                                BorderColor="#283056"
+                                BorderWidth="1"
+                                CornerRadius="10"
+                                Padding="8,5"
+                                Clicked="OnTogglePdfDarkModeClicked" />
+                        <Button Text="↗"
+                                FontSize="12"
+                                FontAttributes="Bold"
+                                WidthRequest="32"
+                                HeightRequest="32"
+                                Padding="0"
+                                BackgroundColor="#181D38"
+                                TextColor="#F8FAFC"
+                                CornerRadius="10"
+                                Clicked="OnOpenPdfExternalClicked" />
+                        <Button Text="✕"
+                                FontSize="12"
+                                FontAttributes="Bold"
+                                WidthRequest="32"
+                                HeightRequest="32"
+                                Padding="0"
+                                BackgroundColor="#3B182A"
+                                TextColor="#F43F5E"
+                                CornerRadius="10"
+                                Clicked="OnClosePdfReaderClicked" />
+                    </HorizontalStackLayout>
+                </Grid>
+            </Border>
+
+            <!-- Native Rendered PDF Pages Scroll -->
+            <ScrollView Grid.Row="1" x:Name="PdfPagesScroll" Padding="10">
+                <VerticalStackLayout x:Name="PdfPagesStack" Spacing="12" HorizontalOptions="Center" />
+            </ScrollView>
+        </Grid>
+
+        <!-- ================= 8. SETTINGS & APPEARANCE CONTROL CENTER MODAL ================= -->
+        <Grid x:Name="SettingsModalOverlay" IsVisible="False" BackgroundColor="#AA000000" Padding="14">
+            <Border MaximumWidthRequest="560"
+                    MaximumHeightRequest="640"
+                    BackgroundColor="#11152C"
+                    Stroke="#283056"
+                    StrokeThickness="1.5"
+                    StrokeShape="RoundRectangle 22"
+                    Padding="18"
+                    HorizontalOptions="Center"
+                    VerticalOptions="Center">
+                <Grid RowDefinitions="Auto,*,Auto" RowSpacing="12">
+                    <Grid Grid.Row="0" ColumnDefinitions="*,Auto">
+                        <Label Text="⚙️ StudyHub Control Center" FontSize="16" FontAttributes="Bold" TextColor="#F8FAFC" VerticalOptions="Center" />
+                        <Button Grid.Column="1" Text="✕" FontSize="13" WidthRequest="32" HeightRequest="32" Padding="0" BackgroundColor="#181D38" TextColor="#F8FAFC" CornerRadius="8" Clicked="OnCloseSettingsClicked" />
+                    </Grid>
+
+                    <ScrollView Grid.Row="1">
+                        <VerticalStackLayout Spacing="12">
+                            <!-- Surface Themes -->
+                            <Label Text="SURFACE COLOR THEME" FontSize="10.5" FontAttributes="Bold" TextColor="#94A3C6" />
+                            <FlexLayout Wrap="Wrap" JustifyContent="Start">
+                                <Button Text="🌌 Midnight Cyber" FontSize="11" Margin="0,0,6,6" BackgroundColor="#1E2548" TextColor="#F8FAFC" CornerRadius="10" Clicked="OnThemeAuroraClicked" />
+                                <Button Text="🪐 Deep Nebula" FontSize="11" Margin="0,0,6,6" BackgroundColor="#2A1B4E" TextColor="#E9D5FF" CornerRadius="10" Clicked="OnThemeNebulaClicked" />
+                                <Button Text="🧊 Frosted Acrylic" FontSize="11" Margin="0,0,6,6" BackgroundColor="#0F2D3C" TextColor="#A5F3FC" CornerRadius="10" Clicked="OnThemeAcrylicClicked" />
+                                <Button Text="🖤 Obsidian OLED" FontSize="11" Margin="0,0,6,6" BackgroundColor="#090B10" TextColor="#E2E8F0" CornerRadius="10" Clicked="OnThemeObsidianClicked" />
+                            </FlexLayout>
+
+                            <!-- Particle Background Effects -->
+                            <Label Text="PARTICLE BACKGROUND ENGINE" FontSize="10.5" FontAttributes="Bold" TextColor="#94A3C6" />
+                            <FlexLayout Wrap="Wrap" JustifyContent="Start">
+                                <Button Text="🕸️ Network" FontSize="11" Margin="0,0,6,6" BackgroundColor="#181D38" TextColor="#F8FAFC" CornerRadius="8" Clicked="OnParticleNetworkClicked" />
+                                <Button Text="✨ Fading Stars" FontSize="11" Margin="0,0,6,6" BackgroundColor="#181D38" TextColor="#F8FAFC" CornerRadius="8" Clicked="OnParticleStarsClicked" />
+                                <Button Text="❄️ Snow" FontSize="11" Margin="0,0,6,6" BackgroundColor="#181D38" TextColor="#F8FAFC" CornerRadius="8" Clicked="OnParticleSnowClicked" />
+                                <Button Text="💻 Matrix" FontSize="11" Margin="0,0,6,6" BackgroundColor="#181D38" TextColor="#F8FAFC" CornerRadius="8" Clicked="OnParticleMatrixClicked" />
+                                <Button Text="🐝 Fireflies" FontSize="11" Margin="0,0,6,6" BackgroundColor="#181D38" TextColor="#F8FAFC" CornerRadius="8" Clicked="OnParticleFirefliesClicked" />
+                                <Button Text="🌸 Sakura" FontSize="11" Margin="0,0,6,6" BackgroundColor="#181D38" TextColor="#F8FAFC" CornerRadius="8" Clicked="OnParticleSakuraClicked" />
+                                <Button Text="🔥 Embers" FontSize="11" Margin="0,0,6,6" BackgroundColor="#181D38" TextColor="#F8FAFC" CornerRadius="8" Clicked="OnParticleEmbersClicked" />
+                                <Button Text="🫧 Bubbles" FontSize="11" Margin="0,0,6,6" BackgroundColor="#181D38" TextColor="#F8FAFC" CornerRadius="8" Clicked="OnParticleBubblesClicked" />
+                                <Button Text="🚫 Off" FontSize="11" Margin="0,0,6,6" BackgroundColor="#181D38" TextColor="#94A3C6" CornerRadius="8" Clicked="OnParticleNoneClicked" />
+                            </FlexLayout>
+
+                            <!-- Zen Mode World Quick Selector -->
+                            <Label Text="ZEN FOCUS WORLD" FontSize="10.5" FontAttributes="Bold" TextColor="#94A3C6" />
+                            <Button x:Name="BtnSettingsZenScene"
+                                    Text="🧘 Choose Zen World (17 Animated Scenes)"
+                                    FontSize="12"
+                                    FontAttributes="Bold"
+                                    BackgroundColor="#182042"
+                                    TextColor="#FACC15"
+                                    BorderColor="#334175"
+                                    BorderWidth="1"
+                                    CornerRadius="10"
+                                    Clicked="OnOpenZenSceneModalClicked" />
+
+                            <!-- Backup & Restore -->
+                            <Label Text="DATA BACKUP &amp; GITHUB UPDATER" FontSize="10.5" FontAttributes="Bold" TextColor="#94A3C6" />
+                            <FlexLayout Wrap="Wrap" JustifyContent="Start">
+                                <Button Text="📤 Export Backup" FontSize="11" Margin="0,0,8,6" BackgroundColor="#1E2548" TextColor="#F8FAFC" CornerRadius="10" Clicked="OnExportBackupClicked" />
+                                <Button Text="📥 Import Backup" FontSize="11" Margin="0,0,0,6" BackgroundColor="#1E2548" TextColor="#F8FAFC" CornerRadius="10" Clicked="OnImportBackupClicked" />
+                            </FlexLayout>
+
+                            <Entry x:Name="EntryGithubRepoUrl"
+                                   Placeholder="https://github.com/owner/repo"
+                                   PlaceholderColor="#687296"
+                                   TextColor="#F8FAFC"
+                                   BackgroundColor="#0D1124"
+                                   FontSize="12" />
+                            <Button Text="🔄 Check GitHub for Updates"
+                                    FontSize="12"
+                                    FontAttributes="Bold"
+                                    BackgroundColor="#7C5CFF"
+                                    TextColor="White"
+                                    CornerRadius="10"
+                                    Clicked="OnCheckGithubUpdateClicked" />
+                        </VerticalStackLayout>
+                    </ScrollView>
+
+                    <Button Grid.Row="2"
+                            Text="Done"
+                            FontSize="13"
+                            FontAttributes="Bold"
+                            BackgroundColor="#7C5CFF"
+                            TextColor="White"
+                            CornerRadius="12"
+                            Clicked="OnCloseSettingsClicked" />
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- ================= 9. ZEN WORLD SELECTOR MODAL (NATIVE MOBILE-FRIENDLY PICKER) ================= -->
+        <Grid x:Name="ZenScenePickerModal" IsVisible="False" BackgroundColor="#AA000000" Padding="14">
+            <BoxView Color="Transparent">
+                <BoxView.GestureRecognizers>
+                    <TapGestureRecognizer Tapped="OnCloseZenSceneModalClicked" />
+                </BoxView.GestureRecognizers>
+            </BoxView>
+            <Border MaximumWidthRequest="480"
+                    MaximumHeightRequest="620"
+                    BackgroundColor="#FA11152C"
+                    Stroke="#334175"
+                    StrokeThickness="1.5"
+                    StrokeShape="RoundRectangle 22"
+                    Padding="16"
+                    HorizontalOptions="Center"
+                    VerticalOptions="Center">
+                <Grid RowDefinitions="Auto,*,Auto" RowSpacing="12">
+                    <Grid Grid.Row="0" ColumnDefinitions="*,Auto" VerticalOptions="Center">
+                        <VerticalStackLayout Spacing="2">
+                            <Label Text="🧘 Select Zen World" FontSize="16" FontAttributes="Bold" TextColor="#F8FAFC" />
+                            <Label Text="17 animated ambient scenes + minimalist mode" FontSize="11" TextColor="#8A95B7" />
+                        </VerticalStackLayout>
+                        <Button Grid.Column="1"
+                                Text="✕"
+                                FontSize="13"
+                                WidthRequest="32"
+                                HeightRequest="32"
+                                Padding="0"
+                                BackgroundColor="#181D38"
+                                TextColor="#F8FAFC"
+                                CornerRadius="8"
+                                Clicked="OnCloseZenSceneModalClicked" />
+                    </Grid>
+
+                    <ScrollView Grid.Row="1">
+                        <VerticalStackLayout x:Name="ZenScenesListContainer" Spacing="8" />
+                    </ScrollView>
+
+                    <Button Grid.Row="2"
+                            Text="Close"
+                            FontSize="12.5"
+                            FontAttributes="Bold"
+                            BackgroundColor="#1E2548"
+                            TextColor="#F8FAFC"
+                            CornerRadius="12"
+                            Clicked="OnCloseZenSceneModalClicked" />
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- ================= 10. TOAST NOTIFICATION BANNER ================= -->
+        <Border x:Name="ToastBanner"
+                IsVisible="False"
+                BackgroundColor="#F0181F3E"
+                Stroke="#7C5CFF"
+                StrokeThickness="1.5"
+                StrokeShape="RoundRectangle 14"
+                Padding="16,10"
+                HorizontalOptions="Center"
+                VerticalOptions="End"
+                Margin="16,0,16,24"
+                InputTransparent="True">
+            <Label x:Name="LblToastText"
+                   Text="Action completed!"
+                   FontSize="12"
+                   FontAttributes="Bold"
+                   TextColor="#F8FAFC" />
+        </Border>
+    </Grid>
+</ContentPage>

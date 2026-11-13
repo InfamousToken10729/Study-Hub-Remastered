@@ -1,6 +1,12 @@
 # Study Hub v3.0 — Remastered Native Edition
 
-**Study Hub Remastered** is an all-in-one desktop study workspace built natively in **C# / .NET 9 WPF** for Windows (x64). Rebuilt from the ground up to replace the original single-file HTML/JavaScript (`v2`) edition, v3.0 delivers hardware-composited VSync animations, persistent SQLite + JSON storage with daily backups, a multi-channel gapless ambient audio engine, an embedded Edge WebView2 PDF reader, native PDF conversion, and a distraction-free **Zen Study Mode** with 17 animated worlds.
+**Study Hub Remastered** is an all-in-one desktop and mobile study workspace built natively in **C# / .NET 9** targeting both **Windows (WPF, x64)** and **Android (.NET MAUI, ARM64/x64)**. Rebuilt from the ground up to replace the original single-file HTML/JavaScript (`v2`) edition, v3.0 delivers hardware-composited 60 FPS animations, persistent SQLite + JSON storage with daily backups, a multi-channel gapless ambient audio engine, native PDF reading & conversion, touch whiteboard, and a distraction-free **Zen Study Mode** with 17 animated worlds.
+
+---
+
+## Supported Platforms
+- **Windows Desktop (`net9.0-windows`)**: Native WPF x64 single-file executable (`StudyHub.exe`) with DirectX hardware composition, embedded Edge WebView2 PDF viewer, and NAudio multi-channel sound mixer.
+- **Android Mobile & Tablet (`net9.0-android`)**: Native `.NET MAUI` package (`StudyHub.apk`, API 24-35+) featuring adaptive responsive portrait/landscape/tablet layouts, Android `ICanvas` 60 FPS backdrop rendering, adaptive launcher icons, native media audio, and touch whiteboard.
 
 ---
 
@@ -80,19 +86,26 @@ Study Hub v3.0 replaces browser-hosted HTML/CSS/Canvas execution with a compiled
 
 ```text
 Study Hub Remastered/
-├── App.xaml / App.xaml.cs          # WPF application entry & global exception logging
-├── MainWindow.xaml / .xaml.cs      # Core shell, workspace views, VSync particle loop, Pomodoro, & Zen HUD
+├── App.xaml / App.xaml.cs          # WPF application entry & global exception logging (Windows)
+├── MainWindow.xaml / .xaml.cs      # WPF core shell, workspace views, VSync particle loop, Pomodoro, & Zen HUD
+├── MauiApp.xaml / .xaml.cs         # .NET MAUI application entry & resources (Android)
+├── MauiMainPage.xaml / .xaml.cs    # Responsive mobile/tablet shell, Zen HUD, drawer, timer & modals
+├── MauiProgram.cs                  # MAUI bootstrap & SQLite initialization
+├── Platforms/
+│   └── Android/                    # AndroidManifest.xml, MainActivity.cs, and adaptive launcher icons
 ├── Controls/
-│   └── ZenSceneCanvas.cs           # High-FPS native DrawingContext renderer for all 17 Zen worlds
+│   ├── ZenSceneCanvas.cs           # High-FPS native WPF DrawingContext renderer for all 17 Zen worlds
+│   ├── MauiBackdropDrawable.cs     # 60 FPS MAUI ICanvas renderer for themes, particles & 17 Zen scenes
+│   └── MauiWhiteboardDrawable.cs   # MAUI touch whiteboard graphics renderer
 ├── Models/
 │   └── AppStateModels.cs           # App state, course/file/task/sound models, & v2-compatible JSON normalization
 ├── Services/
-│   ├── AudioStudioService.cs       # NAudio gapless multi-track mixer & procedural ambient buffer synthesizer
+│   ├── AudioStudioService.cs       # Dual-target gapless mixer: NAudio (Windows) + MediaPlayer (Android)
 │   ├── StorageService.cs           # SQLite + JSON state persistence, portable paths, & daily auto-backups
 │   ├── PdfConverterService.cs      # Native Office/Image/Text to PDF converter
 │   └── GitHubUpdateService.cs      # GitHub API release checker & self-updater
-├── StudyHub.csproj                 # .NET 9 WPF project (Microsoft.Data.Sqlite, WebView2, NAudio)
-├── build_release.bat               # One-click standalone win-x64 single-file EXE builder
+├── StudyHub.csproj                 # Dual-target .NET 9 project (net9.0-windows + net9.0-android)
+├── build_release.bat               # One-click dual platform builder for StudyHub.exe and StudyHub.apk
 └── version.json                    # App version & release metadata
 ```
 

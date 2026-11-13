@@ -9,7 +9,9 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Data.Sqlite;
+#if WINDOWS
 using Microsoft.Win32;
+#endif
 using StudyHub.Models;
 
 namespace StudyHub.Services
@@ -59,6 +61,11 @@ namespace StudyHub.Services
 
         private static string ResolveWritableDataDirectory()
         {
+#if ANDROID
+            string androidDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "StudyHub");
+            Directory.CreateDirectory(androidDir);
+            return androidDir;
+#else
             string exeDir = AppDomain.CurrentDomain.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
 
             // If running from bin\Release\net9.0-windows... or dist\, check if parent workspace has study_hub.db
@@ -105,6 +112,7 @@ namespace StudyHub.Services
                 Directory.CreateDirectory(appData);
                 return appData;
             }
+#endif
         }
 
         private void EnsureDatabaseTables()
@@ -632,6 +640,7 @@ namespace StudyHub.Services
 
         public bool GetWindowsStartupStatus()
         {
+#if WINDOWS
             try
             {
                 using var key = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run", false);
@@ -642,10 +651,14 @@ namespace StudyHub.Services
             {
                 return false;
             }
+#else
+            return false;
+#endif
         }
 
         public bool SetWindowsStartup(bool enabled)
         {
+#if WINDOWS
             try
             {
                 using var key = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run", true);
@@ -666,6 +679,9 @@ namespace StudyHub.Services
             {
                 return false;
             }
+#else
+            return false;
+#endif
         }
     }
 }

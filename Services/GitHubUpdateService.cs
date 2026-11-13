@@ -382,6 +382,10 @@ namespace StudyHub.Services
                     }
                 }
 
+#if ANDROID
+                progress?.Report((100, $"Downloaded update package to {downloadFile}"));
+                return (true, "");
+#else
                 int currentPid = Environment.ProcessId;
                 string currentExe = Process.GetCurrentProcess().MainModule?.FileName
                     ?? Path.Combine(_baseDir, "StudyHub.exe");
@@ -482,6 +486,7 @@ del ""%~f0""
                 };
                 Process.Start(psi);
                 return (true, "");
+#endif
             }
             catch (Exception ex)
             {

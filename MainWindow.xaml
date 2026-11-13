@@ -1481,7 +1481,7 @@
                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                 <Viewbox Width="14" Height="14" Margin="0,0,6,0" VerticalAlignment="Center">
                                     <Grid Width="24" Height="24">
-                                        <Canvas x:Name="GridPdfSunIcon" Width="24" Height="24" Visibility="Visible">
+                                        <Canvas x:Name="GridPdfSunIcon" Width="24" Height="24" Visibility="Collapsed">
                                             <Line X1="12" Y1="4.7" X2="12" Y2="1.7" Stroke="#FDE047" StrokeThickness="2.0" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
                                             <Line X1="12" Y1="19.3" X2="12" Y2="22.3" Stroke="#FBBF24" StrokeThickness="2.0" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
                                             <Line X1="4.7" Y1="12" X2="1.7" Y2="12" Stroke="#FDE047" StrokeThickness="2.0" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
@@ -1500,7 +1500,7 @@
                                                 </Ellipse.Fill>
                                             </Ellipse>
                                         </Canvas>
-                                        <Canvas x:Name="GridPdfMoonIcon" Width="24" Height="24" Visibility="Collapsed">
+                                        <Canvas x:Name="GridPdfMoonIcon" Width="24" Height="24" Visibility="Visible">
                                             <Path Fill="#818CF8">
                                                 <Path.Data>
                                                     <CombinedGeometry GeometryCombineMode="Exclude">
@@ -1517,7 +1517,7 @@
                                         </Canvas>
                                     </Grid>
                                 </Viewbox>
-                                <TextBlock x:Name="TxtPdfDarkLabel" Text="Light Mode" FontSize="12" FontWeight="Bold" VerticalAlignment="Center"/>
+                                <TextBlock x:Name="TxtPdfDarkLabel" Text="Dark Mode" FontSize="12" FontWeight="Bold" VerticalAlignment="Center"/>
                             </StackPanel>
                         </Button>
 

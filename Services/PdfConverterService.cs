@@ -6,9 +6,11 @@ using System.IO.Compression;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
+#if WINDOWS
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+#endif
 using System.Xml.Linq;
 
 namespace StudyHub.Services
@@ -113,6 +115,7 @@ namespace StudyHub.Services
             }
         }
 
+#if WINDOWS
         private static void ConvertImageToPdfNative(string imagePath, string outputPdfPath)
         {
             var bmp = new BitmapImage();
@@ -267,6 +270,128 @@ namespace StudyHub.Services
 
             WriteJpegPagesToPdf(pages, outputPdfPath);
         }
+#elif ANDROID
+        private static void ConvertImageToPdfNative(string imagePath, string outputPdfPath)
+        {
+            using var srcBmp = Android.Graphics.BitmapFactory.DecodeFile(imagePath);
+            if (srcBmp == null) throw new InvalidOperationException("Failed to decode image.");
+            int w = Math.Max(1, srcBmp.Width);
+            int h = Math.Max(1, srcBmp.Height);
+
+            using var outBmp = Android.Graphics.Bitmap.CreateBitmap(w, h, Android.Graphics.Bitmap.Config.Argb8888!);
+            using (var canvas = new Android.Graphics.Canvas(outBmp))
+            {
+                canvas.DrawColor(Android.Graphics.Color.White);
+                canvas.DrawBitmap(srcBmp, 0, 0, null);
+            }
+
+            using var ms = new MemoryStream();
+            outBmp.Compress(Android.Graphics.Bitmap.CompressFormat.Jpeg!, 92, ms);
+            byte[] jpegBytes = ms.ToArray();
+
+            bool landscape = w > h * 1.15;
+            double pageW = landscape ? 842.0 : 595.0;
+            double pageH = landscape ? 595.0 : 842.0;
+            double margin = 24.0;
+            double availW = pageW - 2 * margin;
+            double availH = pageH - 2 * margin;
+            double scale = Math.Min(availW / w, availH / h);
+            double drawW = w * scale;
+            double drawH = h * scale;
+            double x0 = (pageW - drawW) / 2.0;
+            double y0 = (pageH - drawH) / 2.0;
+
+            WriteJpegPagesToPdf(new List<(byte[] jpeg, int pxW, int pxH, double pageW, double pageH, double x, double y, double w, double h)>
+            {
+                (jpegBytes, w, h, pageW, pageH, x0, y0, drawW, drawH)
+            }, outputPdfPath);
+        }
+
+        private static void RenderLinesToPaginatedPdf(string title, List<string> paragraphs, string outputPdfPath)
+        {
+            if (paragraphs == null || paragraphs.Count == 0)
+                paragraphs = new List<string> { "(Empty document)" };
+
+            const int pagePxW = 1240;
+            const int pagePxH = 1754;
+            const float margin = 72f;
+
+            var pages = new List<(byte[] jpeg, int pxW, int pxH, double pageW, double pageH, double x, double y, double w, double h)>();
+            int paraIdx = 0;
+            int pageNum = 1;
+
+            using var paintTitle = new Android.Graphics.Paint(Android.Graphics.PaintFlags.AntiAlias)
+            {
+                Color = new Android.Graphics.Color(15, 23, 42),
+                TextSize = 34f,
+                FakeBoldText = true
+            };
+            using var paintHeading = new Android.Graphics.Paint(Android.Graphics.PaintFlags.AntiAlias)
+            {
+                Color = new Android.Graphics.Color(79, 70, 229),
+                TextSize = 24f,
+                FakeBoldText = true
+            };
+            using var paintBody = new Android.Graphics.Paint(Android.Graphics.PaintFlags.AntiAlias)
+            {
+                Color = new Android.Graphics.Color(30, 41, 59),
+                TextSize = 19f
+            };
+            using var paintLine = new Android.Graphics.Paint(Android.Graphics.PaintFlags.AntiAlias)
+            {
+                Color = new Android.Graphics.Color(203, 213, 225),
+                StrokeWidth = 2f
+            };
+
+            while (paraIdx < paragraphs.Count || pageNum == 1)
+            {
+                using var bmp = Android.Graphics.Bitmap.CreateBitmap(pagePxW, pagePxH, Android.Graphics.Bitmap.Config.Argb8888!);
+                using (var canvas = new Android.Graphics.Canvas(bmp))
+                {
+                    canvas.DrawColor(Android.Graphics.Color.White);
+                    float y = margin + 32f;
+                    if (pageNum == 1)
+                    {
+                        canvas.DrawText(title, margin, y, paintTitle);
+                        y += 24f;
+                        canvas.DrawLine(margin, y, pagePxW - margin, y, paintLine);
+                        y += 36f;
+                    }
+
+                    while (paraIdx < paragraphs.Count)
+                    {
+                        string rawLine = paragraphs[paraIdx] ?? "";
+                        bool isHeader = rawLine.StartsWith("## ") || rawLine.StartsWith("# ");
+                        string cleanText = isHeader ? rawLine.TrimStart('#', ' ') : rawLine;
+                        if (string.IsNullOrWhiteSpace(cleanText))
+                        {
+                            y += 18f;
+                            paraIdx++;
+                            if (y > pagePxH - margin - 50f) break;
+                            continue;
+                        }
+
+                        var p = isHeader ? paintHeading : paintBody;
+                        float stepY = isHeader ? 34f : 26f;
+                        if (y + stepY > pagePxH - margin - 40f && y > margin + 80f)
+                            break;
+
+                        canvas.DrawText(cleanText.Length > 95 ? cleanText.Substring(0, 95) : cleanText, margin, y, p);
+                        y += stepY;
+                        paraIdx++;
+                    }
+                }
+
+                using var ms = new MemoryStream();
+                bmp.Compress(Android.Graphics.Bitmap.CompressFormat.Jpeg!, 90, ms);
+                pages.Add((ms.ToArray(), pagePxW, pagePxH, 595.0, 842.0, 0, 0, 595.0, 842.0));
+                pageNum++;
+                if (pageNum > 120) break;
+            }
+
+            WriteJpegPagesToPdf(pages, outputPdfPath);
+        }
+#endif
 
         private static List<string> ExtractDocxLines(string docxPath)
         {
@@ -385,6 +510,7 @@ namespace StudyHub.Services
             return lines;
         }
 
+#if WINDOWS
         private static byte[] EncodeJpeg(BitmapSource bmp, int quality)
         {
             var enc = new JpegBitmapEncoder { QualityLevel = quality };
@@ -393,6 +519,7 @@ namespace StudyHub.Services
             enc.Save(ms);
             return ms.ToArray();
         }
+#endif
 
         private static void WriteJpegPagesToPdf(
             List<(byte[] jpeg, int pxW, int pxH, double pageW, double pageH, double x, double y, double w, double h)> pages,

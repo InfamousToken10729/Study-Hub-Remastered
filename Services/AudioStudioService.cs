@@ -2,9 +2,11 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+#if WINDOWS
 using System.Media;
 using NAudio.Wave;
 using NAudio.Wave.SampleProviders;
+#endif
 using StudyHub.Models;
 
 namespace StudyHub.Services
@@ -21,9 +23,14 @@ namespace StudyHub.Services
         public bool IsCustom { get; set; } = false;
         public string? CustomFilePath { get; set; }
 
+#if WINDOWS
         internal ChannelLoopSampleProvider? LoopProvider { get; set; }
+#elif ANDROID
+        internal Android.Media.MediaPlayer? AndroidPlayer { get; set; }
+#endif
     }
 
+#if WINDOWS
     /// <summary>
     /// Thread-safe gapless sample provider for infinite looping with smooth gain ramping.
     /// Supports both pre-decoded memory buffers (built-in sounds) and streaming audio files (custom MP3/WAV).
@@ -153,6 +160,7 @@ namespace StudyHub.Services
             }
         }
     }
+#endif
 
     public class AudioStudioService : IDisposable
     {
@@ -165,9 +173,11 @@ namespace StudyHub.Services
         public List<SoundChannel> Channels { get; } = new();
 
         private readonly string _soundsDir;
+#if WINDOWS
         private readonly WaveFormat _mixerFormat = WaveFormat.CreateIeeeFloatWaveFormat(44100, 2);
         private readonly MixingSampleProvider _mixer;
         private WaveOutEvent? _waveOut;
+#endif
         private readonly object _audioLock = new();
 
         public AudioStudioService(string soundsDir)
@@ -175,7 +185,9 @@ namespace StudyHub.Services
             _soundsDir = soundsDir;
             Directory.CreateDirectory(_soundsDir);
 
+#if WINDOWS
             _mixer = new MixingSampleProvider(_mixerFormat) { ReadFully = true };
+#endif
 
             // Exact 9 built-in channels from Study Hub design specifications
             Channels.Add(new SoundChannel
@@ -248,6 +260,7 @@ namespace StudyHub.Services
 
         private void EnsureWaveOutDevice()
         {
+#if WINDOWS
             lock (_audioLock)
             {
                 try
@@ -272,6 +285,7 @@ namespace StudyHub.Services
                     // Graceful fallback if no audio hardware is present
                 }
             }
+#endif
         }
 
         private void InitializeBuiltInAudioFiles()
@@ -305,6 +319,7 @@ namespace StudyHub.Services
 
                 lock (_audioLock)
                 {
+#if WINDOWS
                     // If channel already had a provider attached, remove and dispose it cleanly
                     if (ch.LoopProvider != null)
                     {
@@ -365,6 +380,27 @@ namespace StudyHub.Services
                     ch.LoopProvider = streamingLoopProvider;
                     ch.CustomFilePath = filePath;
                     _mixer.AddMixerInput(streamingLoopProvider);
+#elif ANDROID
+                    if (ch.AndroidPlayer != null)
+                    {
+                        try
+                        {
+                            ch.AndroidPlayer.Stop();
+                            ch.AndroidPlayer.Release();
+                        }
+                        catch { }
+                        ch.AndroidPlayer.Dispose();
+                        ch.AndroidPlayer = null;
+                    }
+
+                    var mp = new Android.Media.MediaPlayer();
+                    mp.SetDataSource(filePath);
+                    mp.Looping = true;
+                    mp.Prepare();
+                    mp.SetVolume(0f, 0f);
+                    ch.AndroidPlayer = mp;
+                    ch.CustomFilePath = filePath;
+#endif
                 }
             }
             catch
@@ -404,7 +440,15 @@ namespace StudyHub.Services
 
                         Channels.Add(newCh);
                     }
-                    else if (existing.LoopProvider == null && File.Exists(fullPath))
+                    else if (
+#if WINDOWS
+                        existing.LoopProvider == null
+#elif ANDROID
+                        existing.AndroidPlayer == null
+#else
+                        false
+#endif
+                        && File.Exists(fullPath))
                     {
                         SetupChannelPlayer(existing, fullPath);
                     }
@@ -653,9 +697,31 @@ namespace StudyHub.Services
 
             foreach (var ch in Channels)
             {
-                if (ch.LoopProvider == null) continue;
                 double eff = ch.IsMuted ? 0 : ((ch.Volume / 100.0) * masterScale);
+#if WINDOWS
+                if (ch.LoopProvider == null) continue;
                 ch.LoopProvider.SetTargetGain((float)eff);
+#elif ANDROID
+                if (ch.AndroidPlayer == null && !string.IsNullOrEmpty(ch.CustomFilePath) && File.Exists(ch.CustomFilePath) && eff > 0.0001)
+                {
+                    SetupChannelPlayer(ch, ch.CustomFilePath);
+                }
+                if (ch.AndroidPlayer == null) continue;
+                try
+                {
+                    float g = (float)Math.Clamp(eff, 0.0, 1.0);
+                    ch.AndroidPlayer.SetVolume(g, g);
+                    if (g > 0.001f)
+                    {
+                        if (!ch.AndroidPlayer.IsPlaying) ch.AndroidPlayer.Start();
+                    }
+                    else
+                    {
+                        if (ch.AndroidPlayer.IsPlaying) ch.AndroidPlayer.Pause();
+                    }
+                }
+                catch { }
+#endif
             }
         }
 
@@ -663,7 +729,12 @@ namespace StudyHub.Services
         {
             try
             {
+#if WINDOWS
                 SystemSounds.Asterisk.Play();
+#elif ANDROID
+                using var tg = new Android.Media.ToneGenerator(Android.Media.Stream.Notification, 85);
+                tg.StartTone(Android.Media.Tone.PropBeep2, 240);
+#endif
             }
             catch { }
         }
@@ -675,12 +746,21 @@ namespace StudyHub.Services
 
             lock (_audioLock)
             {
+#if WINDOWS
                 if (ch.LoopProvider != null)
                 {
                     _mixer.RemoveMixerInput(ch.LoopProvider);
                     ch.LoopProvider.DisposeStream();
                     ch.LoopProvider = null;
                 }
+#elif ANDROID
+                if (ch.AndroidPlayer != null)
+                {
+                    try { ch.AndroidPlayer.Stop(); ch.AndroidPlayer.Release(); } catch { }
+                    ch.AndroidPlayer.Dispose();
+                    ch.AndroidPlayer = null;
+                }
+#endif
                 Channels.Remove(ch);
             }
             PlaybackStateChanged?.Invoke();
@@ -692,6 +772,7 @@ namespace StudyHub.Services
             {
                 try
                 {
+#if WINDOWS
                     _waveOut?.Stop();
                     _waveOut?.Dispose();
                     _waveOut = null;
@@ -699,6 +780,17 @@ namespace StudyHub.Services
                     {
                         ch.LoopProvider?.DisposeStream();
                     }
+#elif ANDROID
+                    foreach (var ch in Channels)
+                    {
+                        if (ch.AndroidPlayer != null)
+                        {
+                            try { ch.AndroidPlayer.Stop(); ch.AndroidPlayer.Release(); } catch { }
+                            ch.AndroidPlayer.Dispose();
+                            ch.AndroidPlayer = null;
+                        }
+                    }
+#endif
                 }
                 catch { }
             }

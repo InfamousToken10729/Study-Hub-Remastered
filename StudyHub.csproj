@@ -1,28 +1,55 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <OutputType>WinExe</OutputType>
-    <TargetFramework>net9.0-windows</TargetFramework>
+    <TargetFrameworks>net9.0-windows;net9.0-android</TargetFrameworks>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <UseWPF>true</UseWPF>
     <AssemblyName>StudyHub</AssemblyName>
     <RootNamespace>StudyHub</RootNamespace>
     <Version>3.0.0</Version>
-    <ApplicationIcon>app_icon.ico</ApplicationIcon>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <NoWarn>CS8618;CS8625;CS8600;CS8601;CS8602;CS8603;CS8604;CA1416</NoWarn>
+    <NoWarn>CS8618;CS8625;CS8600;CS8601;CS8602;CS8603;CS8604;CA1416;XA0119;XA4218</NoWarn>
   </PropertyGroup>
 
-  <ItemGroup>
+  <!-- ================= WINDOWS DESKTOP TARGET (WPF .EXE) ================= -->
+  <PropertyGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">
+    <OutputType>WinExe</OutputType>
+    <UseWPF>true</UseWPF>
+    <ApplicationIcon>app_icon.ico</ApplicationIcon>
+    <DefineConstants>$(DefineConstants);WINDOWS</DefineConstants>
+    <DefaultItemExcludes>$(DefaultItemExcludes);Platforms\**;MauiProgram.cs;MauiApp.xaml;MauiApp.xaml.cs;MauiMainPage.xaml;MauiMainPage.xaml.cs;Controls\MauiBackdropDrawable.cs;Controls\MauiWhiteboardDrawable.cs;publish_win\**;publish_android\**;test\**</DefaultItemExcludes>
+  </PropertyGroup>
+
+  <ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">
     <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.14" />
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4314.35" />
     <PackageReference Include="NAudio" Version="2.2.1" />
-  </ItemGroup>
-
-  <ItemGroup>
     <Content Include="app_icon.ico" CopyToOutputDirectory="PreserveNewest" Condition="Exists('app_icon.ico')" />
     <Content Include="version.json" CopyToOutputDirectory="PreserveNewest" Condition="Exists('version.json')" />
+  </ItemGroup>
+
+  <!-- ================= ANDROID MOBILE TARGET (.NET MAUI .APK) ================= -->
+  <PropertyGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
+    <OutputType>Exe</OutputType>
+    <UseMaui>true</UseMaui>
+    <SingleProject>true</SingleProject>
+    <SkipValidateMauiImplicitPackageReferences>true</SkipValidateMauiImplicitPackageReferences>
+    <ApplicationTitle>Study Hub</ApplicationTitle>
+    <ApplicationId>com.studyhub.remastered</ApplicationId>
+    <ApplicationDisplayVersion>3.0.0</ApplicationDisplayVersion>
+    <ApplicationVersion>300</ApplicationVersion>
+    <SupportedOSPlatformVersion>24.0</SupportedOSPlatformVersion>
+    <AndroidPackageFormat>apk</AndroidPackageFormat>
+    <AndroidUseAapt2>true</AndroidUseAapt2>
+    <EmbedAssembliesIntoApk>true</EmbedAssembliesIntoApk>
+    <DefineConstants>$(DefineConstants);ANDROID;MAUI_ANDROID</DefineConstants>
+    <DefaultItemExcludes>$(DefaultItemExcludes);App.xaml;App.xaml.cs;MainWindow.xaml;MainWindow.xaml.cs;Controls\ZenSceneCanvas.cs;publish_win\**;publish_android\**;test\**</DefaultItemExcludes>
+  </PropertyGroup>
+
+  <ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">
+    <PackageReference Include="Microsoft.Maui.Controls" Version="9.0.111" />
+    <PackageReference Include="Microsoft.Data.Sqlite.Core" Version="9.0.0" />
+    <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="2.1.10" />
   </ItemGroup>
 
 </Project>
