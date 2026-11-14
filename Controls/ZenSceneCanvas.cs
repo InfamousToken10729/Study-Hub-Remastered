@@ -152,16 +152,27 @@ namespace StudyHub.Controls
             (Color.FromArgb(72, 251, 146, 60), 0.0), (Color.FromArgb(0, 251, 146, 60), 1.0));
         private static readonly Pen ObsMorningBirdPen = Freeze(new Pen(Freeze(new SolidColorBrush(Color.FromRgb(51, 65, 85))), 1.5));
         private static readonly Brush ObsTelescopeMetalBrush = Freeze(new SolidColorBrush(Color.FromRgb(148, 163, 184)));
-        private static readonly Pen ObsTelescopeBarrelPen = Freeze(new Pen(Freeze(new SolidColorBrush(Color.FromRgb(226, 232, 240))), 6.0)
+        private static readonly Brush ObsTelescopeLensBrush = Freeze(new SolidColorBrush(Color.FromArgb(200, 125, 211, 252)));
+        private static readonly Pen ObsTelescopeBarrelPen = Freeze(new Pen(Freeze(new SolidColorBrush(Color.FromRgb(226, 232, 240))), 8.5)
         { StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Flat });
-        private static readonly Pen ObsSunsetTelescopePen = Freeze(new Pen(Freeze(new SolidColorBrush(Color.FromRgb(45, 20, 36))), 6.5)
+        private static readonly Pen ObsTelescopeDewPen = Freeze(new Pen(Freeze(new SolidColorBrush(Color.FromRgb(148, 163, 184))), 6.0)
+        { StartLineCap = PenLineCap.Flat, EndLineCap = PenLineCap.Flat });
+        private static readonly Pen ObsSunsetTelescopePen = Freeze(new Pen(Freeze(new SolidColorBrush(Color.FromRgb(58, 30, 52))), 8.5)
         { StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Flat });
-        private static readonly Pen ObsNightTelescopePen = Freeze(new Pen(Freeze(new SolidColorBrush(Color.FromRgb(100, 116, 139))), 6.5)
+        private static readonly Pen ObsSunsetDewPen = Freeze(new Pen(Freeze(new SolidColorBrush(Color.FromRgb(94, 52, 74))), 6.0)
+        { StartLineCap = PenLineCap.Flat, EndLineCap = PenLineCap.Flat });
+        private static readonly Pen ObsNightTelescopePen = Freeze(new Pen(Freeze(new SolidColorBrush(Color.FromRgb(100, 116, 139))), 8.5)
         { StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Flat });
-        private static readonly ImageSource ObsSunGlow = BuildSoftOrbSprite(160, 160,
-            (Color.FromArgb(245, 254, 240, 138), 0.0), (Color.FromArgb(115, 253, 186, 116), 0.35), (Color.FromArgb(0, 251, 146, 60), 1.0));
-        private static readonly ImageSource ObsSunsetGlow = BuildSoftOrbSprite(180, 180,
-            (Color.FromArgb(230, 253, 186, 116), 0.0), (Color.FromArgb(120, 244, 63, 94), 0.45), (Color.FromArgb(0, 88, 28, 135), 1.0));
+        private static readonly Pen ObsNightDewPen = Freeze(new Pen(Freeze(new SolidColorBrush(Color.FromRgb(71, 85, 105))), 6.0)
+        { StartLineCap = PenLineCap.Flat, EndLineCap = PenLineCap.Flat });
+        private static readonly ImageSource ObsSunGlow = BuildSoftOrbSprite(180, 180,
+            (Color.FromArgb(245, 254, 240, 138), 0.0), (Color.FromArgb(120, 253, 186, 116), 0.35), (Color.FromArgb(0, 251, 146, 60), 1.0));
+        private static readonly ImageSource ObsSunsetGlow = BuildSoftOrbSprite(200, 200,
+            (Color.FromArgb(230, 253, 186, 116), 0.0), (Color.FromArgb(125, 244, 63, 94), 0.45), (Color.FromArgb(0, 88, 28, 135), 1.0));
+        private static readonly Brush ObsSlitBackBrush = Freeze(new SolidColorBrush(Color.FromRgb(10, 15, 28)));
+        private static readonly Pen ObsRimHighlightMorning = Freeze(new Pen(Freeze(new SolidColorBrush(Color.FromArgb(120, 255, 255, 255))), 1.6));
+        private static readonly Pen ObsRimHighlightSunset = Freeze(new Pen(Freeze(new SolidColorBrush(Color.FromArgb(110, 253, 186, 116))), 1.6));
+        private static readonly Pen ObsRimHighlightNight = Freeze(new Pen(Freeze(new SolidColorBrush(Color.FromArgb(90, 125, 211, 252))), 1.4));
 
         private static readonly Brush[] BambooLeafLut = BuildAlphaBrushLut(134, 239, 172);
         private static readonly ImageSource BambooMistSprite = BuildSoftOrbSprite(160, 64,
@@ -3046,56 +3057,136 @@ namespace StudyHub.Controls
                         bool isSunset = _sceneId == "observatory_sunset";
                         Brush skyBrush = isMorning
                             ? MakeVerticalGrad(new Rect(0, 0, w, h),
-                                (Color.FromRgb(30, 64, 130), 0.0), (Color.FromRgb(96, 165, 250), 0.42),
-                                (Color.FromRgb(253, 186, 116), 0.82), (Color.FromRgb(254, 240, 138), 1.0))
+                                (Color.FromRgb(24, 58, 122), 0.0), (Color.FromRgb(86, 156, 244), 0.44),
+                                (Color.FromRgb(253, 186, 116), 0.80), (Color.FromRgb(254, 240, 138), 1.0))
                             : isSunset
                             ? MakeVerticalGrad(new Rect(0, 0, w, h),
-                                (Color.FromRgb(24, 14, 52), 0.0), (Color.FromRgb(107, 33, 98), 0.40),
-                                (Color.FromRgb(225, 29, 72), 0.72), (Color.FromRgb(251, 146, 60), 1.0))
+                                (Color.FromRgb(20, 10, 48), 0.0), (Color.FromRgb(98, 28, 92), 0.38),
+                                (Color.FromRgb(215, 32, 78), 0.70), (Color.FromRgb(249, 138, 60), 1.0))
                             : MakeVerticalGrad(new Rect(0, 0, w, h),
                                 (Color.FromRgb(2, 6, 20), 0.0), (Color.FromRgb(7, 17, 46), 0.55), (Color.FromRgb(15, 32, 68), 1.0));
                         bdc.DrawRectangle(skyBrush, null, new Rect(0, 0, w, h));
 
                         if (!isMorning && !isSunset)
                         {
-                            var milkyWay = MakeLinearAbs(new Point(w * 0.1, h * 0.6), new Point(w * 0.85, h * 0.05),
+                            var milkyWay = MakeLinearAbs(new Point(w * 0.08, h * 0.58), new Point(w * 0.88, h * 0.04),
                                 (Color.FromArgb(0, 56, 189, 248), 0.0),
-                                (Color.FromArgb(32, 129, 140, 248), 0.45),
-                                (Color.FromArgb(24, 192, 132, 252), 0.65),
+                                (Color.FromArgb(34, 129, 140, 248), 0.44),
+                                (Color.FromArgb(26, 192, 132, 252), 0.66),
                                 (Color.FromArgb(0, 56, 189, 248), 1.0));
-                            bdc.DrawEllipse(milkyWay, null, new Point(w * 0.46, h * 0.30), w * 0.42, h * 0.16);
+                            bdc.DrawEllipse(milkyWay, null, new Point(w * 0.46, h * 0.28), w * 0.44, h * 0.16);
                         }
 
-                        // Alpine peaks layers
-                        var farRidge = Freeze(new SolidColorBrush(isMorning ? Color.FromRgb(125, 152, 196) : isSunset ? Color.FromRgb(88, 36, 74) : Color.FromRgb(14, 24, 48)));
-                        var midRidge = Freeze(new SolidColorBrush(isMorning ? Color.FromRgb(71, 95, 136) : isSunset ? Color.FromRgb(56, 20, 52) : Color.FromRgb(10, 17, 36)));
-                        var frontRidge = Freeze(new SolidColorBrush(isMorning ? Color.FromRgb(26, 36, 56) : isSunset ? Color.FromRgb(24, 10, 28) : Color.FromRgb(5, 9, 20)));
+                        // Far & Mid Alpine Peaks with lit snow/alpenglow ridges
+                        var farRidge = Freeze(new SolidColorBrush(isMorning ? Color.FromRgb(118, 146, 192) : isSunset ? Color.FromRgb(82, 32, 70) : Color.FromRgb(14, 24, 48)));
+                        var farRim = Freeze(new SolidColorBrush(isMorning ? Color.FromArgb(140, 239, 246, 255) : isSunset ? Color.FromArgb(110, 253, 186, 116) : Color.FromArgb(85, 148, 163, 184)));
+                        var midRidge = Freeze(new SolidColorBrush(isMorning ? Color.FromRgb(64, 88, 132) : isSunset ? Color.FromRgb(50, 18, 48) : Color.FromRgb(9, 16, 34)));
+                        var valleyMist = MakeVerticalGrad(new Rect(0, h * 0.56, w, h * 0.24),
+                            (isMorning ? Color.FromArgb(0, 255, 255, 255) : isSunset ? Color.FromArgb(0, 251, 146, 60) : Color.FromArgb(0, 56, 189, 248), 0.0),
+                            (isMorning ? Color.FromArgb(72, 224, 242, 254) : isSunset ? Color.FromArgb(52, 244, 114, 182) : Color.FromArgb(38, 30, 58, 138), 0.55),
+                            (Color.FromArgb(0, 15, 23, 42), 1.0));
 
                         bdc.DrawGeometry(farRidge, null, BuildPolyline(true,
-                            new Point(0, h), new Point(0, h * 0.60), new Point(w * 0.16, h * 0.46),
-                            new Point(w * 0.32, h * 0.56), new Point(w * 0.52, h * 0.41), new Point(w * 0.72, h * 0.54),
-                            new Point(w * 0.88, h * 0.44), new Point(w, h * 0.56), new Point(w, h)));
+                            new Point(0, h), new Point(0, h * 0.62), new Point(w * 0.13, h * 0.48),
+                            new Point(w * 0.24, h * 0.57), new Point(w * 0.39, h * 0.42), new Point(w * 0.53, h * 0.55),
+                            new Point(w * 0.68, h * 0.43), new Point(w * 0.84, h * 0.52), new Point(w * 0.94, h * 0.46),
+                            new Point(w, h * 0.55), new Point(w, h)));
+
+                        // Sunlit left snow slopes on far alpine peaks
+                        bdc.DrawGeometry(farRim, null, BuildTriangle(new Point(w * 0.13, h * 0.48), new Point(w * 0.06, h * 0.55), new Point(w * 0.17, h * 0.54)));
+                        bdc.DrawGeometry(farRim, null, BuildTriangle(new Point(w * 0.39, h * 0.42), new Point(w * 0.31, h * 0.52), new Point(w * 0.44, h * 0.51)));
+                        bdc.DrawGeometry(farRim, null, BuildTriangle(new Point(w * 0.68, h * 0.43), new Point(w * 0.60, h * 0.52), new Point(w * 0.72, h * 0.51)));
 
                         bdc.DrawGeometry(midRidge, null, BuildPolyline(true,
-                            new Point(0, h), new Point(0, h * 0.72), new Point(w * 0.12, h * 0.57),
-                            new Point(w * 0.26, h * 0.67), new Point(w * 0.44, h * 0.53), new Point(w * 0.62, h * 0.65),
-                            new Point(w * 0.82, h * 0.54), new Point(w, h * 0.66), new Point(w, h)));
+                            new Point(0, h), new Point(0, h * 0.73), new Point(w * 0.10, h * 0.59),
+                            new Point(w * 0.22, h * 0.67), new Point(w * 0.34, h * 0.54), new Point(w * 0.49, h * 0.65),
+                            new Point(w * 0.63, h * 0.56), new Point(w * 0.78, h * 0.63), new Point(w, h * 0.62), new Point(w, h)));
 
-                        // Foreground summit & stone observatory platform on right
+                        bdc.DrawRectangle(valleyMist, null, new Rect(0, h * 0.56, w, h * 0.24));
+                    });
+                    _staticFgBitmap = BakeToBitmap(w, h, dpiX, dpiY, bdc =>
+                    {
+                        bool isMorning = _sceneId == "observatory_morning";
+                        bool isSunset = _sceneId == "observatory_sunset";
+
+                        var frontRidge = Freeze(new SolidColorBrush(isMorning ? Color.FromRgb(22, 33, 54) : isSunset ? Color.FromRgb(22, 10, 28) : Color.FromRgb(5, 9, 20)));
+                        var frontSlopeLight = Freeze(new SolidColorBrush(isMorning ? Color.FromRgb(38, 56, 86) : isSunset ? Color.FromRgb(46, 20, 48) : Color.FromRgb(12, 22, 44)));
+                        var snowCapBrush = Freeze(new SolidColorBrush(isMorning ? Color.FromArgb(165, 241, 245, 249) : isSunset ? Color.FromArgb(120, 253, 186, 116) : Color.FromArgb(75, 148, 163, 184)));
+
+                        // Main foreground mountain sweeping up to summit plateau at y = h * 0.68
                         bdc.DrawGeometry(frontRidge, null, BuildPolyline(true,
-                            new Point(0, h), new Point(0, h * 0.82), new Point(w * 0.24, h * 0.74),
-                            new Point(w * 0.54, h * 0.78), new Point(w * 0.66, h * 0.64), new Point(w * 0.88, h * 0.64),
-                            new Point(w, h * 0.74), new Point(w, h)));
+                            new Point(0, h), new Point(0, h * 0.84), new Point(w * 0.16, h * 0.76),
+                            new Point(w * 0.29, h * 0.81), new Point(w * 0.46, h * 0.74),
+                            new Point(w * 0.59, h * 0.68), new Point(w * 0.90, h * 0.68),
+                            new Point(w, h * 0.76), new Point(w, h)));
 
-                        // Observatory drum & masonry base on plateau
-                        double ox = w * 0.76;
-                        double oy = h * 0.64;
-                        double domeR = Math.Min(w, h) * 0.085;
-                        var drumBrush = Freeze(new SolidColorBrush(isMorning ? Color.FromRgb(226, 232, 240) : isSunset ? Color.FromRgb(64, 34, 58) : Color.FromRgb(30, 41, 59)));
-                        bdc.DrawRectangle(drumBrush, null, new Rect(ox - domeR * 0.92, oy - domeR * 0.75, domeR * 1.84, domeR * 0.78));
-                        bdc.DrawEllipse(drumBrush, null, new Point(ox, oy - domeR * 0.72), domeR, domeR * 0.92);
-                        var warmWindow = Freeze(new SolidColorBrush(isMorning ? Color.FromRgb(254, 243, 199) : Color.FromRgb(251, 191, 36)));
-                        bdc.DrawRectangle(warmWindow, null, new Rect(ox - domeR * 0.16, oy - domeR * 0.48, domeR * 0.32, domeR * 0.24));
+                        // Rock facets on left face of summit for crisp 3D depth
+                        bdc.DrawGeometry(frontSlopeLight, null, BuildPolyline(true,
+                            new Point(w * 0.46, h * 0.74), new Point(w * 0.59, h * 0.68),
+                            new Point(w * 0.63, h * 0.79), new Point(w * 0.42, h * 0.88)));
+                        bdc.DrawGeometry(snowCapBrush, null, BuildTriangle(
+                            new Point(w * 0.59, h * 0.68), new Point(w * 0.53, h * 0.71), new Point(w * 0.61, h * 0.715)));
+
+                        // Subtle alpine conifers on left ridge slope
+                        var pineBrush = Freeze(new SolidColorBrush(isMorning ? Color.FromRgb(15, 28, 42) : isSunset ? Color.FromRgb(18, 8, 22) : Color.FromRgb(4, 8, 16)));
+                        for (int tr = 0; tr < 9; tr++)
+                        {
+                            double tx = w * (0.04 + tr * 0.055);
+                            double ty = h * (0.81 - Math.Sin(tr * 0.9) * 0.03);
+                            double th = 14 + (tr % 3) * 5;
+                            bdc.DrawGeometry(pineBrush, null, BuildTriangle(new Point(tx - 6, ty + 4), new Point(tx + 6, ty + 4), new Point(tx, ty - th)));
+                        }
+
+                        // Summit Complex at oy = h * 0.68
+                        double ox = w * 0.75;
+                        double oy = h * 0.68;
+                        double domeR = Math.Min(w, h) * 0.105;
+
+                        var terraceConcrete = MakeLinearAbs(new Point(ox - domeR * 2.1, oy), new Point(ox + domeR * 1.4, oy + 18),
+                            (isMorning ? Color.FromRgb(148, 163, 184) : isSunset ? Color.FromRgb(74, 38, 66) : Color.FromRgb(30, 41, 59), 0.0),
+                            (isMorning ? Color.FromRgb(100, 116, 139) : isSunset ? Color.FromRgb(44, 20, 40) : Color.FromRgb(15, 23, 42), 1.0));
+                        bdc.DrawRectangle(terraceConcrete, null, new Rect(ox - domeR * 2.15, oy - domeR * 0.14, domeR * 3.55, domeR * 0.24));
+
+                        // Guardrail posts along summit terrace
+                        var railPen = Freeze(new Pen(Freeze(new SolidColorBrush(isMorning ? Color.FromRgb(203, 213, 225) : Color.FromRgb(100, 116, 139))), 1.2));
+                        double railY = oy - domeR * 0.22;
+                        bdc.DrawLine(railPen, new Point(ox - domeR * 2.1, railY), new Point(ox - domeR * 0.95, railY));
+                        for (double rx = ox - domeR * 2.1; rx <= ox - domeR * 0.95; rx += domeR * 0.22)
+                            bdc.DrawLine(railPen, new Point(rx, railY), new Point(rx, oy - domeR * 0.14));
+
+                        // Research Control Wing (left of main dome) with glowing observation windows
+                        double wingW = domeR * 1.05;
+                        double wingH = domeR * 0.42;
+                        double wingX = ox - domeR * 1.85;
+                        double wingY = oy - domeR * 0.14 - wingH;
+                        var drumBody = MakeLinearAbs(new Point(ox - domeR * 1.1, oy - domeR), new Point(ox + domeR * 1.1, oy),
+                            (isMorning ? Color.FromRgb(241, 245, 249) : isSunset ? Color.FromRgb(92, 48, 78) : Color.FromRgb(51, 65, 85), 0.0),
+                            (isMorning ? Color.FromRgb(148, 163, 184) : isSunset ? Color.FromRgb(46, 22, 44) : Color.FromRgb(24, 34, 52), 1.0));
+                        bdc.DrawRectangle(drumBody, null, new Rect(wingX, wingY, wingW, wingH));
+                        var winBrush = Freeze(new SolidColorBrush(isMorning ? Color.FromRgb(254, 243, 199) : Color.FromRgb(251, 191, 36)));
+                        for (int wIdx = 0; wIdx < 3; wIdx++)
+                            bdc.DrawRectangle(winBrush, null, new Rect(wingX + wingW * (0.14 + wIdx * 0.28), wingY + wingH * 0.30, wingW * 0.18, wingH * 0.28));
+
+                        // Communications mast / weather sensor on left wing
+                        double mastX = wingX + wingW * 0.18;
+                        bdc.DrawLine(railPen, new Point(mastX, wingY), new Point(mastX, wingY - domeR * 0.42));
+                        bdc.DrawEllipse(Freeze(new SolidColorBrush(isNightOrCrimson(isMorning, isSunset))), null, new Point(mastX, wingY - domeR * 0.44), 2.5, 2.5);
+
+                        // Smaller Secondary Dome behind/beside main dome
+                        double auxX = ox + domeR * 1.05;
+                        double auxY = oy - domeR * 0.14;
+                        double auxR = domeR * 0.42;
+                        bdc.DrawRectangle(drumBody, null, new Rect(auxX - auxR * 0.85, auxY - auxR * 0.55, auxR * 1.7, auxR * 0.55));
+                        bdc.DrawEllipse(drumBody, null, new Point(auxX, auxY - auxR * 0.52), auxR * 0.88, auxR * 0.78);
+
+                        // Main Observatory Cylindrical Drum Base + Architectural Collar Ring
+                        double drumTop = oy - domeR * 0.68;
+                        bdc.DrawRectangle(drumBody, null, new Rect(ox - domeR * 0.92, drumTop, domeR * 1.84, oy - domeR * 0.14 - drumTop));
+                        var collarBrush = Freeze(new SolidColorBrush(isMorning ? Color.FromRgb(100, 116, 139) : Color.FromRgb(30, 41, 59)));
+                        bdc.DrawRectangle(collarBrush, null, new Rect(ox - domeR * 0.98, drumTop - 3, domeR * 1.96, 6));
+                        bdc.DrawRectangle(winBrush, null, new Rect(ox - domeR * 0.16, drumTop + domeR * 0.16, domeR * 0.32, domeR * 0.18));
+
+                        static Color isNightOrCrimson(bool m, bool s) => m ? Color.FromRgb(56, 189, 248) : Color.FromRgb(244, 63, 94);
                     });
                     break;
 
@@ -4083,14 +4174,14 @@ namespace StudyHub.Controls
             else if (mode == "morning")
             {
                 double sx = w * 0.22;
-                double sy = h * 0.34;
-                dc.DrawImage(ObsSunGlow, new Rect(sx - 95, sy - 95, 190, 190));
+                double sy = h * 0.32;
+                dc.DrawImage(ObsSunGlow, new Rect(sx - 105, sy - 105, 210, 210));
             }
             else
             {
-                double sx = w * 0.26;
-                double sy = h * 0.42;
-                dc.DrawImage(ObsSunsetGlow, new Rect(sx - 110, sy - 110, 220, 220));
+                double sx = w * 0.25;
+                double sy = h * 0.41;
+                dc.DrawImage(ObsSunsetGlow, new Rect(sx - 120, sy - 120, 240, 240));
                 foreach (var st in _stars)
                 {
                     if (st.Y < h * 0.35)
@@ -4100,17 +4191,6 @@ namespace StudyHub.Controls
                     }
                 }
             }
-
-            // Animated telescope barrel protruding from dome slit
-            double ox = w * 0.76;
-            double oy = h * 0.64;
-            double domeR = Math.Min(w, h) * 0.085;
-            double sweep = -2.25 + Math.Sin(_t * 0.28) * 0.22;
-            var scopePivot = new Point(ox - domeR * 0.15, oy - domeR * 0.95);
-            var scopeTip = new Point(scopePivot.X + Math.Cos(sweep) * domeR * 1.15, scopePivot.Y + Math.Sin(sweep) * domeR * 1.15);
-            var scopePen = mode == "morning" ? ObsTelescopeBarrelPen : mode == "sunset" ? ObsSunsetTelescopePen : ObsNightTelescopePen;
-            dc.DrawLine(scopePen, scopePivot, scopeTip);
-            dc.DrawEllipse(ObsTelescopeMetalBrush, null, scopeTip, 3.2, 3.2);
 
             if (mode != "night")
             {
@@ -4125,6 +4205,61 @@ namespace StudyHub.Controls
                     dc.DrawGeometry(null, birdPen, wingGeo);
                 }
             }
+
+            // Foreground Alpine Summit + Terrace + Observatory Base Drum (in front of clouds!)
+            if (_staticFgBitmap != null)
+                dc.DrawImage(_staticFgBitmap, new Rect(0, 0, _staticFgBitmap.Width, _staticFgBitmap.Height));
+
+            // Sculpted Dome + Recessed Shutter Slit + Stepped Telescope Barrel
+            double ox = w * 0.75;
+            double oy = h * 0.68;
+            double domeR = Math.Min(w, h) * 0.105;
+            double domeBaseY = oy - domeR * 0.68;
+
+            // Back shell of hemisphere dome (shaded by time of day)
+            Brush domeShell = MakeLinearAbs(new Point(ox - domeR, domeBaseY - domeR), new Point(ox + domeR, domeBaseY),
+                (mode == "morning" ? Color.FromRgb(248, 250, 252) : mode == "sunset" ? Color.FromRgb(108, 56, 88) : Color.FromRgb(58, 74, 98), 0.0),
+                (mode == "morning" ? Color.FromRgb(148, 163, 184) : mode == "sunset" ? Color.FromRgb(42, 18, 38) : Color.FromRgb(22, 32, 50), 1.0));
+            Pen rimPen = mode == "morning" ? ObsRimHighlightMorning : mode == "sunset" ? ObsRimHighlightSunset : ObsRimHighlightNight;
+
+            // Draw upper hemisphere dome
+            var domeClosed = new PathGeometry();
+            var pf = new PathFigure { StartPoint = new Point(ox - domeR * 0.96, domeBaseY), IsClosed = true, IsFilled = true };
+            pf.Segments.Add(new ArcSegment(new Point(ox + domeR * 0.96, domeBaseY), new Size(domeR * 0.96, domeR * 0.92), 0, false, SweepDirection.Clockwise, true));
+            domeClosed.Figures.Add(pf);
+            dc.DrawGeometry(domeShell, rimPen, domeClosed);
+
+            // Recessed open shutter aperture slit on upper-left of dome
+            double slitTopX = ox - domeR * 0.28;
+            double slitTopY = domeBaseY - domeR * 0.86;
+            dc.DrawGeometry(ObsSlitBackBrush, null, BuildPolyline(true,
+                new Point(ox - domeR * 0.38, domeBaseY - domeR * 0.06),
+                new Point(ox - domeR * 0.52, domeBaseY - domeR * 0.72),
+                new Point(slitTopX, slitTopY),
+                new Point(ox - domeR * 0.12, domeBaseY - domeR * 0.10)));
+
+            // Animated Stepped Telescope Tube protruding out of the recessed shutter slit
+            double sweep = -2.14 + Math.Sin(_t * 0.25) * 0.16;
+            var scopePivot = new Point(ox - domeR * 0.26, domeBaseY - domeR * 0.36);
+            var scopeMid = new Point(scopePivot.X + Math.Cos(sweep) * domeR * 0.72, scopePivot.Y + Math.Sin(sweep) * domeR * 0.72);
+            var scopeTip = new Point(scopePivot.X + Math.Cos(sweep) * domeR * 1.12, scopePivot.Y + Math.Sin(sweep) * domeR * 1.12);
+            var barrelPen = mode == "morning" ? ObsTelescopeBarrelPen : mode == "sunset" ? ObsSunsetTelescopePen : ObsNightTelescopePen;
+            var dewPen = mode == "morning" ? ObsTelescopeDewPen : mode == "sunset" ? ObsSunsetDewPen : ObsNightDewPen;
+            dc.DrawLine(barrelPen, scopePivot, scopeMid);
+            dc.DrawLine(dewPen, scopeMid, scopeTip);
+            dc.DrawEllipse(ObsTelescopeMetalBrush, null, scopeMid, 4.5, 4.5);
+            dc.DrawEllipse(ObsTelescopeLensBrush, null, scopeTip, 3.0, 3.0);
+
+            // Front Dome Panel Seam & Shutter Lip (covers lower pivot cleanly inside dome)
+            dc.DrawGeometry(null, rimPen, BuildQuadBezier(
+                new Point(ox + domeR * 0.12, domeBaseY),
+                new Point(ox + domeR * 0.22, domeBaseY - domeR * 0.56),
+                new Point(ox + domeR * 0.02, domeBaseY - domeR * 0.90)));
+            dc.DrawGeometry(domeShell, null, BuildPolyline(true,
+                new Point(ox - domeR * 0.50, domeBaseY),
+                new Point(ox - domeR * 0.04, domeBaseY),
+                new Point(ox - domeR * 0.14, domeBaseY - domeR * 0.28),
+                new Point(ox - domeR * 0.40, domeBaseY - domeR * 0.28)));
         }
 
         // =========================== 22. ZEN BAMBOO GARDEN ===========================
@@ -4624,7 +4759,7 @@ namespace StudyHub.Controls
             var sg = new StreamGeometry();
             using (var ctx = sg.Open())
             {
-                ctx.BeginFigure(pts[0], false, closed);
+                ctx.BeginFigure(pts[0], closed, closed);
                 for (int i = 1; i < pts.Length; i++) ctx.LineTo(pts[i], true, true);
             }
             sg.Freeze();

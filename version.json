@@ -1,8 +1,8 @@
 {
-  "version": "3.0.0",
-  "build": 300,
-  "releaseDate": "2026-11-07",
+  "version": "3.7.1",
+  "build": 371,
+  "releaseDate": "2026-11-14",
   "appName": "Study Hub Remastered",
-  "engine": "C# .NET 9 WPF Native",
-  "notes": "Study Hub v3.0.0 Remastered: Rebuilt from the ground up in native C# (.NET 9 WPF) for instant startup, hardware-accelerated 60+ FPS smoothness, native audio/recording studio, and integrated GitHub Auto-Updater."
+  "engine": "C# .NET 9 WPF + .NET MAUI Native",
+  "notes": "Study Hub v3.7.1 Remastered: Redesigned High-Altitude Observatory scenes, OLED Obsidian / Cyberpunk Neon Matrix / Boreal Twilight themes, Interactive Circuit Trace / Fireflies / Plasma Lightning / Cherry Blossom-Snowfall particle engines, modular mobile settings menus, and automatic background update download with live progress popup."
 }

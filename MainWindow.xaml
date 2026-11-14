@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
         xmlns:controls="clr-namespace:StudyHub.Controls"
-        Title="Study Hub v3.0 — Remastered Native Edition"
+        Title="Study Hub v3.7.1 — Remastered Native Edition"
         Width="1440" Height="900"
         MinWidth="1040" MinHeight="680"
         WindowStartupLocation="CenterScreen"
@@ -11,7 +11,7 @@
         KeyDown="Window_KeyDown"
         Closing="Window_Closing">
 
-    <Grid x:Name="RootMainGrid" Background="Transparent">
+    <Grid x:Name="RootMainGrid" Background="Transparent" MouseMove="RootMainGrid_MouseMove">
         <!-- Main Application Layout Grid -->
         <Grid.RowDefinitions>
             <RowDefinition Height="64"/> <!-- Top Navigation Bar -->
@@ -1658,7 +1658,7 @@
                                 </StackPanel>
                             </Button>
 
-                            <!-- 1b. Calendar & Upcoming Events -->
+                            <!-- 2. Calendar & Upcoming Events -->
                             <Button Click="BtnDrawerCalendar_Click" Style="{StaticResource SettingsTabButtonStyle}">
                                 <StackPanel Orientation="Horizontal">
                                     <TextBlock Text="📅" FontSize="14" Margin="0,0,12,0"/>
@@ -1666,39 +1666,15 @@
                                 </StackPanel>
                             </Button>
 
-                            <!-- 2. Focus Timer -->
-                            <Button Click="BtnDrawerTimer_Click" Style="{StaticResource SettingsTabButtonStyle}">
-                                <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="⏱️" FontSize="14" Margin="0,0,12,0"/>
-                                    <TextBlock Text="Focus Timer" FontSize="13.5"/>
-                                </StackPanel>
-                            </Button>
-
-                            <!-- 3. Zen Study Mode -->
+                            <!-- 3. Zen Mode -->
                             <Button Click="BtnDrawerZen_Click" Style="{StaticResource SettingsTabButtonStyle}">
                                 <StackPanel Orientation="Horizontal">
                                     <TextBlock Text="🧘" FontSize="14" Margin="0,0,12,0"/>
-                                    <TextBlock Text="Zen Study Mode" FontSize="13.5"/>
+                                    <TextBlock Text="Zen Mode" FontSize="13.5"/>
                                 </StackPanel>
                             </Button>
 
-                            <!-- 4. Sound Mixer -->
-                            <Button Click="BtnDrawerMixer_Click" Style="{StaticResource SettingsTabButtonStyle}">
-                                <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="🎚️" FontSize="14" Margin="0,0,12,0"/>
-                                    <TextBlock Text="Sound Studio &amp; Mixer" FontSize="13.5"/>
-                                </StackPanel>
-                            </Button>
-
-                            <!-- 5. Theme Toggle -->
-                            <Button Click="BtnDrawerTheme_Click" Style="{StaticResource SettingsTabButtonStyle}">
-                                <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="🌙" FontSize="14" Margin="0,0,12,0"/>
-                                    <TextBlock Text="Toggle Theme" FontSize="13.5"/>
-                                </StackPanel>
-                            </Button>
-
-                            <!-- 6. Settings & GitHub Auto-Updater -->
+                            <!-- 4. Settings & Preferences -->
                             <Button Click="BtnDrawerSettings_Click" Style="{StaticResource SettingsTabButtonStyle}">
                                 <StackPanel Orientation="Horizontal">
                                     <TextBlock Text="⚙️" FontSize="14" Margin="0,0,12,0"/>
@@ -1708,7 +1684,7 @@
 
                             <Border Height="1" Background="{DynamicResource BorderBrushTheme}" Margin="0,12,0,12"/>
 
-                            <!-- 7. Add Subject Quick Action -->
+                            <!-- 5. Add Subject Quick Action -->
                             <Button Click="BtnDrawerAddSubject_Click" Style="{StaticResource BrandButtonStyle}" Margin="0,0,0,12">
                                 <StackPanel Orientation="Horizontal">
                                     <TextBlock Text="➕" FontSize="12" Margin="0,0,8,0"/>
@@ -1716,7 +1692,7 @@
                                 </StackPanel>
                             </Button>
 
-                            <!-- 8. Archived Courses Collapsible Section in Navigation Drawer -->
+                            <!-- 6. Archived Courses Collapsible Section in Navigation Drawer -->
                             <Border Background="{DynamicResource SubtleBgBrush}" BorderBrush="{DynamicResource BorderBrushTheme}" BorderThickness="1" CornerRadius="14" Padding="12,10">
                                 <StackPanel>
                                     <Button Click="BtnToggleDrawerArchived_Click" Background="Transparent" BorderThickness="0" Cursor="Hand" HorizontalAlignment="Stretch">
@@ -1737,7 +1713,7 @@
 
                     <!-- Drawer Footer -->
                     <StackPanel Grid.Row="2" Margin="0,16,0,0">
-                        <TextBlock Text="Study Hub v3.0 • Remastered Edition" FontSize="11" Foreground="#687296"/>
+                        <TextBlock Text="Study Hub v3.7.1 • Remastered Edition" FontSize="11" FontWeight="SemiBold" Foreground="#818CF8"/>
                     </StackPanel>
                 </Grid>
             </Border>
@@ -2323,7 +2299,7 @@
 
                             <!-- Sidebar Footer -->
                             <StackPanel Grid.Row="3" Margin="4,0,0,4">
-                                <TextBlock Text="Study Hub v3.0 • Remastered Edition" FontSize="10.5" FontWeight="Bold" Foreground="#687296"/>
+                                <TextBlock Text="Study Hub v3.7.1 • Remastered Edition" FontSize="10.5" FontWeight="Bold" Foreground="#818CF8"/>
                                 <TextBlock Text="All preferences auto-save" FontSize="10" Foreground="#4B5578" Margin="0,2,0,0"/>
                             </StackPanel>
                         </Grid>
@@ -2357,8 +2333,8 @@
                                                 <TextBlock Text="Static Color &amp; Surface Theme" FontWeight="Black" FontSize="14" Foreground="{DynamicResource PrimaryTextBrush}" VerticalAlignment="Center"/>
                                             </StackPanel>
                                             <TextBlock Text="Choose the static color gradient &amp; glass surface style across the workspace." FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}" Margin="0,0,0,14"/>
-                                            <!-- Theme Cards Grid (5 Themes) -->
-                                            <UniformGrid x:Name="WpThemeCards" Columns="5"/>
+                                            <!-- Theme Cards Grid (8 Themes) -->
+                                            <UniformGrid x:Name="WpThemeCards" Columns="4"/>
                                         </StackPanel>
                                     </Border>
 
@@ -2374,8 +2350,8 @@
                                                     <TextBlock x:Name="TxtActiveParticleBadge" Text="Network Mesh" FontSize="11" FontWeight="Bold" Foreground="#06B6D4"/>
                                                 </Border>
                                             </Grid>
-                                            <TextBlock Text="Combine any static color theme above with a live interactive particle layer (including Lava Lamp, Fading Stars &amp; Water Ripple, or disable particles)." FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}" TextWrapping="Wrap" Margin="0,0,0,14"/>
-                                            <!-- Particle Cards Grid (9 Effects) -->
+                                            <TextBlock Text="Combine any static color theme above with a live interactive particle layer (including Circuit Trace, Fireflies, Plasma Lightning &amp; Cherry Blossom / Snowfall, or disable particles)." FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}" TextWrapping="Wrap" Margin="0,0,0,14"/>
+                                            <!-- Particle Cards Grid (13 Effects) -->
                                             <UniformGrid x:Name="WpParticleCards" Columns="3"/>
                                         </StackPanel>
                                     </Border>
@@ -2741,15 +2717,15 @@
                                                 </Button>
                                             </Grid>
 
-                                            <CheckBox x:Name="ChkSettingsAutoCheckOnLaunch" Content="Automatically check this link for updates when StudyHub launches" Foreground="{DynamicResource PrimaryTextBrush}" FontSize="12" Margin="0,0,0,12"/>
+                                            <CheckBox x:Name="ChkSettingsAutoCheckOnLaunch" Content="Automatically check &amp; download updates in background when StudyHub launches" Checked="ChkSettingsAutoCheckOnLaunch_Changed" Unchecked="ChkSettingsAutoCheckOnLaunch_Changed" Foreground="{DynamicResource PrimaryTextBrush}" FontSize="12" Margin="0,0,0,12"/>
 
                                             <!-- Live Update Status Banner Box -->
                                             <Border x:Name="BdUpdateResultBox" Background="{DynamicResource SubtleBgBrush}" BorderBrush="{DynamicResource BorderBrushTheme}" BorderThickness="1" CornerRadius="12" Padding="14" Visibility="Collapsed">
                                                 <StackPanel>
                                                     <TextBlock x:Name="TxtUpdateStatusHeader" Text="Up to date!" FontWeight="Bold" FontSize="13" Foreground="#10B981" Margin="0,0,0,4"/>
-                                                    <TextBlock x:Name="TxtUpdateStatusDetails" Text="You are running version v3.0.0." FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}" TextWrapping="Wrap" Margin="0,0,0,10"/>
+                                                    <TextBlock x:Name="TxtUpdateStatusDetails" Text="You are running version v3.7.1." FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}" TextWrapping="Wrap" Margin="0,0,0,10"/>
                                                     <Button x:Name="BtnInstallUpdateNow" Click="BtnInstallUpdateNow_Click" Style="{StaticResource BrandButtonStyle}" Visibility="Collapsed" HorizontalAlignment="Left" Padding="16,8">
-                                                        <TextBlock Text="⬇️ Download &amp; Apply Update Now"/>
+                                                        <TextBlock x:Name="TxtBtnInstallUpdateLabel" Text="⬇️ Download &amp; Apply Update Now"/>
                                                     </Button>
                                                 </StackPanel>
                                             </Border>
@@ -3116,6 +3092,69 @@
                         </Button>
                     </StackPanel>
                 </Grid>
+            </Border>
+        </Grid>
+
+        <!-- ================= AUTO-UPDATE DOWNLOADED READY PROMPT ================= -->
+        <Grid x:Name="UpdateReadyModalGrid" Grid.Row="0" Grid.RowSpan="2" Visibility="Collapsed" Panel.ZIndex="440">
+            <Border Background="#B4000000"/>
+            <Border Width="490" HorizontalAlignment="Center" VerticalAlignment="Center" Background="{DynamicResource NavBgBrush}" BorderBrush="#10B981" BorderThickness="2" CornerRadius="22" Padding="24">
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,14">
+                        <Border Width="44" Height="44" CornerRadius="14" Background="#10B98126" BorderBrush="#10B981" BorderThickness="1" Margin="0,0,12,0">
+                            <TextBlock Text="🎉" FontSize="20" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock Text="Update Downloaded &amp; Ready!" FontSize="17" FontWeight="Black" Foreground="#10B981"/>
+                            <TextBlock x:Name="TxtUpdateReadyVersion" Text="Study Hub v3.7.1" FontSize="12" FontWeight="Bold" Foreground="{DynamicResource SecondaryTextBrush}"/>
+                        </StackPanel>
+                    </StackPanel>
+
+                    <Border Background="{DynamicResource SubtleBgBrush}" BorderBrush="{DynamicResource BorderBrushTheme}" BorderThickness="1" CornerRadius="14" Padding="14" Margin="0,0,0,16">
+                        <TextBlock x:Name="TxtUpdateReadyNotes" Text="A new update was downloaded in the background and is ready to install." FontSize="12.5" Foreground="{DynamicResource PrimaryTextBrush}" TextWrapping="Wrap" MaxHeight="160"/>
+                    </Border>
+
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="10"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Button Grid.Column="0" Click="BtnUpdateReadyLater_Click" Style="{StaticResource SecondaryButtonStyle}" Padding="14,10">
+                            <TextBlock Text="🕒 Install Later" FontWeight="Bold"/>
+                        </Button>
+                        <Button Grid.Column="2" Click="BtnUpdateReadyInstallNow_Click" Style="{StaticResource BrandButtonStyle}" Padding="14,10">
+                            <TextBlock Text="🚀 Install Now" FontWeight="Bold"/>
+                        </Button>
+                    </Grid>
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <!-- ================= UPDATE INSTALL PROGRESS POPUP (%) ================= -->
+        <Grid x:Name="UpdateProgressModalGrid" Grid.Row="0" Grid.RowSpan="2" Visibility="Collapsed" Panel.ZIndex="445">
+            <Border Background="#CC000000"/>
+            <Border Width="460" HorizontalAlignment="Center" VerticalAlignment="Center" Background="{DynamicResource NavBgBrush}" BorderBrush="#06B6D4" BorderThickness="2" CornerRadius="22" Padding="24">
+                <StackPanel>
+                    <Grid Margin="0,0,0,14">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <Border Width="42" Height="42" CornerRadius="13" Background="#06B6D424" BorderBrush="#06B6D4" BorderThickness="1" Margin="0,0,12,0">
+                                <TextBlock Text="🚀" FontSize="19" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                            </Border>
+                            <StackPanel VerticalAlignment="Center">
+                                <TextBlock Text="Installing Study Hub Update" FontSize="16" FontWeight="Black" Foreground="{DynamicResource PrimaryTextBrush}"/>
+                                <TextBlock x:Name="TxtUpdateProgressStage" Text="Preparing update..." FontSize="12" Foreground="#38BDF8" FontWeight="SemiBold"/>
+                            </StackPanel>
+                        </StackPanel>
+                        <Border Background="#06B6D422" BorderBrush="#06B6D466" BorderThickness="1" CornerRadius="12" Padding="12,5" HorizontalAlignment="Right" VerticalAlignment="Center">
+                            <TextBlock x:Name="TxtUpdateProgressPercent" Text="0%" FontSize="17" FontWeight="Black" FontFamily="Consolas, Courier New" Foreground="#22D3EE"/>
+                        </Border>
+                    </Grid>
+
+                    <ProgressBar x:Name="PbUpdateInstallProgress" Minimum="0" Maximum="100" Value="0" Height="12" Background="#1E2548" Foreground="#10B981" Margin="0,0,0,12"/>
+
+                    <TextBlock x:Name="TxtUpdateProgressDetail" Text="Please keep Study Hub open. The app will restart automatically when ready." FontSize="11.5" Foreground="{DynamicResource SecondaryTextBrush}" TextWrapping="Wrap"/>
+                </StackPanel>
             </Border>
         </Grid>
 

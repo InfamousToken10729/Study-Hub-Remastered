@@ -17,8 +17,8 @@ namespace StudyHub.Services
     {
         public bool Success { get; set; }
         public bool IsUpdateAvailable { get; set; }
-        public string CurrentVersion { get; set; } = "3.0.0";
-        public string LatestVersion { get; set; } = "3.0.0";
+        public string CurrentVersion { get; set; } = GitHubUpdateService.CurrentAppVersion;
+        public string LatestVersion { get; set; } = GitHubUpdateService.CurrentAppVersion;
         public string LatestCommitSha { get; set; } = "";
         public string ReleaseTitle { get; set; } = "";
         public string ReleaseNotes { get; set; } = "";
@@ -31,8 +31,8 @@ namespace StudyHub.Services
 
     public class GitHubUpdateService
     {
-        public const string CurrentAppVersion = "3.0.0";
-        public const int CurrentAppBuild = 300;
+        public const string CurrentAppVersion = "3.7.1";
+        public const int CurrentAppBuild = 371;
 
         private readonly HttpClient _http;
         private readonly string _baseDir;
@@ -514,21 +514,20 @@ namespace StudyHub.Services
             }
         }
 
-        public async Task<(bool ok, string error)> DownloadAndApplyUpdateAsync(
+        /// <summary>
+        /// Stage 1: Downloads the update binary or archive into staging/cache storage and reports 0-100% progress.
+        /// Does not launch an installer or restart the application.
+        /// </summary>
+        public async Task<(bool ok, string stagedFilePath, string error)> DownloadUpdatePackageAsync(
             UpdateCheckResult updateInfo,
-            IProgress<(int percent, string status)> progress)
+            IProgress<(int percent, string status)>? progress = null)
         {
             if (updateInfo == null || string.IsNullOrWhiteSpace(updateInfo.DownloadUrl))
-                return (false, "No download URL available for this update.");
+                return (false, "", "No download URL available for this update.");
 
             string stagingDir = Path.Combine(_baseDir, "_update_staging");
             try
             {
-                if (Directory.Exists(stagingDir)) Directory.Delete(stagingDir, true);
-                Directory.CreateDirectory(stagingDir);
-
-                progress?.Report((5, "Connecting to GitHub download server..."));
-
                 bool isExe = updateInfo.DownloadType == "exe" ||
                              updateInfo.DownloadUrl.EndsWith(".exe", StringComparison.OrdinalIgnoreCase);
                 bool isApk = updateInfo.DownloadType == "apk" ||
@@ -539,13 +538,17 @@ namespace StudyHub.Services
                 if (!Directory.Exists(cacheDir)) Directory.CreateDirectory(cacheDir);
                 string downloadFile = Path.Combine(cacheDir, "StudyHub_Update.apk");
 #else
+                if (Directory.Exists(stagingDir)) Directory.Delete(stagingDir, true);
+                Directory.CreateDirectory(stagingDir);
                 string downloadFile = Path.Combine(stagingDir, isApk ? "StudyHub_Update.apk" : isExe ? "StudyHub_New.exe" : "update_package.zip");
 #endif
+
+                progress?.Report((2, "Connecting to GitHub download server..."));
 
                 using (var response = await _http.GetAsync(updateInfo.DownloadUrl, HttpCompletionOption.ResponseHeadersRead))
                 {
                     if (!response.IsSuccessStatusCode)
-                        return (false, $"Download failed with HTTP {(int)response.StatusCode}.");
+                        return (false, "", $"Download failed with HTTP {(int)response.StatusCode}.");
 
                     long? totalBytes = response.Content.Headers.ContentLength;
                     using var contentStream = await response.Content.ReadAsStreamAsync();
@@ -554,6 +557,7 @@ namespace StudyHub.Services
                     byte[] buffer = new byte[81920];
                     long totalRead = 0;
                     int read;
+                    int lastReported = -1;
                     while ((read = await contentStream.ReadAsync(buffer, 0, buffer.Length)) > 0)
                     {
                         await fileStream.WriteAsync(buffer, 0, read);
@@ -561,18 +565,23 @@ namespace StudyHub.Services
                         double mbRead = totalRead / (1024.0 * 1024.0);
                         if (totalBytes.HasValue && totalBytes.Value > 0)
                         {
-#if ANDROID
-                            int pct = 5 + (int)((totalRead * 90) / totalBytes.Value);
-                            double mbTotal = totalBytes.Value / (1024.0 * 1024.0);
-                            progress?.Report((Math.Clamp(pct, 5, 95), $"Downloading APK... {mbRead:F1} / {mbTotal:F1} MB"));
-#else
-                            int pct = 10 + (int)((totalRead * 65) / totalBytes.Value);
-                            progress?.Report((Math.Clamp(pct, 10, 75), $"Downloading update... ({mbRead:F1} MB)"));
-#endif
+                            int pct = Math.Clamp(3 + (int)((totalRead * 96) / totalBytes.Value), 3, 99);
+                            if (pct != lastReported)
+                            {
+                                lastReported = pct;
+                                double mbTotal = totalBytes.Value / (1024.0 * 1024.0);
+                                string kind = isApk ? "APK" : isExe ? "package" : "archive";
+                                progress?.Report((pct, $"Downloading {kind}... {mbRead:F1} / {mbTotal:F1} MB"));
+                            }
                         }
                         else
                         {
-                            progress?.Report((50, $"Downloading update... ({mbRead:F1} MB)"));
+                            int estPct = Math.Min(92, 10 + (int)(mbRead * 4.5));
+                            if (estPct != lastReported)
+                            {
+                                lastReported = estPct;
+                                progress?.Report((estPct, $"Downloading update... ({mbRead:F1} MB)"));
+                            }
                         }
                     }
                     await fileStream.FlushAsync();
@@ -580,20 +589,77 @@ namespace StudyHub.Services
 
 #if ANDROID
                 LastDownloadedApkPath = downloadFile;
-                progress?.Report((100, "Download complete! Launching Android installer..."));
+#endif
+                progress?.Report((100, "Update package downloaded and verified."));
+                return (true, downloadFile, "");
+            }
+            catch (Exception ex)
+            {
+                return (false, "", $"Failed to download update: {ex.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Stage 2: Installs / extracts a previously downloaded update package while reporting 0-100% progress.
+        /// Returns (true, "") on success; on Android may return (false, "PERMISSION_NEEDED").
+        /// </summary>
+        public async Task<(bool ok, string error)> ApplyDownloadedUpdateAsync(
+            UpdateCheckResult updateInfo,
+            string stagedFilePath,
+            IProgress<(int percent, string status)>? progress = null)
+        {
+            if (updateInfo == null)
+                return (false, "Missing update metadata.");
+            if (string.IsNullOrWhiteSpace(stagedFilePath) || !File.Exists(stagedFilePath))
+                return (false, "Downloaded update file was not found on disk.");
+
+            try
+            {
+                bool isExe = updateInfo.DownloadType == "exe" ||
+                             updateInfo.DownloadUrl.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ||
+                             stagedFilePath.EndsWith(".exe", StringComparison.OrdinalIgnoreCase);
+
+#if ANDROID
+                LastDownloadedApkPath = stagedFilePath;
+                progress?.Report((20, "Verifying Android APK package..."));
+                await Task.Delay(180);
+
+                progress?.Report((55, "Checking Android install permission..."));
+                await Task.Delay(180);
+                if (!CanInstallPackagesOnAndroid())
+                {
+                    RequestInstallPackagesPermissionOnAndroid();
+                    return (false, "PERMISSION_NEEDED");
+                }
+
+                progress?.Report((85, "Preparing Android package installer..."));
+                await Task.Delay(200);
+
+                var (launched, err) = LaunchAndroidApkInstaller(stagedFilePath);
+                if (!launched)
+                    return (false, err);
+
+                progress?.Report((100, "Android package installer opened!"));
+                await Task.Delay(180);
                 return (true, "");
 #else
+                string stagingDir = Path.Combine(_baseDir, "_update_staging");
                 int currentPid = Environment.ProcessId;
                 string currentExe = Process.GetCurrentProcess().MainModule?.FileName
                     ?? Path.Combine(_baseDir, "StudyHub.exe");
                 string rootExe = Path.Combine(_baseDir, "StudyHub.exe");
                 string distExe = Path.Combine(_baseDir, "dist", "StudyHub.exe");
-
                 string updaterBatPath = Path.Combine(_baseDir, "StudyHub_Updater.bat");
+
+                progress?.Report((15, "Verifying downloaded update package..."));
+                await Task.Delay(160);
 
                 if (isExe)
                 {
-                    progress?.Report((90, "Preparing atomic executable swap..."));
+                    progress?.Report((50, "Validating StudyHub executable signature..."));
+                    await Task.Delay(180);
+
+                    progress?.Report((82, "Preparing atomic executable swap script..."));
                     string bat = $@"@echo off
 title Study Hub Auto-Updater
 echo Waiting for Study Hub (PID {currentPid}) to close...
@@ -604,36 +670,66 @@ if ""%ERRORLEVEL%""==""0"" (
     goto waitloop
 )
 echo Applying new StudyHub.exe...
-copy /Y ""{downloadFile}"" ""{currentExe}"" >NUL 2>&1
-if exist ""{rootExe}"" copy /Y ""{downloadFile}"" ""{rootExe}"" >NUL 2>&1
-if exist ""{distExe}"" copy /Y ""{downloadFile}"" ""{distExe}"" >NUL 2>&1
+copy /Y ""{stagedFilePath}"" ""{currentExe}"" >NUL 2>&1
+if exist ""{rootExe}"" copy /Y ""{stagedFilePath}"" ""{rootExe}"" >NUL 2>&1
+if exist ""{distExe}"" copy /Y ""{stagedFilePath}"" ""{distExe}"" >NUL 2>&1
 rmdir /S /Q ""{stagingDir}"" >NUL 2>&1
 echo Launching updated Study Hub...
 start """" ""{currentExe}""
 del ""%~f0""
 ";
                     File.WriteAllText(updaterBatPath, bat, Encoding.ASCII);
+                    await Task.Delay(160);
                 }
                 else
                 {
-                    progress?.Report((80, "Extracting update archive..."));
                     string extractDir = Path.Combine(stagingDir, "extracted");
-                    ZipFile.ExtractToDirectory(downloadFile, extractDir, true);
+                    progress?.Report((25, "Inspecting update archive..."));
 
-                    // If zip has a single root folder (like owner-repo-sha), step into it
+                    await Task.Run(() =>
+                    {
+                        using var archive = ZipFile.OpenRead(stagedFilePath);
+                        int totalEntries = Math.Max(1, archive.Entries.Count);
+                        int doneEntries = 0;
+                        string fullExtractRoot = Path.GetFullPath(extractDir);
+                        Directory.CreateDirectory(fullExtractRoot);
+
+                        foreach (var entry in archive.Entries)
+                        {
+                            string destPath = Path.GetFullPath(Path.Combine(fullExtractRoot, entry.FullName));
+                            if (destPath.StartsWith(fullExtractRoot, StringComparison.OrdinalIgnoreCase))
+                            {
+                                if (string.IsNullOrEmpty(entry.Name))
+                                {
+                                    Directory.CreateDirectory(destPath);
+                                }
+                                else
+                                {
+                                    string? parent = Path.GetDirectoryName(destPath);
+                                    if (!string.IsNullOrEmpty(parent)) Directory.CreateDirectory(parent);
+                                    entry.ExtractToFile(destPath, true);
+                                }
+                            }
+                            doneEntries++;
+                            if (doneEntries % 5 == 0 || doneEntries == totalEntries)
+                            {
+                                int pct = 25 + (int)((doneEntries * 55L) / totalEntries);
+                                progress?.Report((Math.Clamp(pct, 25, 80), $"Extracting update files... ({doneEntries}/{totalEntries})"));
+                            }
+                        }
+                    });
+
                     var subDirs = Directory.GetDirectories(extractDir);
                     var subFiles = Directory.GetFiles(extractDir);
                     string sourceRoot = (subDirs.Length == 1 && subFiles.Length == 0) ? subDirs[0] : extractDir;
 
-                    // Check if extracted folder has a prebuilt StudyHub.exe or if it's source code
                     string prebuiltExe = Path.Combine(sourceRoot, "StudyHub.exe");
                     if (!File.Exists(prebuiltExe) && File.Exists(Path.Combine(sourceRoot, "dist", "StudyHub.exe")))
                         prebuiltExe = Path.Combine(sourceRoot, "dist", "StudyHub.exe");
 
                     bool hasCsproj = Directory.GetFiles(sourceRoot, "*.csproj").Length > 0;
 
-                    progress?.Report((92, "Configuring update installer script..."));
-
+                    progress?.Report((88, "Configuring update installer script..."));
                     var sb = new StringBuilder();
                     sb.AppendLine("@echo off");
                     sb.AppendLine("title Study Hub Auto-Updater");
@@ -646,8 +742,6 @@ del ""%~f0""
                     sb.AppendLine("    goto waitloop");
                     sb.AppendLine(")");
                     sb.AppendLine("echo Updating Study Hub files (preserving your database and files)...");
-
-                    // Copy updated source/app files while preserving user data folders, db, and local sync config
                     sb.AppendLine($"robocopy \"{sourceRoot}\" \"{_baseDir}\" /E /XD \"StudyHub_Files\" \"StudyHub_Sounds\" \"StudyHub_Backups\" \"StudyHub_Converted_PDFs\" \"StudyHub_SyncCache\" \"webview_data\" \"_update_staging\" \".git\" \"bin\" \"obj\" /XF \"study_hub.db\" \"study_hub_state.json\" \"gdrive_device_config.json\" \"last_synced_snapshot.json\" \"sync_entity_hashes.json\" \"StudyHub_Updater.bat\" >NUL 2>&1");
 
                     if (hasCsproj)
@@ -668,10 +762,11 @@ del ""%~f0""
                     sb.AppendLine("del \"%~f0\"");
 
                     File.WriteAllText(updaterBatPath, sb.ToString(), Encoding.ASCII);
+                    await Task.Delay(160);
                 }
 
-                progress?.Report((100, "Restarting to apply update..."));
-                await Task.Delay(350);
+                progress?.Report((100, "Restarting Study Hub to apply update..."));
+                await Task.Delay(320);
 
                 var psi = new ProcessStartInfo
                 {
@@ -689,6 +784,29 @@ del ""%~f0""
             {
                 return (false, $"Failed to apply update: {ex.Message}");
             }
+        }
+
+        public async Task<(bool ok, string error)> DownloadAndApplyUpdateAsync(
+            UpdateCheckResult updateInfo,
+            IProgress<(int percent, string status)> progress)
+        {
+            var dlProgress = new Progress<(int percent, string status)>(p =>
+            {
+                int scaled = Math.Clamp((int)(p.percent * 0.72), 1, 72);
+                progress?.Report((scaled, p.status));
+            });
+
+            var (dlOk, stagedPath, dlErr) = await DownloadUpdatePackageAsync(updateInfo, dlProgress);
+            if (!dlOk)
+                return (false, dlErr);
+
+            var applyProgress = new Progress<(int percent, string status)>(p =>
+            {
+                int scaled = Math.Clamp(72 + (int)(p.percent * 0.28), 72, 100);
+                progress?.Report((scaled, p.status));
+            });
+
+            return await ApplyDownloadedUpdateAsync(updateInfo, stagedPath, applyProgress);
         }
 
 #if ANDROID

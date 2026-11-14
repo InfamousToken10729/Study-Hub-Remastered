@@ -1,6 +1,6 @@
-# Study Hub v3.0 — Remastered Native Edition
+# Study Hub v3.7.1 — Remastered Native Edition
 
-**Study Hub Remastered** is an all-in-one desktop and mobile study workspace built natively in **C# / .NET 9** targeting both **Windows (WPF, x64)** and **Android (.NET MAUI, ARM64/x64)**. Rebuilt from the ground up to replace the original single-file HTML/JavaScript (`v2`) edition, v3.0 delivers hardware-composited 60 FPS animations, persistent SQLite + JSON storage with daily backups, a multi-channel gapless ambient audio engine, native PDF reading & conversion, touch whiteboard, and a distraction-free **Zen Study Mode** with 17 animated worlds.
+**Study Hub Remastered** is an all-in-one desktop and mobile study workspace built natively in **C# / .NET 9** targeting both **Windows (WPF, x64)** and **Android (.NET MAUI, ARM64/x64)**. Rebuilt from the ground up to replace the original single-file HTML/JavaScript (`v2`) edition, v3.7.1 delivers hardware-composited 60 FPS animations, persistent SQLite + JSON storage with daily backups, a multi-channel gapless ambient audio engine, native PDF reading & conversion, touch whiteboard, and a distraction-free **Zen Study Mode** with 27+ animated worlds.
 
 ---
 
@@ -55,9 +55,9 @@
 
 ## Improvements Over Original HTML (`v2`) Edition
 
-Study Hub v3.0 replaces browser-hosted HTML/CSS/Canvas execution with a compiled native Windows architecture:
+Study Hub v3.7.1 replaces browser-hosted HTML/CSS/Canvas execution with a compiled native Windows & Android architecture:
 
-| Area | Original Single-File HTML (`v2`) | Study Hub v3.0 Remastered Native |
+| Area | Original Single-File HTML (`v2`) | Study Hub v3.7.1 Remastered Native |
 | :--- | :--- | :--- |
 | **Rendering & Frame Pacing** | Browser DOM reflows, backdrop CSS blur compositing, and 2D HTML `<canvas>` draws subject to browser tab throttling | Native WPF DirectX/MIL composition (`ZenSceneCanvas`), pre-baked DPI-aware static sky/terrain `RenderTargetBitmap` layers, frozen LUT brushes/pens, transform-only workspace particles (`0` per-frame layout invalidations), and a unified `CompositionTarget.Rendering` VSync loop |
 | **Multi-Layer Backdrops** | Fixed-rate timer ticks fighting CSS transitions | Smooth delta-time (`dt`) stepping across 60Hz/120Hz+ monitors, automatic loop suspension when minimized/hidden/static, and optional 1/2-rate Performance Throttle |

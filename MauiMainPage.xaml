@@ -1262,7 +1262,7 @@
                             <Label Text="🎓" FontSize="20" />
                             <VerticalStackLayout>
                                 <Label Text="StudyHub Workspace" FontSize="15" FontAttributes="Bold" TextColor="#F8FAFC" />
-                                <Label Text="v3.0 Remastered Mobile &amp; Desktop" FontSize="10.5" TextColor="#8A95B7" />
+                                <Label Text="v3.7.1 • Remastered Edition" FontSize="10.5" TextColor="#8A95B7" />
                             </VerticalStackLayout>
                         </HorizontalStackLayout>
                         <Button Grid.Column="1" Text="✕" FontSize="13" WidthRequest="32" HeightRequest="32" Padding="0" BackgroundColor="#181D38" TextColor="#F8FAFC" CornerRadius="8" Clicked="OnToggleLeftDrawerClicked" />
@@ -1287,37 +1287,13 @@
                                     CornerRadius="12"
                                     Clicked="OnDrawerCalendarClicked" />
 
-                            <Button Text="⏱️ Focus Timer"
-                                    FontSize="12.5"
-                                    FontAttributes="Bold"
-                                    BackgroundColor="#181F3D"
-                                    TextColor="#F8FAFC"
-                                    CornerRadius="12"
-                                    Clicked="OnDrawerTimerClicked" />
-
-                            <Button Text="🧘 Zen Focus Mode"
+                            <Button Text="🧘 Zen Mode"
                                     FontSize="12.5"
                                     FontAttributes="Bold"
                                     BackgroundColor="#181F3D"
                                     TextColor="#F8FAFC"
                                     CornerRadius="12"
                                     Clicked="OnDrawerZenModeClicked" />
-
-                            <Button Text="🎚️ Ambient Sound Mixer"
-                                    FontSize="12.5"
-                                    FontAttributes="Bold"
-                                    BackgroundColor="#181F3D"
-                                    TextColor="#F8FAFC"
-                                    CornerRadius="12"
-                                    Clicked="OnDrawerMixerClicked" />
-
-                            <Button Text="🌓 Toggle Dark / Daylight Theme"
-                                    FontSize="12.5"
-                                    FontAttributes="Bold"
-                                    BackgroundColor="#181F3D"
-                                    TextColor="#F8FAFC"
-                                    CornerRadius="12"
-                                    Clicked="OnDrawerToggleThemeClicked" />
 
                             <Button Text="⚙️ Settings &amp; Updates"
                                     FontSize="12.5"
@@ -1339,7 +1315,7 @@
                     </ScrollView>
 
                     <Label Grid.Row="2"
-                           Text="SQLite + JSON Dual Persistence Active ✅"
+                           Text="Study Hub v3.7.1 • SQLite + JSON Sync ✅"
                            FontSize="10.5"
                            TextColor="#10B981"
                            Margin="0,12,0,0" />
@@ -1543,225 +1519,420 @@
                     HorizontalOptions="Center"
                     VerticalOptions="Center">
                 <Grid RowDefinitions="Auto,*,Auto" RowSpacing="12">
-                    <Grid Grid.Row="0" ColumnDefinitions="*,Auto">
-                        <Label Text="⚙️ StudyHub Control Center" FontSize="16" FontAttributes="Bold" TextColor="#F8FAFC" VerticalOptions="Center" />
-                        <Button Grid.Column="1" Text="✕" FontSize="13" WidthRequest="32" HeightRequest="32" Padding="0" BackgroundColor="#181D38" TextColor="#F8FAFC" CornerRadius="8" Clicked="OnCloseSettingsClicked" />
+                    <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
+                        <Button x:Name="BtnSettingsBack"
+                                Grid.Column="0"
+                                IsVisible="False"
+                                Text="←"
+                                FontSize="15"
+                                FontAttributes="Bold"
+                                WidthRequest="34"
+                                HeightRequest="32"
+                                Padding="0"
+                                BackgroundColor="#181D38"
+                                TextColor="#F8FAFC"
+                                CornerRadius="8"
+                                Clicked="OnSettingsBackClicked" />
+                        <Label x:Name="LblSettingsHeaderTitle"
+                               Grid.Column="1"
+                               Text="⚙️ Settings &amp; Control Center"
+                               FontSize="15.5"
+                               FontAttributes="Bold"
+                               TextColor="#F8FAFC"
+                               VerticalOptions="Center" />
+                        <Button Grid.Column="2" Text="✕" FontSize="13" WidthRequest="32" HeightRequest="32" Padding="0" BackgroundColor="#181D38" TextColor="#F8FAFC" CornerRadius="8" Clicked="OnCloseSettingsClicked" />
                     </Grid>
 
-                    <ScrollView Grid.Row="1">
+                    <ScrollView x:Name="SettingsScrollHost" Grid.Row="1">
                         <VerticalStackLayout Spacing="12">
-                            <!-- Surface Themes -->
-                            <Label Text="SURFACE COLOR THEME" FontSize="10.5" FontAttributes="Bold" TextColor="#94A3C6" />
-                            <FlexLayout Wrap="Wrap" JustifyContent="Start">
-                                <Button Text="🌌 Midnight Cyber" FontSize="11" Margin="0,0,6,6" BackgroundColor="#1E2548" TextColor="#F8FAFC" CornerRadius="10" Clicked="OnThemeAuroraClicked" />
-                                <Button Text="🪐 Deep Nebula" FontSize="11" Margin="0,0,6,6" BackgroundColor="#2A1B4E" TextColor="#E9D5FF" CornerRadius="10" Clicked="OnThemeNebulaClicked" />
-                                <Button Text="🧊 Frosted Acrylic" FontSize="11" Margin="0,0,6,6" BackgroundColor="#0F2D3C" TextColor="#A5F3FC" CornerRadius="10" Clicked="OnThemeAcrylicClicked" />
-                                <Button Text="🖤 Obsidian OLED" FontSize="11" Margin="0,0,6,6" BackgroundColor="#090B10" TextColor="#E2E8F0" CornerRadius="10" Clicked="OnThemeObsidianClicked" />
-                            </FlexLayout>
+                            <!-- DESIGNATED SETTINGS HUB -->
+                            <VerticalStackLayout x:Name="SettingsHubView" Spacing="9">
+                                <Label Text="Tap a category to open its dedicated settings menu" FontSize="11" TextColor="#8A95B7" Margin="0,0,0,2" />
 
-                            <!-- Particle Background Effects -->
-                            <Label Text="PARTICLE BACKGROUND ENGINE" FontSize="10.5" FontAttributes="Bold" TextColor="#94A3C6" />
-                            <FlexLayout Wrap="Wrap" JustifyContent="Start">
-                                <Button Text="✨ Cosmic" FontSize="11" Margin="0,0,6,6" BackgroundColor="#181D38" TextColor="#F8FAFC" CornerRadius="8" Clicked="OnParticleCosmicClicked" />
-                                <Button Text="🕸️ Network" FontSize="11" Margin="0,0,6,6" BackgroundColor="#181D38" TextColor="#F8FAFC" CornerRadius="8" Clicked="OnParticleNetworkClicked" />
-                                <Button Text="🫧 Glow Orbs" FontSize="11" Margin="0,0,6,6" BackgroundColor="#181D38" TextColor="#F8FAFC" CornerRadius="8" Clicked="OnParticleOrbsClicked" />
-                                <Button Text="🌋 Lava Lamp" FontSize="11" Margin="0,0,6,6" BackgroundColor="#181D38" TextColor="#F8FAFC" CornerRadius="8" Clicked="OnParticleLavaLampClicked" />
-                                <Button Text="☄️ Meteor" FontSize="11" Margin="0,0,6,6" BackgroundColor="#181D38" TextColor="#F8FAFC" CornerRadius="8" Clicked="OnParticleMeteorClicked" />
-                                <Button Text="💧 Ripple" FontSize="11" Margin="0,0,6,6" BackgroundColor="#181D38" TextColor="#F8FAFC" CornerRadius="8" Clicked="OnParticleWaterRippleClicked" />
-                                <Button Text="🌟 Fading Stars" FontSize="11" Margin="0,0,6,6" BackgroundColor="#181D38" TextColor="#F8FAFC" CornerRadius="8" Clicked="OnParticleStarsClicked" />
-                                <Button Text="❄️ Snow" FontSize="11" Margin="0,0,6,6" BackgroundColor="#181D38" TextColor="#F8FAFC" CornerRadius="8" Clicked="OnParticleSnowClicked" />
-                                <Button Text="💻 Matrix" FontSize="11" Margin="0,0,6,6" BackgroundColor="#181D38" TextColor="#F8FAFC" CornerRadius="8" Clicked="OnParticleMatrixClicked" />
-                                <Button Text="🐝 Fireflies" FontSize="11" Margin="0,0,6,6" BackgroundColor="#181D38" TextColor="#F8FAFC" CornerRadius="8" Clicked="OnParticleFirefliesClicked" />
-                                <Button Text="🌸 Sakura" FontSize="11" Margin="0,0,6,6" BackgroundColor="#181D38" TextColor="#F8FAFC" CornerRadius="8" Clicked="OnParticleSakuraClicked" />
-                                <Button Text="🔥 Embers" FontSize="11" Margin="0,0,6,6" BackgroundColor="#181D38" TextColor="#F8FAFC" CornerRadius="8" Clicked="OnParticleEmbersClicked" />
-                                <Button Text="🫧 Bubbles" FontSize="11" Margin="0,0,6,6" BackgroundColor="#181D38" TextColor="#F8FAFC" CornerRadius="8" Clicked="OnParticleBubblesClicked" />
-                                <Button Text="🚫 Off" FontSize="11" Margin="0,0,6,6" BackgroundColor="#181D38" TextColor="#94A3C6" CornerRadius="8" Clicked="OnParticleNoneClicked" />
-                            </FlexLayout>
+                                <Border BackgroundColor="#0E1329" Stroke="#26315B" StrokeThickness="1" StrokeShape="RoundRectangle 14" Padding="13,11">
+                                    <Border.GestureRecognizers>
+                                        <TapGestureRecognizer Tapped="OnOpenSubMenuAppearanceClicked" />
+                                    </Border.GestureRecognizers>
+                                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="11">
+                                        <Border WidthRequest="38" HeightRequest="38" BackgroundColor="#1E2548" StrokeShape="RoundRectangle 10" VerticalOptions="Center">
+                                            <Label Text="🎨" FontSize="17" HorizontalOptions="Center" VerticalOptions="Center" />
+                                        </Border>
+                                        <VerticalStackLayout Grid.Column="1" Spacing="2" VerticalOptions="Center">
+                                            <Label Text="Appearance &amp; Surface Themes" FontSize="13.5" FontAttributes="Bold" TextColor="#F8FAFC" />
+                                            <Label x:Name="LblHubThemeSummary" Text="Dynamic Gradients • Dark Mode" FontSize="11" TextColor="#94A3C6" />
+                                        </VerticalStackLayout>
+                                        <Label Grid.Column="2" Text="›" FontSize="20" TextColor="#8A95B7" VerticalOptions="Center" />
+                                    </Grid>
+                                </Border>
 
-                            <!-- Zen Mode World Quick Selector -->
-                            <Label Text="ZEN FOCUS WORLD" FontSize="10.5" FontAttributes="Bold" TextColor="#94A3C6" />
-                            <Button x:Name="BtnSettingsZenScene"
-                                    Text="🧘 Choose Zen World (27 Animated Scenes)"
-                                    FontSize="12"
-                                    FontAttributes="Bold"
-                                    BackgroundColor="#182042"
-                                    TextColor="#FACC15"
-                                    BorderColor="#334175"
-                                    BorderWidth="1"
-                                    CornerRadius="10"
-                                    Clicked="OnOpenZenSceneModalClicked" />
+                                <Border BackgroundColor="#0E1329" Stroke="#26315B" StrokeThickness="1" StrokeShape="RoundRectangle 14" Padding="13,11">
+                                    <Border.GestureRecognizers>
+                                        <TapGestureRecognizer Tapped="OnOpenSubMenuParticlesClicked" />
+                                    </Border.GestureRecognizers>
+                                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="11">
+                                        <Border WidthRequest="38" HeightRequest="38" BackgroundColor="#1B2A48" StrokeShape="RoundRectangle 10" VerticalOptions="Center">
+                                            <Label Text="✨" FontSize="17" HorizontalOptions="Center" VerticalOptions="Center" />
+                                        </Border>
+                                        <VerticalStackLayout Grid.Column="1" Spacing="2" VerticalOptions="Center">
+                                            <Label Text="Background Particle Effects" FontSize="13.5" FontAttributes="Bold" TextColor="#F8FAFC" />
+                                            <Label x:Name="LblHubParticleSummary" Text="Network Mesh • Animated Backdrop" FontSize="11" TextColor="#94A3C6" />
+                                        </VerticalStackLayout>
+                                        <Label Grid.Column="2" Text="›" FontSize="20" TextColor="#8A95B7" VerticalOptions="Center" />
+                                    </Grid>
+                                </Border>
 
-                            <!-- Calendar Notifications & Morning Check Time -->
-                            <Label Text="CALENDAR REMINDERS &amp; MORNING TIME" FontSize="10.5" FontAttributes="Bold" TextColor="#94A3C6" />
-                            <Border BackgroundColor="#0D1124" Stroke="#252F58" StrokeThickness="1" StrokeShape="RoundRectangle 12" Padding="12,10">
-                                <VerticalStackLayout Spacing="8">
+                                <Border BackgroundColor="#0E1329" Stroke="#26315B" StrokeThickness="1" StrokeShape="RoundRectangle 14" Padding="13,11">
+                                    <Border.GestureRecognizers>
+                                        <TapGestureRecognizer Tapped="OnOpenSubMenuZenClicked" />
+                                    </Border.GestureRecognizers>
+                                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="11">
+                                        <Border WidthRequest="38" HeightRequest="38" BackgroundColor="#2A2148" StrokeShape="RoundRectangle 10" VerticalOptions="Center">
+                                            <Label Text="🧘" FontSize="17" HorizontalOptions="Center" VerticalOptions="Center" />
+                                        </Border>
+                                        <VerticalStackLayout Grid.Column="1" Spacing="2" VerticalOptions="Center">
+                                            <Label Text="Zen Mode &amp; Ambient World" FontSize="13.5" FontAttributes="Bold" TextColor="#F8FAFC" />
+                                            <Label x:Name="LblHubZenSummary" Text="27+ Animated Scenes" FontSize="11" TextColor="#94A3C6" />
+                                        </VerticalStackLayout>
+                                        <Label Grid.Column="2" Text="›" FontSize="20" TextColor="#8A95B7" VerticalOptions="Center" />
+                                    </Grid>
+                                </Border>
+
+                                <Border BackgroundColor="#0E1329" Stroke="#26315B" StrokeThickness="1" StrokeShape="RoundRectangle 14" Padding="13,11">
+                                    <Border.GestureRecognizers>
+                                        <TapGestureRecognizer Tapped="OnOpenSubMenuCalTimerClicked" />
+                                    </Border.GestureRecognizers>
+                                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="11">
+                                        <Border WidthRequest="38" HeightRequest="38" BackgroundColor="#1A323E" StrokeShape="RoundRectangle 10" VerticalOptions="Center">
+                                            <Label Text="📅" FontSize="17" HorizontalOptions="Center" VerticalOptions="Center" />
+                                        </Border>
+                                        <VerticalStackLayout Grid.Column="1" Spacing="2" VerticalOptions="Center">
+                                            <Label Text="Calendar &amp; Focus Timer" FontSize="13.5" FontAttributes="Bold" TextColor="#F8FAFC" />
+                                            <Label x:Name="LblHubCalTimerSummary" Text="Morning reminders &amp; Pomodoro defaults" FontSize="11" TextColor="#94A3C6" />
+                                        </VerticalStackLayout>
+                                        <Label Grid.Column="2" Text="›" FontSize="20" TextColor="#8A95B7" VerticalOptions="Center" />
+                                    </Grid>
+                                </Border>
+
+                                <Border BackgroundColor="#0E1329" Stroke="#26315B" StrokeThickness="1" StrokeShape="RoundRectangle 14" Padding="13,11">
+                                    <Border.GestureRecognizers>
+                                        <TapGestureRecognizer Tapped="OnOpenSubMenuCloudClicked" />
+                                    </Border.GestureRecognizers>
+                                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="11">
+                                        <Border WidthRequest="38" HeightRequest="38" BackgroundColor="#112E42" StrokeShape="RoundRectangle 10" VerticalOptions="Center">
+                                            <Label Text="☁️" FontSize="17" HorizontalOptions="Center" VerticalOptions="Center" />
+                                        </Border>
+                                        <VerticalStackLayout Grid.Column="1" Spacing="2" VerticalOptions="Center">
+                                            <Label Text="Google Drive Cloud Sync" FontSize="13.5" FontAttributes="Bold" TextColor="#F8FAFC" />
+                                            <Label x:Name="LblHubCloudSummary" Text="Selective sync, pairing &amp; snapshots" FontSize="11" TextColor="#94A3C6" />
+                                        </VerticalStackLayout>
+                                        <Label Grid.Column="2" Text="›" FontSize="20" TextColor="#8A95B7" VerticalOptions="Center" />
+                                    </Grid>
+                                </Border>
+
+                                <Border BackgroundColor="#0E1329" Stroke="#26315B" StrokeThickness="1" StrokeShape="RoundRectangle 14" Padding="13,11">
+                                    <Border.GestureRecognizers>
+                                        <TapGestureRecognizer Tapped="OnOpenSubMenuUpdatesClicked" />
+                                    </Border.GestureRecognizers>
+                                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="11">
+                                        <Border WidthRequest="38" HeightRequest="38" BackgroundColor="#1E2845" StrokeShape="RoundRectangle 10" VerticalOptions="Center">
+                                            <Label Text="🔄" FontSize="17" HorizontalOptions="Center" VerticalOptions="Center" />
+                                        </Border>
+                                        <VerticalStackLayout Grid.Column="1" Spacing="2" VerticalOptions="Center">
+                                            <Label Text="Backup, Data &amp; App Updates" FontSize="13.5" FontAttributes="Bold" TextColor="#F8FAFC" />
+                                            <Label x:Name="LblHubUpdatesSummary" Text="Version 3.7.1 • Auto-Check &amp; Backup" FontSize="11" TextColor="#94A3C6" />
+                                        </VerticalStackLayout>
+                                        <Label Grid.Column="2" Text="›" FontSize="20" TextColor="#8A95B7" VerticalOptions="Center" />
+                                    </Grid>
+                                </Border>
+
+                                <Border BackgroundColor="#090D1F" Stroke="#1D2546" StrokeThickness="1" StrokeShape="RoundRectangle 12" Padding="12,9" Margin="0,4,0,0">
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <Label Text="Study Hub Mobile &amp; Desktop" FontSize="11.5" TextColor="#8A95B7" VerticalOptions="Center" />
+                                        <Label Grid.Column="1" Text="v3.7.1" FontSize="11.5" FontAttributes="Bold" TextColor="#A78BFA" VerticalOptions="Center" />
+                                    </Grid>
+                                </Border>
+                            </VerticalStackLayout>
+
+                            <!-- SUB-MENU 1: APPEARANCE & SURFACE THEMES -->
+                            <VerticalStackLayout x:Name="SubMenuAppearanceView" IsVisible="False" Spacing="12">
+                                <Label Text="STATIC COLOR &amp; SURFACE THEMES" FontSize="10.5" FontAttributes="Bold" TextColor="#94A3C6" />
+                                <FlexLayout Wrap="Wrap" JustifyContent="Start">
+                                    <Button Text="✨ Dynamic Gradients" FontSize="11" Margin="0,0,6,6" BackgroundColor="#1E2548" TextColor="#F8FAFC" CornerRadius="10" Clicked="OnThemeAuroraClicked" />
+                                    <Button Text="🌌 Deep Nebula" FontSize="11" Margin="0,0,6,6" BackgroundColor="#2A1B4E" TextColor="#E9D5FF" CornerRadius="10" Clicked="OnThemeNebulaClicked" />
+                                    <Button Text="💠 Frosted Acrylic" FontSize="11" Margin="0,0,6,6" BackgroundColor="#0F2D3C" TextColor="#A5F3FC" CornerRadius="10" Clicked="OnThemeAcrylicClicked" />
+                                    <Button Text="🌅 Day / Dusk Cycle" FontSize="11" Margin="0,0,6,6" BackgroundColor="#3B1D3B" TextColor="#FDE68A" CornerRadius="10" Clicked="OnThemeDayDuskClicked" />
+                                    <Button Text="🔲 Flat Minimalist" FontSize="11" Margin="0,0,6,6" BackgroundColor="#1E293B" TextColor="#E2E8F0" CornerRadius="10" Clicked="OnThemeMinimalClicked" />
+                                    <Button Text="🖤 OLED Obsidian" FontSize="11" Margin="0,0,6,6" BackgroundColor="#000000" BorderColor="#3F3F46" BorderWidth="1" TextColor="#FAFAFA" CornerRadius="10" Clicked="OnThemeObsidianClicked" />
+                                    <Button Text="🕶️ Cyberpunk Neon Matrix" FontSize="11" Margin="0,0,6,6" BackgroundColor="#141824" BorderColor="#00F0FF" BorderWidth="1" TextColor="#67E8F9" CornerRadius="10" Clicked="OnThemeCyberpunkClicked" />
+                                    <Button Text="🌲 Boreal Twilight" FontSize="11" Margin="0,0,6,6" BackgroundColor="#06281E" BorderColor="#10B981" BorderWidth="1" TextColor="#A7F3D0" CornerRadius="10" Clicked="OnThemeBorealClicked" />
+                                </FlexLayout>
+
+                                <Border BackgroundColor="#0D1124" Stroke="#252F58" StrokeThickness="1" StrokeShape="RoundRectangle 12" Padding="12,10">
+                                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                                        <VerticalStackLayout Spacing="1" VerticalOptions="Center">
+                                            <Label Text="Dark / Daylight Base Polarity" FontSize="12.5" FontAttributes="Bold" TextColor="#F8FAFC" />
+                                            <Label Text="Switch between dark canvas and daylight reading mode" FontSize="10" TextColor="#8A95B7" />
+                                        </VerticalStackLayout>
+                                        <Button Grid.Column="1" Text="🌓 Toggle" FontSize="11" FontAttributes="Bold" BackgroundColor="#7C5CFF" TextColor="White" CornerRadius="9" Padding="12,6" Clicked="OnToggleThemeClicked" />
+                                    </Grid>
+                                </Border>
+                            </VerticalStackLayout>
+
+                            <!-- SUB-MENU 2: ANIMATED BACKGROUND PARTICLES -->
+                            <VerticalStackLayout x:Name="SubMenuParticlesView" IsVisible="False" Spacing="12">
+                                <Label Text="ANIMATED BACKGROUND PARTICLE EFFECTS" FontSize="10.5" FontAttributes="Bold" TextColor="#94A3C6" />
+                                <FlexLayout Wrap="Wrap" JustifyContent="Start">
+                                    <Button Text="🌐 Network Mesh" FontSize="11" Margin="0,0,6,6" BackgroundColor="#181D38" TextColor="#F8FAFC" CornerRadius="8" Clicked="OnParticleNetworkClicked" />
+                                    <Button Text="⭐ Cosmic Dust" FontSize="11" Margin="0,0,6,6" BackgroundColor="#181D38" TextColor="#F8FAFC" CornerRadius="8" Clicked="OnParticleCosmicClicked" />
+                                    <Button Text="💻 Digital Rain" FontSize="11" Margin="0,0,6,6" BackgroundColor="#181D38" TextColor="#F8FAFC" CornerRadius="8" Clicked="OnParticleMatrixClicked" />
+                                    <Button Text="🔮 Floating Orbs" FontSize="11" Margin="0,0,6,6" BackgroundColor="#181D38" TextColor="#F8FAFC" CornerRadius="8" Clicked="OnParticleOrbsClicked" />
+                                    <Button Text="🔥 Lava Lamp" FontSize="11" Margin="0,0,6,6" BackgroundColor="#181D38" TextColor="#F8FAFC" CornerRadius="8" Clicked="OnParticleLavaLampClicked" />
+                                    <Button Text="🌠 Meteor" FontSize="11" Margin="0,0,6,6" BackgroundColor="#181D38" TextColor="#F8FAFC" CornerRadius="8" Clicked="OnParticleMeteorClicked" />
+                                    <Button Text="🌟 Fading Stars" FontSize="11" Margin="0,0,6,6" BackgroundColor="#181D38" TextColor="#F8FAFC" CornerRadius="8" Clicked="OnParticleStarsClicked" />
+                                    <Button Text="💧 Water Ripple" FontSize="11" Margin="0,0,6,6" BackgroundColor="#181D38" TextColor="#F8FAFC" CornerRadius="8" Clicked="OnParticleWaterRippleClicked" />
+                                    <Button Text="🐝 Fireflies / Dust Motes" FontSize="11" Margin="0,0,6,6" BackgroundColor="#2A2110" BorderColor="#F59E0B" BorderWidth="1" TextColor="#FDE68A" CornerRadius="8" Clicked="OnParticleFirefliesClicked" />
+                                    <Button Text="⚡ Interactive Circuit Trace" FontSize="11" Margin="0,0,6,6" BackgroundColor="#0E2433" BorderColor="#22D3EE" BorderWidth="1" TextColor="#A5F3FC" CornerRadius="8" Clicked="OnParticleCircuitClicked" />
+                                    <Button Text="🌩️ Plasma Lightning" FontSize="11" Margin="0,0,6,6" BackgroundColor="#231942" BorderColor="#A855F7" BorderWidth="1" TextColor="#E9D5FF" CornerRadius="8" Clicked="OnParticlePlasmaClicked" />
+                                    <Button Text="🌸 Cherry Blossom / Snowfall" FontSize="11" Margin="0,0,6,6" BackgroundColor="#2D1628" BorderColor="#F472B6" BorderWidth="1" TextColor="#FBCFE8" CornerRadius="8" Clicked="OnParticlePetalsSnowClicked" />
+                                    <Button Text="🚫 Disable" FontSize="11" Margin="0,0,6,6" BackgroundColor="#181D38" TextColor="#94A3C6" CornerRadius="8" Clicked="OnParticleNoneClicked" />
+                                </FlexLayout>
+                            </VerticalStackLayout>
+
+                            <!-- SUB-MENU 3: ZEN FOCUS WORLD -->
+                            <VerticalStackLayout x:Name="SubMenuZenView" IsVisible="False" Spacing="12">
+                                <Label Text="ZEN MODE &amp; IMMERSIVE ENVIRONMENTS" FontSize="10.5" FontAttributes="Bold" TextColor="#94A3C6" />
+                                <Border BackgroundColor="#0D1124" Stroke="#252F58" StrokeThickness="1" StrokeShape="RoundRectangle 12" Padding="12">
+                                    <VerticalStackLayout Spacing="10">
+                                        <Label Text="Select from 27+ animated worlds including Observatory (Morning/Night/Sunset), Bioluminescent Grotto, Zen Bamboo Garden, Crystal Cave &amp; more." FontSize="11" TextColor="#94A3C6" />
+                                        <Button x:Name="BtnSettingsZenScene"
+                                                Text="🧘 Choose Zen World (27+ Animated Scenes)"
+                                                FontSize="12"
+                                                FontAttributes="Bold"
+                                                BackgroundColor="#182042"
+                                                TextColor="#FACC15"
+                                                BorderColor="#334175"
+                                                BorderWidth="1"
+                                                CornerRadius="10"
+                                                Clicked="OnOpenZenSceneModalClicked" />
+                                    </VerticalStackLayout>
+                                </Border>
+                            </VerticalStackLayout>
+
+                            <!-- SUB-MENU 4: CALENDAR & FOCUS TIMER -->
+                            <VerticalStackLayout x:Name="SubMenuCalTimerView" IsVisible="False" Spacing="12">
+                                <Label Text="CALENDAR REMINDERS &amp; MORNING TIME" FontSize="10.5" FontAttributes="Bold" TextColor="#94A3C6" />
+                                <Border BackgroundColor="#0D1124" Stroke="#252F58" StrokeThickness="1" StrokeShape="RoundRectangle 12" Padding="12,10">
+                                    <VerticalStackLayout Spacing="8">
+                                        <Grid ColumnDefinitions="*,Auto" VerticalOptions="Center">
+                                            <VerticalStackLayout Spacing="1">
+                                                <Label Text="Enable Calendar Notifications" FontSize="12.5" FontAttributes="Bold" TextColor="#F8FAFC" />
+                                                <Label Text="Notifies when phone opens/unlocks after morning time" FontSize="10" TextColor="#8A95B7" />
+                                            </VerticalStackLayout>
+                                            <Switch x:Name="SwitchSettingsCalNotifs" Grid.Column="1" IsToggled="True" OnColor="#7C5CFF" Toggled="OnSettingsCalNotifToggled" />
+                                        </Grid>
+                                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8" VerticalOptions="Center">
+                                            <Label Text="Morning time (HH:mm):" FontSize="11.5" TextColor="#CBD5E1" VerticalOptions="Center" />
+                                            <Entry x:Name="EntrySettingsMorningTime"
+                                                   Grid.Column="1"
+                                                   Text="08:00"
+                                                   Placeholder="07:00 or 08:00"
+                                                   PlaceholderColor="#687296"
+                                                   TextColor="#F8FAFC"
+                                                   BackgroundColor="#161D3D"
+                                                   FontSize="12"
+                                                   Completed="OnSettingsMorningTimeCompleted" />
+                                        </Grid>
+                                        <HorizontalStackLayout Spacing="6">
+                                            <Button Text="7:00 AM" FontSize="10.5" BackgroundColor="#182042" TextColor="#CBD5E1" CornerRadius="8" Padding="9,4" Clicked="OnMorningPreset0700Clicked" />
+                                            <Button Text="8:00 AM" FontSize="10.5" BackgroundColor="#182042" TextColor="#CBD5E1" CornerRadius="8" Padding="9,4" Clicked="OnMorningPreset0800Clicked" />
+                                            <Button Text="9:00 AM" FontSize="10.5" BackgroundColor="#182042" TextColor="#CBD5E1" CornerRadius="8" Padding="9,4" Clicked="OnMorningPreset0900Clicked" />
+                                            <Button Text="Save Time" FontSize="10.5" FontAttributes="Bold" BackgroundColor="#7C5CFF" TextColor="White" CornerRadius="8" Padding="10,4" Clicked="OnSettingsMorningTimeCompleted" />
+                                        </HorizontalStackLayout>
+                                    </VerticalStackLayout>
+                                </Border>
+
+                                <Label Text="FOCUS TIMER DEFAULTS" FontSize="10.5" FontAttributes="Bold" TextColor="#94A3C6" />
+                                <Border BackgroundColor="#0D1124" Stroke="#252F58" StrokeThickness="1" StrokeShape="RoundRectangle 12" Padding="12,10">
+                                    <VerticalStackLayout Spacing="8">
+                                        <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+                                            <VerticalStackLayout Spacing="4">
+                                                <Label Text="Focus (min)" FontSize="10.5" TextColor="#94A3C6" />
+                                                <Entry x:Name="EntrySettingsPomoWorkMin" Text="25" Keyboard="Numeric" TextColor="#F8FAFC" BackgroundColor="#161D3D" FontSize="12" />
+                                            </VerticalStackLayout>
+                                            <VerticalStackLayout Grid.Column="1" Spacing="4">
+                                                <Label Text="Break (min)" FontSize="10.5" TextColor="#94A3C6" />
+                                                <Entry x:Name="EntrySettingsPomoBreakMin" Text="5" Keyboard="Numeric" TextColor="#F8FAFC" BackgroundColor="#161D3D" FontSize="12" />
+                                            </VerticalStackLayout>
+                                        </Grid>
+                                        <Button Text="Save Timer Defaults" FontSize="11" FontAttributes="Bold" BackgroundColor="#7C5CFF" TextColor="White" CornerRadius="9" Clicked="OnSettingsSavePomoClicked" />
+                                    </VerticalStackLayout>
+                                </Border>
+                            </VerticalStackLayout>
+
+                            <!-- SUB-MENU 5: GOOGLE DRIVE CLOUD SYNC -->
+                            <VerticalStackLayout x:Name="SubMenuCloudSyncView" IsVisible="False" Spacing="10">
+                                <Label Text="GOOGLE DRIVE CLOUD SYNC (ZERO COST)" FontSize="10.5" FontAttributes="Bold" TextColor="#38BDF8" />
+                                <Border BackgroundColor="#0D1124" Stroke="#252E56" StrokeThickness="1" StrokeShape="RoundRectangle 12" Padding="12">
+                                    <VerticalStackLayout Spacing="8">
+                                        <Label x:Name="LblMobileCloudStatusTitle" Text="Cloud Setup Needed" FontSize="12.5" FontAttributes="Bold" TextColor="#F8FAFC" />
+                                        <Label x:Name="LblMobileCloudStatusDetail" Text="Pair with your PC using a Quick-Pair code or client_secret.json to sync courses, notes, PDFs, audio &amp; calendar safely." FontSize="10.5" TextColor="#94A3C6" />
+
+                                        <FlexLayout Wrap="Wrap" JustifyContent="Start">
+                                            <Button x:Name="BtnMobileCloudSignIn" Text="🔑 Sign In Google" FontSize="11" FontAttributes="Bold" BackgroundColor="#7C5CFF" TextColor="White" CornerRadius="9" Padding="10,6" Margin="0,0,6,6" Clicked="OnMobileCloudSignInClicked" />
+                                            <Button x:Name="BtnMobileCloudSyncNow" Text="🔄 Sync Now" FontSize="11" FontAttributes="Bold" BackgroundColor="#10B981" TextColor="White" CornerRadius="9" Padding="10,6" Margin="0,0,6,6" Clicked="OnMobileCloudSyncNowClicked" />
+                                            <Button x:Name="BtnMobileCloudTimeMachine" Text="🕒 Time Machine" FontSize="11" BackgroundColor="#1E2548" TextColor="#A78BFA" CornerRadius="9" Padding="10,6" Margin="0,0,6,6" Clicked="OnMobileCloudTimeMachineClicked" />
+                                            <Button x:Name="BtnMobileCloudSignOut" Text="Sign Out" IsVisible="False" FontSize="11" BackgroundColor="#4C1D24" TextColor="#FCA5A5" CornerRadius="9" Padding="10,6" Margin="0,0,0,6" Clicked="OnMobileCloudSignOutClicked" />
+                                        </FlexLayout>
+
+                                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
+                                            <Entry x:Name="EntryMobileCloudManualAuth" Placeholder="Callback redirect URL or code (fallback)" PlaceholderColor="#687296" TextColor="#F8FAFC" BackgroundColor="#151A36" FontSize="11" />
+                                            <Button Grid.Column="1" Text="Verify" FontSize="11" BackgroundColor="#1E2548" TextColor="#38BDF8" CornerRadius="8" Padding="10,6" Clicked="OnMobileCloudManualAuthClicked" />
+                                        </Grid>
+
+                                        <BoxView HeightRequest="1" Color="#1E2646" Margin="0,2" />
+
+                                        <Label Text="Quick-Pair (from PC Control Center) or OAuth Client ID:" FontSize="10.5" TextColor="#94A3C6" />
+                                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
+                                            <Entry x:Name="EntryMobileQuickPairCode" Placeholder="Paste SHPAIR1:... code here" PlaceholderColor="#687296" TextColor="#F8FAFC" BackgroundColor="#151A36" FontSize="11" />
+                                            <Button Grid.Column="1" Text="Apply Code" FontSize="11" FontAttributes="Bold" BackgroundColor="#232D58" TextColor="#38BDF8" CornerRadius="8" Padding="10,6" Clicked="OnMobileApplyQuickPairCodeClicked" />
+                                        </Grid>
+
+                                        <Entry x:Name="EntryMobileCloudClientId" Placeholder="Google OAuth Client ID (*.apps.googleusercontent.com)" PlaceholderColor="#687296" TextColor="#F8FAFC" BackgroundColor="#151A36" FontSize="11" />
+                                        <Entry x:Name="EntryMobileCloudClientSecret" Placeholder="Client Secret (optional/from JSON)" IsPassword="True" PlaceholderColor="#687296" TextColor="#F8FAFC" BackgroundColor="#151A36" FontSize="11" />
+
+                                        <FlexLayout Wrap="Wrap" JustifyContent="Start">
+                                            <Button Text="💾 Save ID/Secret" FontSize="10.5" BackgroundColor="#1E2548" TextColor="#F8FAFC" CornerRadius="8" Padding="9,5" Margin="0,0,6,6" Clicked="OnMobileSaveCloudCredentialsClicked" />
+                                            <Button Text="📄 Pick QuickPair/client_secret.json" FontSize="10.5" BackgroundColor="#1E2548" TextColor="#F8FAFC" CornerRadius="8" Padding="9,5" Margin="0,0,6,6" Clicked="OnMobilePickCloudCredentialsJsonClicked" />
+                                            <Button Text="📋 Copy Quick-Pair" FontSize="10.5" BackgroundColor="#1E2548" TextColor="#CBD5E1" CornerRadius="8" Padding="9,5" Margin="0,0,0,6" Clicked="OnMobileCopyQuickPairClicked" />
+                                        </FlexLayout>
+
+                                        <Grid ColumnDefinitions="*,Auto">
+                                            <Label Text="Auto-Sync on Edit &amp; Launch" FontSize="11.5" TextColor="#CBD5E1" VerticalOptions="Center" />
+                                            <Switch x:Name="SwitchMobileAutoSync" Grid.Column="1" IsToggled="True" OnColor="#7C5CFF" Toggled="OnMobileCloudPrefsToggled" />
+                                        </Grid>
+                                        <Grid ColumnDefinitions="*,Auto">
+                                            <Label Text="Binary Media Transfers Enabled" FontSize="11.5" TextColor="#CBD5E1" VerticalOptions="Center" />
+                                            <Switch x:Name="SwitchMobileSyncFiles" Grid.Column="1" IsToggled="True" OnColor="#7C5CFF" Toggled="OnMobileCloudPrefsToggled" />
+                                        </Grid>
+                                        <Grid ColumnDefinitions="*,Auto">
+                                            <Label Text="Transfer Large Files on Wi-Fi Only" FontSize="11.5" TextColor="#CBD5E1" VerticalOptions="Center" />
+                                            <Switch x:Name="SwitchMobileWifiOnly" Grid.Column="1" IsToggled="True" OnColor="#7C5CFF" Toggled="OnMobileCloudPrefsToggled" />
+                                        </Grid>
+                                        <BoxView HeightRequest="1" BackgroundColor="#232B52" Margin="0,4" />
+                                        <Label Text="CHOOSE WHAT TO SYNC ON THIS PHONE" FontSize="10" FontAttributes="Bold" TextColor="#94A3C6" />
+                                        <Grid ColumnDefinitions="*,Auto">
+                                            <Label Text="📚 Subjects, Notes &amp; Flashcards" FontSize="11.5" TextColor="#CBD5E1" VerticalOptions="Center" />
+                                            <Switch x:Name="SwitchMobileSyncCourses" Grid.Column="1" IsToggled="True" OnColor="#7C5CFF" Toggled="OnMobileCloudPrefsToggled" />
+                                        </Grid>
+                                        <Grid ColumnDefinitions="*,Auto">
+                                            <Label Text="🔗 Links, Tasks &amp; Deadlines" FontSize="11.5" TextColor="#CBD5E1" VerticalOptions="Center" />
+                                            <Switch x:Name="SwitchMobileSyncLinks" Grid.Column="1" IsToggled="True" OnColor="#7C5CFF" Toggled="OnMobileCloudPrefsToggled" />
+                                        </Grid>
+                                        <Grid ColumnDefinitions="*,Auto">
+                                            <Label Text="📅 Calendar Events &amp; Heatmap" FontSize="11.5" TextColor="#CBD5E1" VerticalOptions="Center" />
+                                            <Switch x:Name="SwitchMobileSyncCalendar" Grid.Column="1" IsToggled="True" OnColor="#7C5CFF" Toggled="OnMobileCloudPrefsToggled" />
+                                        </Grid>
+                                        <Grid ColumnDefinitions="*,Auto">
+                                            <Label Text="📄 PDFs &amp; Study Documents" FontSize="11.5" TextColor="#CBD5E1" VerticalOptions="Center" />
+                                            <Switch x:Name="SwitchMobileSyncPdfs" Grid.Column="1" IsToggled="True" OnColor="#7C5CFF" Toggled="OnMobileCloudPrefsToggled" />
+                                        </Grid>
+                                        <Grid ColumnDefinitions="*,Auto">
+                                            <Label Text="🎬 Lecture Videos &amp; Recordings" FontSize="11.5" TextColor="#CBD5E1" VerticalOptions="Center" />
+                                            <Switch x:Name="SwitchMobileSyncVideos" Grid.Column="1" IsToggled="True" OnColor="#7C5CFF" Toggled="OnMobileCloudPrefsToggled" />
+                                        </Grid>
+                                        <Grid ColumnDefinitions="*,Auto">
+                                            <Label Text="🏔️ Extra Zen Scenes &amp; Custom Media" FontSize="11.5" TextColor="#CBD5E1" VerticalOptions="Center" />
+                                            <Switch x:Name="SwitchMobileSyncZen" Grid.Column="1" IsToggled="True" OnColor="#7C5CFF" Toggled="OnMobileCloudPrefsToggled" />
+                                        </Grid>
+                                        <Grid ColumnDefinitions="*,Auto">
+                                            <Label Text="🎧 Extra Audio &amp; Mixer Presets" FontSize="11.5" TextColor="#CBD5E1" VerticalOptions="Center" />
+                                            <Switch x:Name="SwitchMobileSyncAudio" Grid.Column="1" IsToggled="True" OnColor="#7C5CFF" Toggled="OnMobileCloudPrefsToggled" />
+                                        </Grid>
+                                        <Grid ColumnDefinitions="*,Auto">
+                                            <Label Text="🎨 Theme, Particles &amp; App Preferences" FontSize="11.5" TextColor="#CBD5E1" VerticalOptions="Center" />
+                                            <Switch x:Name="SwitchMobileSyncPrefs" Grid.Column="1" IsToggled="True" OnColor="#7C5CFF" Toggled="OnMobileCloudPrefsToggled" />
+                                        </Grid>
+                                    </VerticalStackLayout>
+                                </Border>
+                            </VerticalStackLayout>
+
+                            <!-- SUB-MENU 6: BACKUP, DATA & APP UPDATES -->
+                            <VerticalStackLayout x:Name="SubMenuUpdatesBackupView" IsVisible="False" Spacing="12">
+                                <Border BackgroundColor="#0D1124" Stroke="#252F58" StrokeThickness="1" StrokeShape="RoundRectangle 12" Padding="12,10">
+                                    <Grid ColumnDefinitions="*,Auto" VerticalOptions="Center">
+                                        <VerticalStackLayout Spacing="2">
+                                            <Label Text="Study Hub v3.7.1" FontSize="13.5" FontAttributes="Bold" TextColor="#F8FAFC" />
+                                            <Label Text="Build 371 • Android &amp; Desktop Sync" FontSize="10.5" TextColor="#8A95B7" />
+                                        </VerticalStackLayout>
+                                        <Label Grid.Column="1" Text="CURRENT" FontSize="10" FontAttributes="Bold" TextColor="#10B981" VerticalOptions="Center" />
+                                    </Grid>
+                                </Border>
+
+                                <Label Text="DATA BACKUP &amp; RESTORE" FontSize="10.5" FontAttributes="Bold" TextColor="#94A3C6" />
+                                <FlexLayout Wrap="Wrap" JustifyContent="Start">
+                                    <Button Text="📤 Export Backup" FontSize="11" Margin="0,0,8,6" BackgroundColor="#1E2548" TextColor="#F8FAFC" CornerRadius="10" Clicked="OnExportBackupClicked" />
+                                    <Button Text="📥 Import Backup" FontSize="11" Margin="0,0,0,6" BackgroundColor="#1E2548" TextColor="#F8FAFC" CornerRadius="10" Clicked="OnImportBackupClicked" />
+                                </FlexLayout>
+
+                                <Label Text="AUTOMATIC APP UPDATES" FontSize="10.5" FontAttributes="Bold" TextColor="#94A3C6" />
+                                <Border BackgroundColor="#0D1124" Stroke="#252F58" StrokeThickness="1" StrokeShape="RoundRectangle 12" Padding="12,10">
                                     <Grid ColumnDefinitions="*,Auto" VerticalOptions="Center">
                                         <VerticalStackLayout Spacing="1">
-                                            <Label Text="Enable Calendar Notifications" FontSize="12.5" FontAttributes="Bold" TextColor="#F8FAFC" />
-                                            <Label Text="Notifies when phone opens/unlocks after morning time" FontSize="10" TextColor="#8A95B7" />
+                                            <Label Text="Check &amp; Download on Launch" FontSize="12" FontAttributes="Bold" TextColor="#F8FAFC" />
+                                            <Label Text="Downloads new APK quietly, then prompts Install Now / Later" FontSize="10" TextColor="#8A95B7" />
                                         </VerticalStackLayout>
-                                        <Switch x:Name="SwitchSettingsCalNotifs" Grid.Column="1" IsToggled="True" OnColor="#7C5CFF" Toggled="OnSettingsCalNotifToggled" />
+                                        <Switch x:Name="SwitchMobileAutoCheckUpdates" Grid.Column="1" IsToggled="True" OnColor="#7C5CFF" Toggled="OnMobileAutoCheckUpdatesToggled" />
                                     </Grid>
-                                    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8" VerticalOptions="Center">
-                                        <Label Text="Morning time (HH:mm):" FontSize="11.5" TextColor="#CBD5E1" VerticalOptions="Center" />
-                                        <Entry x:Name="EntrySettingsMorningTime"
-                                               Grid.Column="1"
-                                               Text="08:00"
-                                               Placeholder="07:00 or 08:00"
-                                               PlaceholderColor="#687296"
-                                               TextColor="#F8FAFC"
-                                               BackgroundColor="#161D3D"
-                                               FontSize="12"
-                                               Completed="OnSettingsMorningTimeCompleted" />
-                                    </Grid>
-                                    <HorizontalStackLayout Spacing="6">
-                                        <Button Text="7:00 AM" FontSize="10.5" BackgroundColor="#182042" TextColor="#CBD5E1" CornerRadius="8" Padding="9,4" Clicked="OnMorningPreset0700Clicked" />
-                                        <Button Text="8:00 AM" FontSize="10.5" BackgroundColor="#182042" TextColor="#CBD5E1" CornerRadius="8" Padding="9,4" Clicked="OnMorningPreset0800Clicked" />
-                                        <Button Text="9:00 AM" FontSize="10.5" BackgroundColor="#182042" TextColor="#CBD5E1" CornerRadius="8" Padding="9,4" Clicked="OnMorningPreset0900Clicked" />
-                                        <Button Text="Save Time" FontSize="10.5" FontAttributes="Bold" BackgroundColor="#7C5CFF" TextColor="White" CornerRadius="8" Padding="10,4" Clicked="OnSettingsMorningTimeCompleted" />
-                                    </HorizontalStackLayout>
-                                </VerticalStackLayout>
-                            </Border>
+                                </Border>
 
-                            <!-- Google Drive Cross-Platform Sync -->
-                            <Label Text="GOOGLE DRIVE CLOUD SYNC (ZERO COST)" FontSize="10.5" FontAttributes="Bold" TextColor="#38BDF8" />
-                            <Border BackgroundColor="#0D1124" Stroke="#252E56" StrokeThickness="1" StrokeShape="RoundRectangle 12" Padding="12">
-                                <VerticalStackLayout Spacing="8">
-                                    <Label x:Name="LblMobileCloudStatusTitle" Text="Cloud Setup Needed" FontSize="12.5" FontAttributes="Bold" TextColor="#F8FAFC" />
-                                    <Label x:Name="LblMobileCloudStatusDetail" Text="Pair with your PC using a Quick-Pair code or client_secret.json to sync courses, notes, PDFs, audio &amp; calendar safely." FontSize="10.5" TextColor="#94A3C6" />
+                                <Entry x:Name="EntryGithubRepoUrl"
+                                       Placeholder="https://github.com/InfamousToken10729/Study-Hub-Remastered"
+                                       PlaceholderColor="#687296"
+                                       TextColor="#F8FAFC"
+                                       BackgroundColor="#0D1124"
+                                       FontSize="12" />
+                                <Button x:Name="BtnCheckGithubUpdate"
+                                        Text="🔄 Check GitHub for Updates"
+                                        FontSize="12"
+                                        FontAttributes="Bold"
+                                        BackgroundColor="#7C5CFF"
+                                        TextColor="White"
+                                        CornerRadius="10"
+                                        Clicked="OnCheckGithubUpdateClicked" />
 
-                                    <FlexLayout Wrap="Wrap" JustifyContent="Start">
-                                        <Button x:Name="BtnMobileCloudSignIn" Text="🔑 Sign In Google" FontSize="11" FontAttributes="Bold" BackgroundColor="#7C5CFF" TextColor="White" CornerRadius="9" Padding="10,6" Margin="0,0,6,6" Clicked="OnMobileCloudSignInClicked" />
-                                        <Button x:Name="BtnMobileCloudSyncNow" Text="🔄 Sync Now" FontSize="11" FontAttributes="Bold" BackgroundColor="#10B981" TextColor="White" CornerRadius="9" Padding="10,6" Margin="0,0,6,6" Clicked="OnMobileCloudSyncNowClicked" />
-                                        <Button x:Name="BtnMobileCloudTimeMachine" Text="🕒 Time Machine" FontSize="11" BackgroundColor="#1E2548" TextColor="#A78BFA" CornerRadius="9" Padding="10,6" Margin="0,0,6,6" Clicked="OnMobileCloudTimeMachineClicked" />
-                                        <Button x:Name="BtnMobileCloudSignOut" Text="Sign Out" IsVisible="False" FontSize="11" BackgroundColor="#4C1D24" TextColor="#FCA5A5" CornerRadius="9" Padding="10,6" Margin="0,0,0,6" Clicked="OnMobileCloudSignOutClicked" />
-                                    </FlexLayout>
-
-                                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
-                                        <Entry x:Name="EntryMobileCloudManualAuth" Placeholder="Callback redirect URL or code (fallback)" PlaceholderColor="#687296" TextColor="#F8FAFC" BackgroundColor="#151A36" FontSize="11" />
-                                        <Button Grid.Column="1" Text="Verify" FontSize="11" BackgroundColor="#1E2548" TextColor="#38BDF8" CornerRadius="8" Padding="10,6" Clicked="OnMobileCloudManualAuthClicked" />
-                                    </Grid>
-
-                                    <BoxView HeightRequest="1" Color="#1E2646" Margin="0,2" />
-
-                                    <Label Text="Quick-Pair (from PC Control Center) or OAuth Client ID:" FontSize="10.5" TextColor="#94A3C6" />
-                                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
-                                        <Entry x:Name="EntryMobileQuickPairCode" Placeholder="Paste SHPAIR1:... code here" PlaceholderColor="#687296" TextColor="#F8FAFC" BackgroundColor="#151A36" FontSize="11" />
-                                        <Button Grid.Column="1" Text="Apply Code" FontSize="11" FontAttributes="Bold" BackgroundColor="#232D58" TextColor="#38BDF8" CornerRadius="8" Padding="10,6" Clicked="OnMobileApplyQuickPairCodeClicked" />
-                                    </Grid>
-
-                                    <Entry x:Name="EntryMobileCloudClientId" Placeholder="Google OAuth Client ID (*.apps.googleusercontent.com)" PlaceholderColor="#687296" TextColor="#F8FAFC" BackgroundColor="#151A36" FontSize="11" />
-                                    <Entry x:Name="EntryMobileCloudClientSecret" Placeholder="Client Secret (optional/from JSON)" IsPassword="True" PlaceholderColor="#687296" TextColor="#F8FAFC" BackgroundColor="#151A36" FontSize="11" />
-
-                                    <FlexLayout Wrap="Wrap" JustifyContent="Start">
-                                        <Button Text="💾 Save ID/Secret" FontSize="10.5" BackgroundColor="#1E2548" TextColor="#F8FAFC" CornerRadius="8" Padding="9,5" Margin="0,0,6,6" Clicked="OnMobileSaveCloudCredentialsClicked" />
-                                        <Button Text="📄 Pick QuickPair/client_secret.json" FontSize="10.5" BackgroundColor="#1E2548" TextColor="#F8FAFC" CornerRadius="8" Padding="9,5" Margin="0,0,6,6" Clicked="OnMobilePickCloudCredentialsJsonClicked" />
-                                        <Button Text="📋 Copy Quick-Pair" FontSize="10.5" BackgroundColor="#1E2548" TextColor="#CBD5E1" CornerRadius="8" Padding="9,5" Margin="0,0,0,6" Clicked="OnMobileCopyQuickPairClicked" />
-                                    </FlexLayout>
-
-                                    <Grid ColumnDefinitions="*,Auto">
-                                        <Label Text="Auto-Sync on Edit &amp; Launch" FontSize="11.5" TextColor="#CBD5E1" VerticalOptions="Center" />
-                                        <Switch x:Name="SwitchMobileAutoSync" Grid.Column="1" IsToggled="True" OnColor="#7C5CFF" Toggled="OnMobileCloudPrefsToggled" />
-                                    </Grid>
-                                    <Grid ColumnDefinitions="*,Auto">
-                                        <Label Text="Binary Media Transfers Enabled" FontSize="11.5" TextColor="#CBD5E1" VerticalOptions="Center" />
-                                        <Switch x:Name="SwitchMobileSyncFiles" Grid.Column="1" IsToggled="True" OnColor="#7C5CFF" Toggled="OnMobileCloudPrefsToggled" />
-                                    </Grid>
-                                    <Grid ColumnDefinitions="*,Auto">
-                                        <Label Text="Transfer Large Files on Wi-Fi Only" FontSize="11.5" TextColor="#CBD5E1" VerticalOptions="Center" />
-                                        <Switch x:Name="SwitchMobileWifiOnly" Grid.Column="1" IsToggled="True" OnColor="#7C5CFF" Toggled="OnMobileCloudPrefsToggled" />
-                                    </Grid>
-                                    <BoxView HeightRequest="1" BackgroundColor="#232B52" Margin="0,4" />
-                                    <Label Text="CHOOSE WHAT TO SYNC ON THIS PHONE" FontSize="10" FontAttributes="Bold" TextColor="#94A3C6" />
-                                    <Grid ColumnDefinitions="*,Auto">
-                                        <Label Text="📚 Subjects, Notes &amp; Flashcards" FontSize="11.5" TextColor="#CBD5E1" VerticalOptions="Center" />
-                                        <Switch x:Name="SwitchMobileSyncCourses" Grid.Column="1" IsToggled="True" OnColor="#7C5CFF" Toggled="OnMobileCloudPrefsToggled" />
-                                    </Grid>
-                                    <Grid ColumnDefinitions="*,Auto">
-                                        <Label Text="🔗 Links, Tasks &amp; Deadlines" FontSize="11.5" TextColor="#CBD5E1" VerticalOptions="Center" />
-                                        <Switch x:Name="SwitchMobileSyncLinks" Grid.Column="1" IsToggled="True" OnColor="#7C5CFF" Toggled="OnMobileCloudPrefsToggled" />
-                                    </Grid>
-                                    <Grid ColumnDefinitions="*,Auto">
-                                        <Label Text="📅 Calendar Events &amp; Heatmap" FontSize="11.5" TextColor="#CBD5E1" VerticalOptions="Center" />
-                                        <Switch x:Name="SwitchMobileSyncCalendar" Grid.Column="1" IsToggled="True" OnColor="#7C5CFF" Toggled="OnMobileCloudPrefsToggled" />
-                                    </Grid>
-                                    <Grid ColumnDefinitions="*,Auto">
-                                        <Label Text="📄 PDFs &amp; Study Documents" FontSize="11.5" TextColor="#CBD5E1" VerticalOptions="Center" />
-                                        <Switch x:Name="SwitchMobileSyncPdfs" Grid.Column="1" IsToggled="True" OnColor="#7C5CFF" Toggled="OnMobileCloudPrefsToggled" />
-                                    </Grid>
-                                    <Grid ColumnDefinitions="*,Auto">
-                                        <Label Text="🎬 Lecture Videos &amp; Recordings" FontSize="11.5" TextColor="#CBD5E1" VerticalOptions="Center" />
-                                        <Switch x:Name="SwitchMobileSyncVideos" Grid.Column="1" IsToggled="True" OnColor="#7C5CFF" Toggled="OnMobileCloudPrefsToggled" />
-                                    </Grid>
-                                    <Grid ColumnDefinitions="*,Auto">
-                                        <Label Text="🏔️ Extra Zen Scenes &amp; Custom Media" FontSize="11.5" TextColor="#CBD5E1" VerticalOptions="Center" />
-                                        <Switch x:Name="SwitchMobileSyncZen" Grid.Column="1" IsToggled="True" OnColor="#7C5CFF" Toggled="OnMobileCloudPrefsToggled" />
-                                    </Grid>
-                                    <Grid ColumnDefinitions="*,Auto">
-                                        <Label Text="🎧 Extra Audio &amp; Mixer Presets" FontSize="11.5" TextColor="#CBD5E1" VerticalOptions="Center" />
-                                        <Switch x:Name="SwitchMobileSyncAudio" Grid.Column="1" IsToggled="True" OnColor="#7C5CFF" Toggled="OnMobileCloudPrefsToggled" />
-                                    </Grid>
-                                    <Grid ColumnDefinitions="*,Auto">
-                                        <Label Text="🎨 Theme, Particles &amp; App Preferences" FontSize="11.5" TextColor="#CBD5E1" VerticalOptions="Center" />
-                                        <Switch x:Name="SwitchMobileSyncPrefs" Grid.Column="1" IsToggled="True" OnColor="#7C5CFF" Toggled="OnMobileCloudPrefsToggled" />
-                                    </Grid>
-                                </VerticalStackLayout>
-                            </Border>
-
-                            <!-- Backup & Restore -->
-                            <Label Text="DATA BACKUP &amp; GITHUB UPDATER" FontSize="10.5" FontAttributes="Bold" TextColor="#94A3C6" />
-                            <FlexLayout Wrap="Wrap" JustifyContent="Start">
-                                <Button Text="📤 Export Backup" FontSize="11" Margin="0,0,8,6" BackgroundColor="#1E2548" TextColor="#F8FAFC" CornerRadius="10" Clicked="OnExportBackupClicked" />
-                                <Button Text="📥 Import Backup" FontSize="11" Margin="0,0,0,6" BackgroundColor="#1E2548" TextColor="#F8FAFC" CornerRadius="10" Clicked="OnImportBackupClicked" />
-                            </FlexLayout>
-
-                            <Entry x:Name="EntryGithubRepoUrl"
-                                   Placeholder="https://github.com/InfamousToken10729/Study-Hub-Remastered"
-                                   PlaceholderColor="#687296"
-                                   TextColor="#F8FAFC"
-                                   BackgroundColor="#0D1124"
-                                   FontSize="12" />
-                            <Button x:Name="BtnCheckGithubUpdate"
-                                    Text="🔄 Check GitHub for Updates"
-                                    FontSize="12"
-                                    FontAttributes="Bold"
-                                    BackgroundColor="#7C5CFF"
-                                    TextColor="White"
-                                    CornerRadius="10"
-                                    Clicked="OnCheckGithubUpdateClicked" />
-
-                            <Border x:Name="BdMobileUpdateStatusCard"
-                                    IsVisible="False"
-                                    BackgroundColor="#0D1124"
-                                    Stroke="#283566"
-                                    StrokeThickness="1"
-                                    StrokeShape="RoundRectangle 12"
-                                    Padding="12">
-                                <VerticalStackLayout Spacing="8">
-                                    <Label x:Name="LblMobileUpdateStatusTitle"
-                                           Text="Checking GitHub..."
-                                           FontSize="12.5"
-                                           FontAttributes="Bold"
-                                           TextColor="#38BDF8" />
-                                    <Label x:Name="LblMobileUpdateStatusNotes"
-                                           Text=""
-                                           FontSize="11"
-                                           TextColor="#CBD5E1" />
-                                    <ProgressBar x:Name="ProgMobileUpdateDownload"
-                                                 IsVisible="False"
-                                                 Progress="0"
-                                                 ProgressColor="#10B981" />
-                                    <Button x:Name="BtnMobileInstallUpdateNow"
-                                            IsVisible="False"
-                                            Text="⬇️ Download &amp; Install Update In-App"
-                                            FontSize="12"
-                                            FontAttributes="Bold"
-                                            BackgroundColor="#10B981"
-                                            TextColor="White"
-                                            CornerRadius="10"
-                                            Clicked="OnMobileInstallUpdateNowClicked" />
-                                </VerticalStackLayout>
-                            </Border>
+                                <Border x:Name="BdMobileUpdateStatusCard"
+                                        IsVisible="False"
+                                        BackgroundColor="#0D1124"
+                                        Stroke="#283566"
+                                        StrokeThickness="1"
+                                        StrokeShape="RoundRectangle 12"
+                                        Padding="12">
+                                    <VerticalStackLayout Spacing="8">
+                                        <Label x:Name="LblMobileUpdateStatusTitle"
+                                               Text="Checking GitHub..."
+                                               FontSize="12.5"
+                                               FontAttributes="Bold"
+                                               TextColor="#38BDF8" />
+                                        <Label x:Name="LblMobileUpdateStatusNotes"
+                                               Text=""
+                                               FontSize="11"
+                                               TextColor="#CBD5E1" />
+                                        <ProgressBar x:Name="ProgMobileUpdateDownload"
+                                                     IsVisible="False"
+                                                     Progress="0"
+                                                     ProgressColor="#10B981" />
+                                        <Button x:Name="BtnMobileInstallUpdateNow"
+                                                IsVisible="False"
+                                                Text="⬇️ Download &amp; Install Update In-App"
+                                                FontSize="12"
+                                                FontAttributes="Bold"
+                                                BackgroundColor="#10B981"
+                                                TextColor="White"
+                                                CornerRadius="10"
+                                                Clicked="OnMobileInstallUpdateNowClicked" />
+                                    </VerticalStackLayout>
+                                </Border>
+                            </VerticalStackLayout>
                         </VerticalStackLayout>
                     </ScrollView>
 
@@ -1797,7 +1968,7 @@
                     <Grid Grid.Row="0" ColumnDefinitions="*,Auto" VerticalOptions="Center">
                         <VerticalStackLayout Spacing="2">
                             <Label Text="🧘 Select Zen World" FontSize="16" FontAttributes="Bold" TextColor="#F8FAFC" />
-                            <Label Text="17 animated ambient scenes + minimalist mode" FontSize="11" TextColor="#8A95B7" />
+                            <Label Text="27+ animated ambient scenes + minimalist mode" FontSize="11" TextColor="#8A95B7" />
                         </VerticalStackLayout>
                         <Button Grid.Column="1"
                                 Text="✕"
@@ -2119,7 +2290,82 @@
             </Border>
         </Grid>
 
-        <!-- ================= 15. TOAST NOTIFICATION BANNER ================= -->
+        <!-- ================= 15. AUTO-UPDATE READY PROMPT & INSTALL PROGRESS MODALS ================= -->
+        <Grid x:Name="MobileUpdateReadyOverlay" IsVisible="False" BackgroundColor="#CC000000" Padding="18">
+            <Border MaximumWidthRequest="430"
+                    BackgroundColor="#11152C"
+                    Stroke="#344075"
+                    StrokeThickness="1.5"
+                    StrokeShape="RoundRectangle 22"
+                    Padding="20"
+                    HorizontalOptions="Center"
+                    VerticalOptions="Center">
+                <VerticalStackLayout Spacing="12">
+                    <HorizontalStackLayout Spacing="10">
+                        <Border WidthRequest="42" HeightRequest="42" BackgroundColor="#102C2A" StrokeShape="RoundRectangle 12">
+                            <Label Text="🚀" FontSize="20" HorizontalOptions="Center" VerticalOptions="Center" />
+                        </Border>
+                        <VerticalStackLayout Spacing="2" VerticalOptions="Center">
+                            <Label Text="StudyHub Update Ready" FontSize="16" FontAttributes="Bold" TextColor="#F8FAFC" />
+                            <Label x:Name="LblMobileReadyVersion" Text="New version downloaded in background" FontSize="12" FontAttributes="Bold" TextColor="#34D399" />
+                        </VerticalStackLayout>
+                    </HorizontalStackLayout>
+
+                    <Border BackgroundColor="#0D1124" Stroke="#232B52" StrokeThickness="1" StrokeShape="RoundRectangle 12" Padding="12" MaximumHeightRequest="180">
+                        <ScrollView>
+                            <Label x:Name="LblMobileReadyNotes" Text="Update downloaded and ready to install." FontSize="11.5" TextColor="#CBD5E1" />
+                        </ScrollView>
+                    </Border>
+
+                    <Grid ColumnDefinitions="*,*" ColumnSpacing="10" Margin="0,4,0,0">
+                        <Button Text="Later"
+                                FontSize="12.5"
+                                FontAttributes="Bold"
+                                BackgroundColor="#181F3D"
+                                TextColor="#CBD5E1"
+                                CornerRadius="11"
+                                Clicked="OnMobileUpdateReadyLaterClicked" />
+                        <Button Grid.Column="1"
+                                Text="Install Now"
+                                FontSize="12.5"
+                                FontAttributes="Bold"
+                                BackgroundColor="#10B981"
+                                TextColor="White"
+                                CornerRadius="11"
+                                Clicked="OnMobileUpdateReadyInstallNowClicked" />
+                    </Grid>
+                </VerticalStackLayout>
+            </Border>
+        </Grid>
+
+        <Grid x:Name="MobileUpdateProgressOverlay" IsVisible="False" BackgroundColor="#CC000000" Padding="18">
+            <Border MaximumWidthRequest="420"
+                    BackgroundColor="#11152C"
+                    Stroke="#334175"
+                    StrokeThickness="1.5"
+                    StrokeShape="RoundRectangle 22"
+                    Padding="22"
+                    HorizontalOptions="Center"
+                    VerticalOptions="Center">
+                <VerticalStackLayout Spacing="12">
+                    <Label Text="⚙️ Updating StudyHub" FontSize="16" FontAttributes="Bold" TextColor="#F8FAFC" />
+                    <Label x:Name="LblMobileProgressStage" Text="Preparing update..." FontSize="12.5" FontAttributes="Bold" TextColor="#38BDF8" />
+
+                    <Grid ColumnDefinitions="*,Auto" VerticalOptions="Center">
+                        <Label Text="Installation Progress" FontSize="11" TextColor="#94A3C6" VerticalOptions="Center" />
+                        <Label x:Name="LblMobileProgressPercent" Grid.Column="1" Text="0%" FontSize="20" FontAttributes="Bold" TextColor="#10B981" VerticalOptions="Center" />
+                    </Grid>
+
+                    <ProgressBar x:Name="ProgMobileInstallModal"
+                                 Progress="0"
+                                 ProgressColor="#7C5CFF" />
+
+                    <Label x:Name="LblMobileProgressDetail" Text="Downloading &amp; verifying installer package..." FontSize="11" TextColor="#94A3C6" />
+                </VerticalStackLayout>
+            </Border>
+        </Grid>
+
+        <!-- ================= 16. TOAST NOTIFICATION BANNER ================= -->
         <Border x:Name="ToastBanner"
                 IsVisible="False"
                 BackgroundColor="#F0181F3E"

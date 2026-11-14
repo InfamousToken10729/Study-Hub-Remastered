@@ -78,8 +78,10 @@ namespace StudyHub
             public TranslateTransform Translate = null!;
             public TranslateTransform? SpriteShift;
             public ScaleTransform? Scale;
-            public double X, Y, Vx, Vy, R, MaxR, Phase, Speed;
+            public RotateTransform? Rotate;
+            public double X, Y, Vx, Vy, R, MaxR, Phase, Speed, Angle, AngularVel;
             public Color BaseColor;
+            public Point[]? TracePath;
         }
         private class MeshSegmentItem
         {
@@ -90,6 +92,9 @@ namespace StudyHub
         private readonly List<MeshSegmentItem> _activeMeshLines = new();
         private BitmapSource? _matrixGlyphStripBitmap;
         private string _currentParticleEffect = "network";
+        private Point _lastParticleMousePos = new(-9999, -9999);
+        private DateTime _lastParticleMouseMoveUtc = DateTime.MinValue;
+        private double _particleClockSeconds = 0.0;
 
         // Selected Icon & Color for Course Creation
         private string _selectedModalIcon = "🎓";
@@ -121,6 +126,11 @@ namespace StudyHub
         private bool _pcIsUpdatingCalSettingsUi = false;
         private DateTime _pcLastNotifCheckUtc = DateTime.MinValue;
         private List<SubjectItem> _pcCalSubjectChoices = new();
+        private bool _isUpdatingSysUi = false;
+        private UpdateCheckResult? _pendingAutoUpdateResult = null;
+        private string _pendingStagedUpdatePath = string.Empty;
+        private bool _isAutoDownloadingUpdate = false;
+        private bool _isInstallingUpdate = false;
 
         public MainWindow()
         {
@@ -212,7 +222,9 @@ namespace StudyHub
                 if (TxtPcCalMorningInline != null) TxtPcCalMorningInline.Text = _state.Settings.CalendarNotifStartHour;
                 _pcIsUpdatingCalSettingsUi = false;
 
+                _isUpdatingSysUi = true;
                 ChkSettingsAutoCheckOnLaunch.IsChecked = _state.Settings.AutoCheckUpdates;
+                _isUpdatingSysUi = false;
                 _is24HourClock = string.Equals(_state.Settings?.TimeFormat, "24h", StringComparison.OrdinalIgnoreCase);
                 UpdateLiveClock(force: true);
 
@@ -267,7 +279,7 @@ namespace StudyHub
                     await Dispatcher.InvokeAsync(() => CheckDueCalendarNotificationsPc(isLaunchCatchup: true));
                 });
 
-                // Auto-check GitHub for updates on launch if configured
+                // Auto-check GitHub for updates on launch: silently download & prompt Install Now / Later
                 if (_state.Settings?.AutoCheckUpdates != false &&
                     !string.IsNullOrWhiteSpace(_state.Settings?.GithubRepoUrl))
                 {
@@ -276,7 +288,7 @@ namespace StudyHub
                         await Task.Delay(1800);
                         await Dispatcher.InvokeAsync(async () =>
                         {
-                            await CheckForGithubUpdatesAsync(silentOnNoUpdate: true);
+                            await RunLaunchAutoUpdateCheckAsync();
                         });
                     });
                 }
@@ -948,43 +960,25 @@ namespace StudyHub
             AppNavigationDrawerGrid.Visibility = Visibility.Collapsed;
         }
 
+        private void RootMainGrid_MouseMove(object sender, MouseEventArgs e)
+        {
+            if (GlobalThemeCanvas != null)
+            {
+                _lastParticleMousePos = e.GetPosition(GlobalThemeCanvas);
+                _lastParticleMouseMoveUtc = DateTime.UtcNow;
+            }
+        }
+
         private void BtnDrawerSubjects_Click(object sender, RoutedEventArgs e)
         {
             AppNavigationDrawerGrid.Visibility = Visibility.Collapsed;
             GoToHome();
         }
 
-        private void BtnDrawerTimer_Click(object sender, RoutedEventArgs e)
-        {
-            AppNavigationDrawerGrid.Visibility = Visibility.Collapsed;
-            if (_state?.TimerDock == "top-bar")
-            {
-                if (TopBarTimerDropdownGrid != null)
-                {
-                    TopBarTimerDropdownGrid.Visibility = (TopBarTimerDropdownGrid.Visibility == Visibility.Visible) ? Visibility.Collapsed : Visibility.Visible;
-                }
-            }
-            else
-            {
-                FloatingPomodoroWidget.Visibility = (FloatingPomodoroWidget.Visibility == Visibility.Visible) ? Visibility.Collapsed : Visibility.Visible;
-            }
-        }
-
         private void BtnDrawerZen_Click(object sender, RoutedEventArgs e)
         {
             AppNavigationDrawerGrid.Visibility = Visibility.Collapsed;
             BtnNavZen_Click(sender, e);
-        }
-
-        private void BtnDrawerMixer_Click(object sender, RoutedEventArgs e)
-        {
-            AppNavigationDrawerGrid.Visibility = Visibility.Collapsed;
-            BtnNavSoundMixer_Click(sender, e);
-        }
-
-        private void BtnDrawerTheme_Click(object sender, RoutedEventArgs e)
-        {
-            BtnNavTheme_Click(sender, e);
         }
 
         private void BtnDrawerSettings_Click(object sender, RoutedEventArgs e)
@@ -3689,7 +3683,10 @@ namespace StudyHub
             new("particles", "Deep Nebula", "Velvet indigo & violet", "#050713,#4F46E5,#9333EA", "🌌"),
             new("acrylic", "Frosted Acrylic", "Deep translucent glass", "#1E3A8A,#0E7490,#22D3EE", "💠"),
             new("daydusk", "Day / Dusk Cycle", "Live solar sky evolution", "#F59E0B,#F43F5E,#311042", "🌅"),
-            new("minimal", "Flat Minimalist", "Zero-distraction matte", "#475569,#1E293B", "🔲")
+            new("minimal", "Flat Minimalist", "Zero-distraction matte", "#475569,#1E293B", "🔲"),
+            new("oled_obsidian", "OLED Obsidian", "True pitch-black monochrome", "#000000,#18181B,#52525B", "🖤"),
+            new("cyberpunk_matrix", "Cyberpunk Neon Matrix", "Charcoal, electric cyan & hot-pink", "#111827,#00F0FF,#FF2A85", "🕶️"),
+            new("boreal_twilight", "Boreal Twilight", "Deep forest green to midnight navy", "#06281E,#0B3B2E,#08132B", "🌲")
         };
 
         private static readonly List<ParticleOption> PARTICLE_MODES = new()
@@ -3702,6 +3699,10 @@ namespace StudyHub
             new("meteor", "Meteor", "Shooting stars & night sky", "#F59E0B,#EA580C,#311042", "🌠"),
             new("fading_stars", "Fading Stars", "Appearing & fading starlight", "#7C3AED,#6366F1,#38BDF8", "🌟"),
             new("water_ripple", "Water Ripple", "Expanding concentric water rings", "#06B6D4,#0284C7,#1D4ED8", "💧"),
+            new("fireflies", "Fireflies / Dust Motes", "Warm golden organic drifting sparks", "#FBBF24,#F59E0B,#78350F", "🐝"),
+            new("circuit_trace", "Interactive Circuit Trace", "Pulsing neon PCB traces & packets", "#06B6D4,#22D3EE,#EC4899", "⚡"),
+            new("plasma_lightning", "Plasma Lightning", "Erratic electric static arcs & sparks", "#38BDF8,#A855F7,#F472B6", "🌩️"),
+            new("petals_snowfall", "Cherry Blossom / Snowfall", "Gentle wind-swayed petals & snow", "#F9A8D4,#FBCFE8,#E0F2FE", "🌸"),
             new("disable", "Disable", "Static background only", "#64748B,#334155", "🚫")
         };
 
@@ -4613,9 +4614,23 @@ namespace StudyHub
 
         // ================= GLOBAL APP THEME & PARTICLE ENGINE =================
 
+        private static string NormalizeBgThemeId(string? raw)
+        {
+            if (string.IsNullOrWhiteSpace(raw)) return "aurora";
+            string k = raw.Trim().ToLowerInvariant();
+            return k switch
+            {
+                "nebula" => "particles",
+                "obsidian" => "oled_obsidian",
+                "cyberpunk" => "cyberpunk_matrix",
+                "boreal" => "boreal_twilight",
+                _ => k
+            };
+        }
+
         private string GetActiveBgTheme()
         {
-            string raw = _state?.Settings?.BgTheme ?? "aurora";
+            string raw = NormalizeBgThemeId(_state?.Settings?.BgTheme);
             var valid = GLOBAL_THEMES.Find(t => string.Equals(t.Id, raw, StringComparison.OrdinalIgnoreCase));
             return valid?.Id ?? "aurora";
         }
@@ -4627,17 +4642,23 @@ namespace StudyHub
             {
                 return theme switch
                 {
-                    "acrylic" => new SolidColorBrush(Color.FromArgb(136, 16, 24, 52)),   // True translucent frosted sapphire-teal glass (Image 2)
-                    "particles" => new SolidColorBrush(Color.FromArgb(176, 14, 17, 38)), // Translucent obsidian-indigo glass letting nebula orbs shine
-                    "daydusk" => new SolidColorBrush(Color.FromArgb(190, 20, 20, 44)),   // Dusk translucent surface
-                    "minimal" => new SolidColorBrush(Color.FromRgb(17, 24, 39)),         // Pure matte slate (#111827)
-                    _ => new SolidColorBrush(Color.FromArgb(198, 19, 24, 48))            // Aurora translucent surface
+                    "acrylic" => new SolidColorBrush(Color.FromArgb(136, 16, 24, 52)),
+                    "particles" => new SolidColorBrush(Color.FromArgb(176, 14, 17, 38)),
+                    "daydusk" => new SolidColorBrush(Color.FromArgb(190, 20, 20, 44)),
+                    "minimal" => new SolidColorBrush(Color.FromRgb(17, 24, 39)),
+                    "oled_obsidian" => new SolidColorBrush(Color.FromRgb(8, 8, 10)),
+                    "cyberpunk_matrix" => new SolidColorBrush(Color.FromArgb(202, 17, 21, 34)),
+                    "boreal_twilight" => new SolidColorBrush(Color.FromArgb(186, 8, 26, 36)),
+                    _ => new SolidColorBrush(Color.FromArgb(198, 19, 24, 48))
                 };
             }
             return theme switch
             {
                 "acrylic" => new SolidColorBrush(Color.FromArgb(168, 255, 255, 255)),
                 "minimal" => new SolidColorBrush(Color.FromRgb(255, 255, 255)),
+                "oled_obsidian" => new SolidColorBrush(Color.FromRgb(255, 255, 255)),
+                "cyberpunk_matrix" => new SolidColorBrush(Color.FromArgb(228, 248, 250, 255)),
+                "boreal_twilight" => new SolidColorBrush(Color.FromArgb(222, 244, 253, 249)),
                 _ => new SolidColorBrush(Color.FromArgb(222, 255, 255, 255))
             };
         }
@@ -4653,12 +4674,18 @@ namespace StudyHub
                     "particles" => new SolidColorBrush(Color.FromArgb(46, 139, 149, 255)),
                     "daydusk" => new SolidColorBrush(Color.FromArgb(42, 255, 255, 255)),
                     "minimal" => new SolidColorBrush(Color.FromRgb(31, 41, 55)),
+                    "oled_obsidian" => new SolidColorBrush(Color.FromArgb(52, 255, 255, 255)),
+                    "cyberpunk_matrix" => new SolidColorBrush(Color.FromArgb(72, 0, 240, 255)),
+                    "boreal_twilight" => new SolidColorBrush(Color.FromArgb(62, 52, 211, 153)),
                     _ => new SolidColorBrush(Color.FromArgb(46, 132, 148, 224))
                 };
             }
             return theme switch
             {
                 "acrylic" => new SolidColorBrush(Color.FromArgb(215, 226, 232, 240)),
+                "oled_obsidian" => new SolidColorBrush(Color.FromRgb(212, 212, 216)),
+                "cyberpunk_matrix" => new SolidColorBrush(Color.FromArgb(140, 6, 182, 212)),
+                "boreal_twilight" => new SolidColorBrush(Color.FromArgb(145, 52, 211, 153)),
                 _ => new SolidColorBrush(Color.FromRgb(226, 232, 240))
             };
         }
@@ -4673,12 +4700,18 @@ namespace StudyHub
                     "acrylic" => new SolidColorBrush(Color.FromArgb(136, 9, 16, 36)),
                     "particles" => new SolidColorBrush(Color.FromArgb(165, 9, 11, 26)),
                     "minimal" => new SolidColorBrush(Color.FromRgb(15, 23, 42)),
+                    "oled_obsidian" => new SolidColorBrush(Color.FromRgb(12, 12, 15)),
+                    "cyberpunk_matrix" => new SolidColorBrush(Color.FromArgb(186, 13, 17, 28)),
+                    "boreal_twilight" => new SolidColorBrush(Color.FromArgb(174, 7, 21, 30)),
                     _ => new SolidColorBrush(Color.FromArgb(175, 11, 15, 34))
                 };
             }
             return theme switch
             {
                 "acrylic" => new SolidColorBrush(Color.FromArgb(156, 248, 250, 252)),
+                "oled_obsidian" => new SolidColorBrush(Color.FromRgb(244, 244, 245)),
+                "cyberpunk_matrix" => new SolidColorBrush(Color.FromArgb(200, 241, 245, 255)),
+                "boreal_twilight" => new SolidColorBrush(Color.FromArgb(196, 236, 253, 245)),
                 _ => new SolidColorBrush(Color.FromRgb(248, 250, 252))
             };
         }
@@ -4693,6 +4726,9 @@ namespace StudyHub
                     "acrylic" => new SolidColorBrush(Color.FromArgb(95, 14, 22, 46)),
                     "particles" => new SolidColorBrush(Color.FromArgb(115, 11, 14, 34)),
                     "minimal" => new SolidColorBrush(Color.FromRgb(15, 23, 42)),
+                    "oled_obsidian" => new SolidColorBrush(Color.FromRgb(6, 6, 8)),
+                    "cyberpunk_matrix" => new SolidColorBrush(Color.FromArgb(148, 15, 19, 32)),
+                    "boreal_twilight" => new SolidColorBrush(Color.FromArgb(140, 7, 22, 32)),
                     _ => new SolidColorBrush(Color.FromArgb(145, 14, 18, 38))
                 };
             }
@@ -4712,6 +4748,9 @@ namespace StudyHub
                 {
                     "acrylic" => new SolidColorBrush(Color.FromArgb(145, 22, 34, 68)),
                     "particles" => new SolidColorBrush(Color.FromArgb(160, 20, 24, 54)),
+                    "oled_obsidian" => new SolidColorBrush(Color.FromRgb(18, 18, 22)),
+                    "cyberpunk_matrix" => new SolidColorBrush(Color.FromArgb(190, 22, 30, 52)),
+                    "boreal_twilight" => new SolidColorBrush(Color.FromArgb(184, 10, 34, 46)),
                     _ => new SolidColorBrush(Color.FromArgb(190, 20, 25, 52))
                 };
             }
@@ -4725,6 +4764,9 @@ namespace StudyHub
             {
                 "acrylic" => new SolidColorBrush(Color.FromArgb(92, 148, 184, 240)),
                 "particles" => new SolidColorBrush(Color.FromArgb(84, 129, 140, 248)),
+                "oled_obsidian" => new SolidColorBrush(Color.FromArgb(90, 255, 255, 255)),
+                "cyberpunk_matrix" => new SolidColorBrush(Color.FromArgb(115, 255, 42, 133)),
+                "boreal_twilight" => new SolidColorBrush(Color.FromArgb(95, 16, 185, 129)),
                 _ => new SolidColorBrush(Color.FromRgb(42, 52, 84))
             };
         }
@@ -4745,7 +4787,8 @@ namespace StudyHub
         public void ApplyGlobalBgTheme(string themeId, bool saveToDisk = true)
         {
             if (_state?.Settings == null) return;
-            var valid = GLOBAL_THEMES.Find(t => string.Equals(t.Id, themeId, StringComparison.OrdinalIgnoreCase)) ?? GLOBAL_THEMES[0];
+            string normId = NormalizeBgThemeId(themeId);
+            var valid = GLOBAL_THEMES.Find(t => string.Equals(t.Id, normId, StringComparison.OrdinalIgnoreCase)) ?? GLOBAL_THEMES[0];
             _state.Settings.BgTheme = valid.Id;
             if (saveToDisk) SaveState();
 
@@ -4842,6 +4885,55 @@ namespace StudyHub
                                     (orb2, 0.0), (Color.FromArgb(0, c3.R, c3.G, c3.B), 1.0));
                                 BgGlow3.Background = Brushes.Transparent;
                             }
+                            break;
+
+                        case "oled_obsidian": // OLED Obsidian: true pitch-black background, crisp monochrome borders
+                            BgBaseLayer.Background = new SolidColorBrush(Color.FromRgb(0, 0, 0));
+                            BgGlow1.Background = Brushes.Transparent;
+                            BgGlow2.Background = Brushes.Transparent;
+                            BgGlow3.Background = Brushes.Transparent;
+                            break;
+
+                        case "cyberpunk_matrix": // Cyberpunk Neon Matrix: deep charcoal gradient with electric cyan & hot-pink glows
+                            BgBaseLayer.Background = new LinearGradientBrush(
+                                new GradientStopCollection
+                                {
+                                    new GradientStop(Color.FromRgb(12, 14, 22), 0.0),
+                                    new GradientStop(Color.FromRgb(20, 22, 34), 0.52),
+                                    new GradientStop(Color.FromRgb(11, 10, 20), 1.0)
+                                },
+                                new Point(0, 0), new Point(1, 1));
+                            BgGlow1.Background = MakeGlowOrb(new Point(0.10, 0.14), 0.56, 0.58,
+                                (Color.FromArgb(105, 0, 240, 255), 0.0),
+                                (Color.FromArgb(32, 0, 240, 255), 0.48),
+                                (Color.FromArgb(0, 12, 14, 22), 1.0));
+                            BgGlow2.Background = MakeGlowOrb(new Point(0.88, 0.84), 0.56, 0.58,
+                                (Color.FromArgb(105, 255, 42, 133), 0.0),
+                                (Color.FromArgb(34, 255, 42, 133), 0.48),
+                                (Color.FromArgb(0, 11, 10, 20), 1.0));
+                            BgGlow3.Background = MakeGlowOrb(new Point(0.60, 0.25), 0.44, 0.44,
+                                (Color.FromArgb(38, 168, 85, 247), 0.0),
+                                (Color.FromArgb(0, 12, 14, 22), 1.0));
+                            break;
+
+                        case "boreal_twilight": // Boreal Twilight: deep forest green shifting into midnight navy blue
+                            BgBaseLayer.Background = new LinearGradientBrush(
+                                new GradientStopCollection
+                                {
+                                    new GradientStop(Color.FromRgb(5, 36, 27), 0.0),
+                                    new GradientStop(Color.FromRgb(8, 38, 44), 0.48),
+                                    new GradientStop(Color.FromRgb(7, 18, 44), 1.0)
+                                },
+                                new Point(0, 0), new Point(1, 1));
+                            BgGlow1.Background = MakeGlowOrb(new Point(0.14, 0.16), 0.60, 0.58,
+                                (Color.FromArgb(88, 16, 185, 129), 0.0),
+                                (Color.FromArgb(26, 20, 184, 166), 0.52),
+                                (Color.FromArgb(0, 5, 36, 27), 1.0));
+                            BgGlow2.Background = MakeGlowOrb(new Point(0.86, 0.82), 0.60, 0.62,
+                                (Color.FromArgb(88, 37, 99, 235), 0.0),
+                                (Color.FromArgb(28, 30, 64, 175), 0.52),
+                                (Color.FromArgb(0, 7, 18, 44), 1.0));
+                            BgGlow3.Background = Brushes.Transparent;
                             break;
 
                         case "minimal":
@@ -4943,6 +5035,49 @@ namespace StudyHub
                             }
                             break;
 
+                        case "oled_obsidian":
+                            BgBaseLayer.Background = new SolidColorBrush(Color.FromRgb(255, 255, 255));
+                            BgGlow1.Background = Brushes.Transparent;
+                            BgGlow2.Background = Brushes.Transparent;
+                            BgGlow3.Background = Brushes.Transparent;
+                            break;
+
+                        case "cyberpunk_matrix":
+                            BgBaseLayer.Background = new LinearGradientBrush(
+                                new GradientStopCollection
+                                {
+                                    new GradientStop(Color.FromRgb(240, 245, 252), 0.0),
+                                    new GradientStop(Color.FromRgb(238, 242, 250), 0.50),
+                                    new GradientStop(Color.FromRgb(250, 239, 248), 1.0)
+                                },
+                                new Point(0, 0), new Point(1, 1));
+                            BgGlow1.Background = MakeGlowOrb(new Point(0.10, 0.14), 0.54, 0.56,
+                                (Color.FromArgb(52, 6, 182, 212), 0.0),
+                                (Color.FromArgb(0, 240, 245, 252), 1.0));
+                            BgGlow2.Background = MakeGlowOrb(new Point(0.88, 0.84), 0.54, 0.56,
+                                (Color.FromArgb(46, 236, 72, 153), 0.0),
+                                (Color.FromArgb(0, 250, 239, 248), 1.0));
+                            BgGlow3.Background = Brushes.Transparent;
+                            break;
+
+                        case "boreal_twilight":
+                            BgBaseLayer.Background = new LinearGradientBrush(
+                                new GradientStopCollection
+                                {
+                                    new GradientStop(Color.FromRgb(232, 249, 243), 0.0),
+                                    new GradientStop(Color.FromRgb(232, 246, 250), 0.52),
+                                    new GradientStop(Color.FromRgb(232, 238, 252), 1.0)
+                                },
+                                new Point(0, 0), new Point(1, 1));
+                            BgGlow1.Background = MakeGlowOrb(new Point(0.14, 0.16), 0.58, 0.58,
+                                (Color.FromArgb(52, 16, 185, 129), 0.0),
+                                (Color.FromArgb(0, 232, 249, 243), 1.0));
+                            BgGlow2.Background = MakeGlowOrb(new Point(0.86, 0.82), 0.58, 0.58,
+                                (Color.FromArgb(48, 59, 130, 246), 0.0),
+                                (Color.FromArgb(0, 232, 238, 252), 1.0));
+                            BgGlow3.Background = Brushes.Transparent;
+                            break;
+
                         case "minimal":
                         default:
                             BgBaseLayer.Background = new SolidColorBrush(Color.FromRgb(248, 250, 252)); // #F8FAFC
@@ -4964,23 +5099,48 @@ namespace StudyHub
             bool isAcrylic = theme == "acrylic";
             bool isParticles = theme == "particles";
             bool isMinimal = theme == "minimal";
+            bool isObsidian = theme == "oled_obsidian";
+            bool isCyber = theme == "cyberpunk_matrix";
+            bool isBoreal = theme == "boreal_twilight";
 
             // Dynamic Application Resources so Modals, Folders, Circular Buttons, Inputs match active surface theme
             if (Application.Current?.Resources != null)
             {
                 if (_isDarkMode)
                 {
-                    Application.Current.Resources["AppBgBrush"] = new SolidColorBrush(isMinimal ? Color.FromRgb(11, 15, 25) : isParticles ? Color.FromRgb(5, 7, 19) : Color.FromRgb(9, 11, 26));
-                    Application.Current.Resources["NavBgBrush"] = new SolidColorBrush(isAcrylic ? Color.FromArgb(204, 14, 22, 46) : isMinimal ? Color.FromRgb(17, 24, 39) : Color.FromRgb(17, 21, 44));
+                    Application.Current.Resources["AppBgBrush"] = new SolidColorBrush(
+                        isObsidian ? Color.FromRgb(0, 0, 0) :
+                        isCyber ? Color.FromRgb(12, 14, 22) :
+                        isBoreal ? Color.FromRgb(5, 28, 30) :
+                        isMinimal ? Color.FromRgb(11, 15, 25) :
+                        isParticles ? Color.FromRgb(5, 7, 19) :
+                        Color.FromRgb(9, 11, 26));
+                    Application.Current.Resources["NavBgBrush"] = new SolidColorBrush(
+                        isObsidian ? Color.FromRgb(6, 6, 8) :
+                        isCyber ? Color.FromArgb(228, 15, 19, 31) :
+                        isBoreal ? Color.FromArgb(228, 7, 24, 34) :
+                        isAcrylic ? Color.FromArgb(204, 14, 22, 46) :
+                        isMinimal ? Color.FromRgb(17, 24, 39) :
+                        Color.FromRgb(17, 21, 44));
                     Application.Current.Resources["CardBgBrush"] = GetCardSurfaceBrush();
-                    Application.Current.Resources["CardHoverBgBrush"] = new SolidColorBrush(isAcrylic ? Color.FromArgb(204, 28, 42, 78) : Color.FromRgb(32, 39, 74));
+                    Application.Current.Resources["CardHoverBgBrush"] = new SolidColorBrush(
+                        isObsidian ? Color.FromRgb(18, 18, 22) :
+                        isCyber ? Color.FromArgb(218, 26, 33, 54) :
+                        isBoreal ? Color.FromArgb(212, 12, 36, 48) :
+                        isAcrylic ? Color.FromArgb(204, 28, 42, 78) :
+                        Color.FromRgb(32, 39, 74));
                     Application.Current.Resources["SubtleBgBrush"] = GetSubtleSurfaceBrush();
-                    Application.Current.Resources["InputBgBrush"] = new SolidColorBrush(isAcrylic ? Color.FromArgb(180, 10, 17, 38) : Color.FromRgb(14, 18, 37));
+                    Application.Current.Resources["InputBgBrush"] = new SolidColorBrush(
+                        isObsidian ? Color.FromRgb(10, 10, 12) :
+                        isCyber ? Color.FromArgb(210, 12, 16, 28) :
+                        isBoreal ? Color.FromArgb(204, 6, 20, 28) :
+                        isAcrylic ? Color.FromArgb(180, 10, 17, 38) :
+                        Color.FromRgb(14, 18, 37));
                     Application.Current.Resources["BorderBrushTheme"] = GetCardBorderBrush();
                     Application.Current.Resources["PrimaryTextBrush"] = new SolidColorBrush(Color.FromRgb(248, 250, 252));
-                    Application.Current.Resources["SecondaryTextBrush"] = new SolidColorBrush(Color.FromRgb(148, 163, 198));
-                    Application.Current.Resources["MutedTextBrush"] = new SolidColorBrush(Color.FromRgb(104, 116, 150));
-                    Application.Current.Resources["SliderTrackBgBrush"] = new SolidColorBrush(Color.FromRgb(44, 53, 93));
+                    Application.Current.Resources["SecondaryTextBrush"] = new SolidColorBrush(isObsidian ? Color.FromRgb(161, 161, 170) : Color.FromRgb(148, 163, 198));
+                    Application.Current.Resources["MutedTextBrush"] = new SolidColorBrush(isObsidian ? Color.FromRgb(113, 113, 122) : Color.FromRgb(104, 116, 150));
+                    Application.Current.Resources["SliderTrackBgBrush"] = new SolidColorBrush(isObsidian ? Color.FromRgb(39, 39, 42) : Color.FromRgb(44, 53, 93));
                 }
                 else
                 {
@@ -5009,6 +5169,9 @@ namespace StudyHub
                         "particles" => new SolidColorBrush(Color.FromArgb(188, 9, 11, 26)),
                         "daydusk" => new SolidColorBrush(Color.FromArgb(190, 15, 16, 36)),
                         "minimal" => new SolidColorBrush(Color.FromRgb(13, 18, 30)),
+                        "oled_obsidian" => new SolidColorBrush(Color.FromRgb(4, 4, 5)),
+                        "cyberpunk_matrix" => new SolidColorBrush(Color.FromArgb(212, 14, 18, 30)),
+                        "boreal_twilight" => new SolidColorBrush(Color.FromArgb(204, 6, 24, 32)),
                         _ => new SolidColorBrush(Color.FromArgb(206, 13, 16, 36))
                     };
                 }
@@ -5154,10 +5317,125 @@ namespace StudyHub
             return strip;
         }
 
+        private static string NormalizeParticleEffectId(string? raw)
+        {
+            if (string.IsNullOrWhiteSpace(raw)) return "network";
+            string k = raw.Trim().ToLowerInvariant();
+            return k switch
+            {
+                "sakura" or "snow" => "petals_snowfall",
+                "circuit" => "circuit_trace",
+                "lightning" or "plasma" => "plasma_lightning",
+                _ => k
+            };
+        }
+
+        private Point[] BuildRandomCircuitTracePath(double w, double h)
+        {
+            bool fromLeft = _rand.Next(0, 2) == 0;
+            double x = fromLeft ? (_rand.NextDouble() * w * 0.32) : (w * 0.55 + _rand.NextDouble() * w * 0.35);
+            double y = _rand.NextDouble() * h;
+            var pts = new List<Point> { new Point(x, y) };
+            int hops = _rand.Next(4, 7);
+            double dirX = fromLeft ? 1.0 : -1.0;
+            for (int k = 0; k < hops; k++)
+            {
+                int mode = k % 3;
+                double step = 75 + _rand.NextDouble() * 140;
+                if (mode == 0)
+                {
+                    x += dirX * step;
+                }
+                else if (mode == 1)
+                {
+                    double diag = step * 0.55;
+                    x += dirX * diag;
+                    y += (_rand.Next(0, 2) == 0 ? 1 : -1) * diag;
+                }
+                else
+                {
+                    y += (_rand.Next(0, 2) == 0 ? 1 : -1) * step * 0.85;
+                }
+                x = Math.Clamp(x, 20, Math.Max(40, w - 20));
+                y = Math.Clamp(y, 20, Math.Max(40, h - 20));
+                pts.Add(new Point(x, y));
+            }
+            return pts.ToArray();
+        }
+
+        private static Point EvaluateCircuitPath(Point[] path, double tNorm, out Point nearestMid)
+        {
+            nearestMid = path.Length > 0 ? path[path.Length / 2] : new Point(0, 0);
+            if (path == null || path.Length == 0) return new Point(0, 0);
+            if (path.Length == 1) return path[0];
+            double segCount = path.Length - 1;
+            double scaled = Math.Clamp(tNorm, 0.0, 0.9999) * segCount;
+            int idx = Math.Min((int)scaled, path.Length - 2);
+            double localT = scaled - idx;
+            Point a = path[idx];
+            Point b = path[idx + 1];
+            return new Point(a.X + (b.X - a.X) * localT, a.Y + (b.Y - a.Y) * localT);
+        }
+
+        private PointCollection BuildLightningArcPoints(double w, double h, int slot)
+        {
+            // Place sparks along screen edges & corners (or occasionally pull toward cursor near edges)
+            int edge = (slot + _rand.Next(0, 4)) % 4;
+            Point start, end;
+            double reach = 130 + _rand.NextDouble() * 190;
+            switch (edge)
+            {
+                case 0: // Top edge
+                    start = new Point(_rand.NextDouble() * w, 0);
+                    end = new Point(Math.Clamp(start.X + (_rand.NextDouble() - 0.5) * 240, 20, w - 20), Math.Min(h * 0.35, reach));
+                    break;
+                case 1: // Right edge
+                    start = new Point(w, _rand.NextDouble() * h);
+                    end = new Point(Math.Max(w * 0.68, w - reach), Math.Clamp(start.Y + (_rand.NextDouble() - 0.5) * 240, 20, h - 20));
+                    break;
+                case 2: // Bottom edge
+                    start = new Point(_rand.NextDouble() * w, h);
+                    end = new Point(Math.Clamp(start.X + (_rand.NextDouble() - 0.5) * 240, 20, w - 20), Math.Max(h * 0.65, h - reach));
+                    break;
+                default: // Left edge
+                    start = new Point(0, _rand.NextDouble() * h);
+                    end = new Point(Math.Min(w * 0.32, reach), Math.Clamp(start.Y + (_rand.NextDouble() - 0.5) * 240, 20, h - 20));
+                    break;
+            }
+
+            if ((DateTime.UtcNow - _lastParticleMouseMoveUtc).TotalSeconds < 2.2)
+            {
+                double dx = _lastParticleMousePos.X - start.X;
+                double dy = _lastParticleMousePos.Y - start.Y;
+                if (dx * dx + dy * dy < 320 * 320)
+                {
+                    end = new Point(start.X + dx * 0.65, start.Y + dy * 0.65);
+                }
+            }
+
+            var pts = new PointCollection();
+            int steps = 9;
+            double vx = end.X - start.X;
+            double vy = end.Y - start.Y;
+            double len = Math.Sqrt(vx * vx + vy * vy);
+            double nx = len > 1 ? -vy / len : 0;
+            double ny = len > 1 ? vx / len : 1;
+            pts.Add(start);
+            for (int i = 1; i < steps; i++)
+            {
+                double u = i / (double)steps;
+                double jitter = (1.0 - Math.Abs(u - 0.5) * 1.4) * (_rand.NextDouble() - 0.5) * 38.0;
+                pts.Add(new Point(start.X + vx * u + nx * jitter, start.Y + vy * u + ny * jitter));
+            }
+            pts.Add(end);
+            return pts;
+        }
+
         public void ApplyParticleEffect(string effectId, bool skipToast = false, bool saveToDisk = true)
         {
             if (_state?.Settings == null) return;
-            var valid = PARTICLE_MODES.Find(p => p.Id == effectId) ?? PARTICLE_MODES[0];
+            string normEffect = NormalizeParticleEffectId(effectId);
+            var valid = PARTICLE_MODES.Find(p => string.Equals(p.Id, normEffect, StringComparison.OrdinalIgnoreCase)) ?? PARTICLE_MODES[0];
             _currentParticleEffect = valid.Id;
             _state.Settings.ParticleEffect = valid.Id;
             if (saveToDisk) SaveState();
@@ -5507,6 +5785,298 @@ namespace StudyHub
                         break;
                     }
 
+                case "fireflies":
+                    {
+                        // Tiny, warm golden points drifting slowly with organic floating paths
+                        var glowGold = new RadialGradientBrush(
+                            new GradientStopCollection
+                            {
+                                new GradientStop(Color.FromArgb(245, 254, 240, 138), 0.0),
+                                new GradientStop(Color.FromArgb(145, 251, 191, 36), 0.35),
+                                new GradientStop(Color.FromArgb(0, 245, 158, 11), 1.0)
+                            });
+                        glowGold.Freeze();
+                        var glowAmber = new RadialGradientBrush(
+                            new GradientStopCollection
+                            {
+                                new GradientStop(Color.FromArgb(235, 253, 224, 71), 0.0),
+                                new GradientStop(Color.FromArgb(120, 245, 158, 11), 0.38),
+                                new GradientStop(Color.FromArgb(0, 217, 119, 6), 1.0)
+                            });
+                        glowAmber.Freeze();
+
+                        for (int i = 0; i < 42; i++)
+                        {
+                            double sz = _rand.Next(7, 16);
+                            double x = _rand.NextDouble() * w;
+                            double y = _rand.NextDouble() * h;
+                            var tt = new TranslateTransform(x, y);
+                            var el = new Ellipse
+                            {
+                                Width = sz,
+                                Height = sz,
+                                Fill = (i % 3 == 0) ? glowAmber : glowGold,
+                                RenderTransform = tt,
+                                IsHitTestVisible = false
+                            };
+                            Canvas.SetLeft(el, 0);
+                            Canvas.SetTop(el, 0);
+                            GlobalThemeCanvas.Children.Add(el);
+
+                            double ang = _rand.NextDouble() * Math.PI * 2.0;
+                            double spd = _rand.NextDouble() * 0.42 + 0.22;
+                            _activeGlobalParticles.Add(new ParticleEngineItem
+                            {
+                                Element = el,
+                                Translate = tt,
+                                X = x,
+                                Y = y,
+                                R = sz,
+                                Angle = ang,
+                                AngularVel = (_rand.NextDouble() - 0.5) * 0.055,
+                                Speed = spd,
+                                Phase = _rand.NextDouble() * Math.PI * 2.0,
+                                Vy = _rand.NextDouble() * 0.035 + 0.025
+                            });
+                        }
+                        break;
+                    }
+
+                case "circuit_trace":
+                    {
+                        // Interactive PCB layout: glowing orthogonal/45-deg traces + via rings + routing data packets
+                        var traceCyanBrush = new SolidColorBrush(Color.FromArgb(62, 34, 211, 238));
+                        traceCyanBrush.Freeze();
+                        var tracePinkBrush = new SolidColorBrush(Color.FromArgb(52, 244, 114, 182));
+                        tracePinkBrush.Freeze();
+                        var viaStroke = new SolidColorBrush(Color.FromArgb(88, 34, 211, 238));
+                        viaStroke.Freeze();
+                        var packetCyan = new RadialGradientBrush(
+                            Color.FromArgb(255, 224, 242, 254),
+                            Color.FromArgb(0, 6, 182, 212));
+                        packetCyan.Freeze();
+                        var packetPink = new RadialGradientBrush(
+                            Color.FromArgb(255, 251, 207, 232),
+                            Color.FromArgb(0, 236, 72, 153));
+                        packetPink.Freeze();
+
+                        for (int t = 0; t < 14; t++)
+                        {
+                            var pts = BuildRandomCircuitTracePath(w, h);
+                            bool isPinkTrace = (t % 3 == 2);
+                            var poly = new Polyline
+                            {
+                                Points = new PointCollection(pts),
+                                Stroke = isPinkTrace ? tracePinkBrush : traceCyanBrush,
+                                StrokeThickness = 1.4,
+                                StrokeLineJoin = PenLineJoin.Round,
+                                Opacity = 0.62,
+                                IsHitTestVisible = false
+                            };
+                            GlobalThemeCanvas.Children.Add(poly);
+
+                            // Add PCB via pad at start & end
+                            foreach (var pt in new[] { pts[0], pts[^1] })
+                            {
+                                var via = new Ellipse
+                                {
+                                    Width = 7,
+                                    Height = 7,
+                                    Stroke = viaStroke,
+                                    StrokeThickness = 1.2,
+                                    Opacity = 0.72,
+                                    IsHitTestVisible = false
+                                };
+                                Canvas.SetLeft(via, pt.X - 3.5);
+                                Canvas.SetTop(via, pt.Y - 3.5);
+                                GlobalThemeCanvas.Children.Add(via);
+                            }
+
+                            // Track trace itself for cursor-proximity brightness pulse
+                            _activeGlobalParticles.Add(new ParticleEngineItem
+                            {
+                                Element = poly,
+                                Translate = new TranslateTransform(),
+                                TracePath = pts,
+                                MaxR = 1.0, // marker for trace element vs packet
+                                Phase = _rand.NextDouble() * Math.PI * 2.0
+                            });
+
+                            // 2 data packets per trace
+                            int packets = (t % 2 == 0) ? 2 : 1;
+                            for (int pIdx = 0; pIdx < packets; pIdx++)
+                            {
+                                double sz = 10.0;
+                                var tt = new TranslateTransform(pts[0].X - 5, pts[0].Y - 5);
+                                var pkt = new Ellipse
+                                {
+                                    Width = sz,
+                                    Height = sz,
+                                    Fill = isPinkTrace ? packetPink : packetCyan,
+                                    RenderTransform = tt,
+                                    IsHitTestVisible = false
+                                };
+                                Canvas.SetLeft(pkt, 0);
+                                Canvas.SetTop(pkt, 0);
+                                GlobalThemeCanvas.Children.Add(pkt);
+
+                                _activeGlobalParticles.Add(new ParticleEngineItem
+                                {
+                                    Element = pkt,
+                                    Translate = tt,
+                                    TracePath = pts,
+                                    MaxR = 0.0, // packet marker
+                                    X = _rand.NextDouble(), // normalized progress 0..1
+                                    Speed = (_rand.NextDouble() * 0.0042 + 0.0028) * (pIdx % 2 == 0 ? 1.0 : -1.0),
+                                    R = sz * 0.5
+                                });
+                            }
+                        }
+                        break;
+                    }
+
+                case "plasma_lightning":
+                    {
+                        // Thin, erratic electrical static sparks & jagged bolts along workspace perimeter
+                        var boltCyan = new SolidColorBrush(Color.FromArgb(225, 103, 232, 249));
+                        boltCyan.Freeze();
+                        var boltViolet = new SolidColorBrush(Color.FromArgb(215, 192, 132, 252));
+                        boltViolet.Freeze();
+                        var sparkBrush = new SolidColorBrush(Color.FromArgb(220, 186, 230, 253));
+                        sparkBrush.Freeze();
+
+                        for (int i = 0; i < 8; i++)
+                        {
+                            var pts = BuildLightningArcPoints(w, h, i);
+                            var bolt = new Polyline
+                            {
+                                Points = pts,
+                                Stroke = (i % 2 == 0) ? boltCyan : boltViolet,
+                                StrokeThickness = (i % 3 == 0) ? 1.7 : 1.15,
+                                StrokeLineJoin = PenLineJoin.Miter,
+                                Opacity = 0.0,
+                                IsHitTestVisible = false
+                            };
+                            GlobalThemeCanvas.Children.Add(bolt);
+
+                            _activeGlobalParticles.Add(new ParticleEngineItem
+                            {
+                                Element = bolt,
+                                Translate = new TranslateTransform(),
+                                MaxR = i,                      // slot index
+                                Phase = _rand.NextDouble() * 1.4, // countdown/life
+                                Speed = 0.035 + _rand.NextDouble() * 0.025,
+                                Vy = _rand.NextDouble() * 0.9 + 0.4 // quiet delay before next strike
+                            });
+                        }
+
+                        for (int s = 0; s < 22; s++)
+                        {
+                            double x = _rand.NextDouble() * w;
+                            double y = _rand.NextDouble() * h;
+                            double sz = _rand.Next(2, 5);
+                            var tt = new TranslateTransform(x, y);
+                            var sp = new Ellipse
+                            {
+                                Width = sz,
+                                Height = sz,
+                                Fill = sparkBrush,
+                                Opacity = 0.45,
+                                RenderTransform = tt,
+                                IsHitTestVisible = false
+                            };
+                            Canvas.SetLeft(sp, 0);
+                            Canvas.SetTop(sp, 0);
+                            GlobalThemeCanvas.Children.Add(sp);
+
+                            _activeGlobalParticles.Add(new ParticleEngineItem
+                            {
+                                Element = sp,
+                                Translate = tt,
+                                MaxR = -1.0, // static spark marker
+                                X = x,
+                                Y = y,
+                                Vx = (_rand.NextDouble() - 0.5) * 1.6,
+                                Vy = (_rand.NextDouble() - 0.5) * 1.6,
+                                Phase = _rand.NextDouble() * Math.PI * 2.0
+                            });
+                        }
+                        break;
+                    }
+
+                case "petals_snowfall":
+                    {
+                        // Gentle physics-driven cherry blossom petals + crystalline snowflakes with natural wind sway
+                        var petalPink1 = new SolidColorBrush(Color.FromArgb(205, 249, 168, 212));
+                        petalPink1.Freeze();
+                        var petalPink2 = new SolidColorBrush(Color.FromArgb(190, 251, 207, 232));
+                        petalPink2.Freeze();
+                        var snowWhite = new SolidColorBrush(Color.FromArgb(215, 224, 242, 254));
+                        snowWhite.Freeze();
+                        var petalGeom = Geometry.Parse("M 6,0 C 11,3 12,10 6,13 C 0,10 1,3 6,0 Z");
+                        petalGeom.Freeze();
+
+                        for (int i = 0; i < 48; i++)
+                        {
+                            bool isPetal = (i % 5 != 0); // ~80% cherry petals, ~20% soft snowflakes
+                            double x = _rand.NextDouble() * w;
+                            double y = _rand.NextDouble() * h;
+                            double ang = _rand.NextDouble() * 360.0;
+                            var rt = new RotateTransform(ang, isPetal ? 6.0 : 2.5, isPetal ? 6.5 : 2.5);
+                            var tt = new TranslateTransform(x, y);
+                            var tg = new TransformGroup();
+                            tg.Children.Add(rt);
+                            tg.Children.Add(tt);
+
+                            FrameworkElement el;
+                            if (isPetal)
+                            {
+                                double sc = _rand.NextDouble() * 0.55 + 0.65;
+                                var pt = new System.Windows.Shapes.Path
+                                {
+                                    Data = petalGeom,
+                                    Fill = (i % 2 == 0) ? petalPink1 : petalPink2,
+                                    RenderTransform = tg,
+                                    IsHitTestVisible = false
+                                };
+                                pt.Width = 12 * sc;
+                                pt.Height = 13 * sc;
+                                pt.Stretch = Stretch.Uniform;
+                                el = pt;
+                            }
+                            else
+                            {
+                                double sz = _rand.Next(4, 8);
+                                el = new Ellipse
+                                {
+                                    Width = sz,
+                                    Height = sz,
+                                    Fill = snowWhite,
+                                    RenderTransform = tg,
+                                    IsHitTestVisible = false
+                                };
+                            }
+                            Canvas.SetLeft(el, 0);
+                            Canvas.SetTop(el, 0);
+                            GlobalThemeCanvas.Children.Add(el);
+
+                            _activeGlobalParticles.Add(new ParticleEngineItem
+                            {
+                                Element = el,
+                                Translate = tt,
+                                Rotate = rt,
+                                X = x,
+                                Y = y,
+                                Angle = ang,
+                                AngularVel = (_rand.NextDouble() - 0.5) * 1.9,
+                                Speed = _rand.NextDouble() * 0.95 + 0.55, // fall speed
+                                Phase = _rand.NextDouble() * Math.PI * 2.0,
+                                R = _rand.NextDouble() * 0.6 + 0.45 // sway amplitude weight
+                            });
+                        }
+                        break;
+                    }
+
                 case "fading_stars":
                 default:
                     {
@@ -5599,8 +6169,150 @@ namespace StudyHub
             double w = Math.Max(ActualWidth, 1440);
             double h = Math.Max(ActualHeight, 900);
             double f = dtSeconds / 0.04; // Preserve original 25 Hz displacement velocity cleanly at any VSync rate
+            _particleClockSeconds += dtSeconds;
 
-            if (_currentParticleEffect == "network")
+            if (_currentParticleEffect == "fireflies")
+            {
+                bool hasMouse = (DateTime.UtcNow - _lastParticleMouseMoveUtc).TotalSeconds < 3.0;
+                for (int i = 0; i < _activeGlobalParticles.Count; i++)
+                {
+                    var p = _activeGlobalParticles[i];
+                    p.Angle += (p.AngularVel + 0.025 * Math.Sin(_particleClockSeconds * 0.7 + p.Phase)) * f;
+                    p.X += Math.Cos(p.Angle) * p.Speed * f;
+                    p.Y += Math.Sin(p.Angle) * p.Speed * f;
+                    if (p.X < -20) p.X = w + 16;
+                    else if (p.X > w + 20) p.X = -16;
+                    if (p.Y < -20) p.Y = h + 16;
+                    else if (p.Y > h + 20) p.Y = -16;
+
+                    p.Phase += p.Vy * f;
+                    double alpha = 0.24 + 0.68 * (0.5 + 0.5 * Math.Sin(p.Phase));
+                    if (hasMouse)
+                    {
+                        double dx = p.X - _lastParticleMousePos.X;
+                        double dy = p.Y - _lastParticleMousePos.Y;
+                        if (dx * dx + dy * dy < 150 * 150) alpha = Math.Min(1.0, alpha + 0.28);
+                    }
+                    p.Translate.X = p.X;
+                    p.Translate.Y = p.Y;
+                    p.Element.Opacity = alpha;
+                }
+            }
+            else if (_currentParticleEffect == "circuit_trace")
+            {
+                bool hasMouse = (DateTime.UtcNow - _lastParticleMouseMoveUtc).TotalSeconds < 2.8;
+                for (int i = 0; i < _activeGlobalParticles.Count; i++)
+                {
+                    var p = _activeGlobalParticles[i];
+                    if (p.TracePath == null || p.TracePath.Length == 0) continue;
+                    if (p.MaxR > 0.5)
+                    {
+                        // PCB Trace Polyline brightness wave + mouse proximity boost
+                        p.Phase += 0.04 * f;
+                        double pulse = 0.42 + 0.24 * (0.5 + 0.5 * Math.Sin(p.Phase));
+                        if (hasMouse)
+                        {
+                            Point mid = p.TracePath[p.TracePath.Length / 2];
+                            double d2 = (mid.X - _lastParticleMousePos.X) * (mid.X - _lastParticleMousePos.X) +
+                                        (mid.Y - _lastParticleMousePos.Y) * (mid.Y - _lastParticleMousePos.Y);
+                            if (d2 < 240 * 240) pulse = Math.Min(0.98, pulse + (1.0 - Math.Sqrt(d2) / 240.0) * 0.45);
+                        }
+                        p.Element.Opacity = pulse;
+                    }
+                    else
+                    {
+                        double mult = 1.0;
+                        Point pos = EvaluateCircuitPath(p.TracePath, p.X, out _);
+                        if (hasMouse)
+                        {
+                            double dx = pos.X - _lastParticleMousePos.X;
+                            double dy = pos.Y - _lastParticleMousePos.Y;
+                            if (dx * dx + dy * dy < 190 * 190) mult = 1.9;
+                        }
+                        p.X += p.Speed * mult * f;
+                        if (p.X > 1.0) p.X -= 1.0;
+                        else if (p.X < 0.0) p.X += 1.0;
+
+                        pos = EvaluateCircuitPath(p.TracePath, p.X, out _);
+                        p.Translate.X = pos.X - p.R;
+                        p.Translate.Y = pos.Y - p.R;
+                        p.Element.Opacity = mult > 1.1 ? 1.0 : 0.85;
+                    }
+                }
+            }
+            else if (_currentParticleEffect == "plasma_lightning")
+            {
+                for (int i = 0; i < _activeGlobalParticles.Count; i++)
+                {
+                    var p = _activeGlobalParticles[i];
+                    if (p.MaxR >= 0.0 && p.Element is Polyline poly)
+                    {
+                        p.Phase -= dtSeconds;
+                        if (p.Phase > 0.0)
+                        {
+                            // Active electric flicker pulse
+                            double flick = 0.55 + 0.45 * Math.Sin(_particleClockSeconds * 48.0 + p.MaxR * 2.1);
+                            poly.Opacity = Math.Clamp(p.Phase * 2.2 * flick, 0.0, 0.92);
+                        }
+                        else
+                        {
+                            poly.Opacity = 0.0;
+                            if (p.Phase <= -p.Vy)
+                            {
+                                poly.Points = BuildLightningArcPoints(w, h, (int)p.MaxR);
+                                p.Phase = 0.22 + _rand.NextDouble() * 0.24;
+                                p.Vy = 0.45 + _rand.NextDouble() * 1.15;
+                            }
+                        }
+                    }
+                    else
+                    {
+                        // Tiny static background spark fleck
+                        p.Phase += 0.14 * f;
+                        p.X += p.Vx * f + (_rand.NextDouble() - 0.5) * 0.6;
+                        p.Y += p.Vy * f + (_rand.NextDouble() - 0.5) * 0.6;
+                        if (p.X < 0 || p.X > w || p.Y < 0 || p.Y > h)
+                        {
+                            p.X = _rand.NextDouble() * w;
+                            p.Y = _rand.NextDouble() * h;
+                        }
+                        p.Translate.X = p.X;
+                        p.Translate.Y = p.Y;
+                        p.Element.Opacity = Math.Max(0.05, 0.25 + 0.55 * Math.Abs(Math.Sin(p.Phase)));
+                    }
+                }
+            }
+            else if (_currentParticleEffect == "petals_snowfall")
+            {
+                double globalWind = Math.Sin(_particleClockSeconds * 0.45) * 0.55 + 0.25;
+                for (int i = 0; i < _activeGlobalParticles.Count; i++)
+                {
+                    var p = _activeGlobalParticles[i];
+                    p.Phase += 0.045 * f;
+                    double sway = Math.Sin(p.Phase) * p.R * 0.9 + globalWind * 0.45;
+                    p.X += sway * f;
+                    p.Y += p.Speed * f;
+                    p.Angle += p.AngularVel * f;
+
+                    if (p.Y > h + 20)
+                    {
+                        p.Y = -18;
+                        p.X = _rand.NextDouble() * w;
+                    }
+                    if (p.X < -25) p.X = w + 20;
+                    else if (p.X > w + 25) p.X = -20;
+
+                    double edgeFade = 1.0;
+                    if (p.Y < 50) edgeFade = Math.Clamp((p.Y + 18) / 68.0, 0.0, 1.0);
+                    else if (p.Y > h - 110) edgeFade = Math.Clamp((h + 15 - p.Y) / 125.0, 0.0, 1.0);
+
+                    p.Translate.X = p.X;
+                    p.Translate.Y = p.Y;
+                    if (p.Rotate != null) p.Rotate.Angle = p.Angle;
+                    p.Element.Opacity = edgeFade * 0.88;
+                }
+            }
+            else if (_currentParticleEffect == "network")
             {
                 for (int i = 0; i < _activeGlobalParticles.Count; i++)
                 {
@@ -5773,7 +6485,7 @@ namespace StudyHub
         {
             if (WpThemeCards == null) return;
             WpThemeCards.Children.Clear();
-            string curTheme = _state.Settings?.BgTheme ?? "aurora";
+            string curTheme = GetActiveBgTheme();
 
             foreach (var t in GLOBAL_THEMES)
             {
@@ -5866,7 +6578,7 @@ namespace StudyHub
         {
             if (WpParticleCards == null) return;
             WpParticleCards.Children.Clear();
-            string curEffect = _state.Settings?.ParticleEffect ?? "network";
+            string curEffect = NormalizeParticleEffectId(_state.Settings?.ParticleEffect);
 
             foreach (var p in PARTICLE_MODES)
             {
@@ -6396,9 +7108,103 @@ namespace StudyHub
             SettingsModalGrid.Visibility = Visibility.Collapsed;
         }
 
+        private void ChkSettingsAutoCheckOnLaunch_Changed(object sender, RoutedEventArgs e)
+        {
+            if (_isUpdatingSysUi || _state?.Settings == null || !IsLoaded) return;
+            _state.Settings.AutoCheckUpdates = ChkSettingsAutoCheckOnLaunch.IsChecked ?? true;
+            SaveState(countActivity: false);
+        }
+
         private async void BtnCheckGithubUpdates_Click(object sender, RoutedEventArgs e)
         {
             await CheckForGithubUpdatesAsync(silentOnNoUpdate: false);
+        }
+
+        private async Task RunLaunchAutoUpdateCheckAsync()
+        {
+            try
+            {
+                string url = UserSettings.NormalizeGithubRepoUrl(_state.Settings?.GithubRepoUrl ?? TxtSettingsGithubUrl?.Text ?? "");
+                var result = await _updater.CheckForUpdatesAsync(url, _state.Settings?.InstalledCommitSha ?? "");
+                if (!result.Success || !result.IsUpdateAvailable || string.IsNullOrWhiteSpace(result.DownloadUrl))
+                    return;
+
+                // Automatically download package in background when detected on launch (before prompting user)
+                _isAutoDownloadingUpdate = true;
+                try
+                {
+                    if (BdUpdateResultBox != null)
+                    {
+                        BdUpdateResultBox.Visibility = Visibility.Visible;
+                        TxtUpdateStatusHeader.Text = $"⬇ Downloading Update v{result.LatestVersion} in background...";
+                        TxtUpdateStatusHeader.Foreground = new SolidColorBrush(Color.FromRgb(34, 211, 238));
+                        TxtUpdateStatusDetails.Text = "Preparing update package quietly so it's ready to install...";
+                        BtnInstallUpdateNow.Visibility = Visibility.Collapsed;
+                    }
+
+                    var bgProgress = new Progress<(int percent, string status)>(p =>
+                    {
+                        if (TxtUpdateStatusDetails != null)
+                        {
+                            TxtUpdateStatusDetails.Text = $"{p.status} ({p.percent}%)";
+                        }
+                    });
+
+                    var (ok, stagedPath, err) = await _updater.DownloadUpdatePackageAsync(result, bgProgress);
+                    if (ok && !string.IsNullOrWhiteSpace(stagedPath))
+                    {
+                        _pendingAutoUpdateResult = result;
+                        _pendingStagedUpdatePath = stagedPath;
+
+                        if (BdUpdateResultBox != null)
+                        {
+                            BdUpdateResultBox.Visibility = Visibility.Visible;
+                            TxtUpdateStatusHeader.Text = $"🎉 Update Ready to Install: v{result.LatestVersion}";
+                            TxtUpdateStatusHeader.Foreground = new SolidColorBrush(Color.FromRgb(16, 185, 129));
+                            TxtUpdateStatusDetails.Text = $"Release: {result.ReleaseTitle}\nDownloaded in background. Ready to install!";
+                            if (TxtBtnInstallUpdateLabel != null) TxtBtnInstallUpdateLabel.Text = "Install Ready Update Now";
+                            BtnInstallUpdateNow.Visibility = Visibility.Visible;
+                        }
+
+                        if (TxtUpdateReadyVersion != null)
+                            TxtUpdateReadyVersion.Text = $"v{result.LatestVersion} • Downloaded & Ready to Install";
+                        if (TxtUpdateReadyNotes != null)
+                        {
+                            TxtUpdateReadyNotes.Text = string.IsNullOrWhiteSpace(result.ReleaseNotes)
+                                ? $"{result.ReleaseTitle}\n\nStudyHub v{result.LatestVersion} has finished downloading in the background and is ready to install."
+                                : result.ReleaseNotes;
+                        }
+                        if (UpdateReadyModalGrid != null)
+                        {
+                            UpdateReadyModalGrid.Visibility = Visibility.Visible;
+                        }
+                    }
+                    else
+                    {
+                        if (TxtUpdateStatusDetails != null) TxtUpdateStatusDetails.Text = err;
+                    }
+                }
+                finally
+                {
+                    _isAutoDownloadingUpdate = false;
+                }
+            }
+            catch
+            {
+                _isAutoDownloadingUpdate = false;
+            }
+        }
+
+        private void BtnUpdateReadyLater_Click(object sender, RoutedEventArgs e)
+        {
+            if (UpdateReadyModalGrid != null) UpdateReadyModalGrid.Visibility = Visibility.Collapsed;
+            ShowToast("Update ready anytime in Settings → Check for Updates.");
+        }
+
+        private async void BtnUpdateReadyInstallNow_Click(object sender, RoutedEventArgs e)
+        {
+            if (UpdateReadyModalGrid != null) UpdateReadyModalGrid.Visibility = Visibility.Collapsed;
+            await InstallPendingOrFetchUpdateAsync();
         }
 
         private async Task CheckForGithubUpdatesAsync(bool silentOnNoUpdate)
@@ -6423,9 +7229,23 @@ namespace StudyHub
                 {
                     if (result.IsUpdateAvailable)
                     {
-                        TxtUpdateStatusHeader.Text = $"🎉 New Version Available: {result.LatestVersion}!";
+                        bool alreadyStaged = _pendingAutoUpdateResult != null
+                            && string.Equals(_pendingAutoUpdateResult.LatestVersion, result.LatestVersion, StringComparison.OrdinalIgnoreCase)
+                            && !string.IsNullOrWhiteSpace(_pendingStagedUpdatePath)
+                            && System.IO.File.Exists(_pendingStagedUpdatePath);
+                        if (!alreadyStaged)
+                        {
+                            _pendingAutoUpdateResult = result;
+                            _pendingStagedUpdatePath = string.Empty;
+                        }
+
+                        TxtUpdateStatusHeader.Text = alreadyStaged
+                            ? $"🎉 Update Ready to Install: v{result.LatestVersion}"
+                            : $"🎉 New Version Available: {result.LatestVersion}!";
                         TxtUpdateStatusHeader.Foreground = new SolidColorBrush(Color.FromRgb(16, 185, 129));
                         TxtUpdateStatusDetails.Text = $"Release: {result.ReleaseTitle}\n{result.ReleaseNotes}";
+                        if (TxtBtnInstallUpdateLabel != null)
+                            TxtBtnInstallUpdateLabel.Text = alreadyStaged ? "Install Ready Update Now" : "Download & Install Update Now";
                         BtnInstallUpdateNow.Visibility = Visibility.Visible;
                         ShowToast($"New StudyHub update found: {result.LatestVersion}! 🚀");
                     }
@@ -6453,43 +7273,97 @@ namespace StudyHub
 
         private async void BtnInstallUpdateNow_Click(object sender, RoutedEventArgs e)
         {
-            ShowToast("Downloading update from GitHub... ⏳");
-            BtnInstallUpdateNow.IsEnabled = false;
+            await InstallPendingOrFetchUpdateAsync();
+        }
+
+        private void SetInstallProgressUi(int percent, string stage, string detail)
+        {
+            int pct = Math.Clamp(percent, 0, 100);
+            if (PbUpdateInstallProgress != null) PbUpdateInstallProgress.Value = pct;
+            if (TxtUpdateProgressPercent != null) TxtUpdateProgressPercent.Text = $"{pct}%";
+            if (TxtUpdateProgressStage != null) TxtUpdateProgressStage.Text = stage;
+            if (TxtUpdateProgressDetail != null) TxtUpdateProgressDetail.Text = detail;
+            if (TxtUpdateStatusDetails != null) TxtUpdateStatusDetails.Text = $"{detail} ({pct}%)";
+        }
+
+        private async Task InstallPendingOrFetchUpdateAsync()
+        {
+            if (_isInstallingUpdate) return;
+            _isInstallingUpdate = true;
+            if (BtnInstallUpdateNow != null) BtnInstallUpdateNow.IsEnabled = false;
+
+            if (UpdateProgressModalGrid != null) UpdateProgressModalGrid.Visibility = Visibility.Visible;
+            SetInstallProgressUi(0, "Preparing update...", "Initializing installer...");
 
             try
             {
-                string url = TxtSettingsGithubUrl.Text.Trim();
-                var result = await _updater.CheckForUpdatesAsync(url, _state.Settings.InstalledCommitSha);
-                if ((result.IsUpdateAvailable || !string.IsNullOrEmpty(result.DownloadUrl)) && !string.IsNullOrEmpty(result.DownloadUrl))
+                // If launch background download is currently mid-flight, let it finish cleanly
+                int waitCount = 0;
+                while (_isAutoDownloadingUpdate && waitCount < 120)
+                {
+                    SetInstallProgressUi(Math.Min(45, 10 + waitCount / 3), "Finishing background download...", "Waiting for update download to finish...");
+                    await Task.Delay(250);
+                    waitCount++;
+                }
+
+                bool hasStaged = _pendingAutoUpdateResult != null
+                    && !string.IsNullOrWhiteSpace(_pendingStagedUpdatePath)
+                    && System.IO.File.Exists(_pendingStagedUpdatePath);
+
+                UpdateCheckResult? result = _pendingAutoUpdateResult;
+                if (result == null || string.IsNullOrWhiteSpace(result.DownloadUrl))
+                {
+                    SetInstallProgressUi(4, "Checking GitHub release...", "Fetching latest release manifest...");
+                    string url = UserSettings.NormalizeGithubRepoUrl(TxtSettingsGithubUrl.Text);
+                    result = await _updater.CheckForUpdatesAsync(url, _state.Settings.InstalledCommitSha);
+                }
+
+                if (result != null && (result.IsUpdateAvailable || !string.IsNullOrWhiteSpace(result.DownloadUrl)) && !string.IsNullOrWhiteSpace(result.DownloadUrl))
                 {
                     var progress = new Progress<(int percent, string status)>(p =>
                     {
-                        TxtUpdateStatusDetails.Text = $"{p.status} ({p.percent}%)";
+                        string stage = p.percent < 72 ? "Downloading Update Package..." :
+                                       p.percent < 96 ? "Extracting & Applying Files..." :
+                                       "Finalizing Installation...";
+                        SetInstallProgressUi(p.percent, stage, p.status);
                     });
 
-                    var (ok, error) = await _updater.DownloadAndApplyUpdateAsync(result, progress);
+                    var (ok, error) = hasStaged
+                        ? await _updater.ApplyDownloadedUpdateAsync(result, _pendingStagedUpdatePath, progress)
+                        : await _updater.DownloadAndApplyUpdateAsync(result, progress);
+
                     if (ok)
                     {
+                        SetInstallProgressUi(100, "Launching Updater...", "Closing StudyHub to complete installation.");
                         if (!string.IsNullOrWhiteSpace(result.LatestCommitSha))
                         {
                             _state.Settings.InstalledCommitSha = result.LatestCommitSha;
                             SaveState(countActivity: false);
                         }
+                        await Task.Delay(350);
                         Application.Current.Shutdown();
                     }
                     else
                     {
+                        if (UpdateProgressModalGrid != null) UpdateProgressModalGrid.Visibility = Visibility.Collapsed;
                         ShowToast($"Update failed: {error}");
                     }
+                }
+                else
+                {
+                    if (UpdateProgressModalGrid != null) UpdateProgressModalGrid.Visibility = Visibility.Collapsed;
+                    ShowToast("No downloadable update package found on GitHub.");
                 }
             }
             catch (Exception ex)
             {
+                if (UpdateProgressModalGrid != null) UpdateProgressModalGrid.Visibility = Visibility.Collapsed;
                 ShowToast($"Error installing update: {ex.Message}");
             }
             finally
             {
-                BtnInstallUpdateNow.IsEnabled = true;
+                _isInstallingUpdate = false;
+                if (BtnInstallUpdateNow != null) BtnInstallUpdateNow.IsEnabled = true;
             }
         }
 

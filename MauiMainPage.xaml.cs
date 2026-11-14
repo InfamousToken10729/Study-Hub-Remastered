@@ -66,6 +66,7 @@ public partial class MauiMainPage : ContentPage
     private UpdateCheckResult? _lastUpdateCheckResult;
     private string _downloadedApkPath = "";
     private bool _isUpdateInstalling = false;
+    private bool _isAutoDownloadingUpdate = false;
 
     private static readonly string[] SubjectEmojiPalette =
     {
@@ -196,6 +197,16 @@ public partial class MauiMainPage : ContentPage
             {
                 await Task.Delay(1400);
                 await MainThread.InvokeOnMainThreadAsync(() => ExecuteMobileCloudSyncAsync(silentAutoSync: true));
+            });
+        }
+
+        if (_state.Settings.AutoCheckUpdates &&
+            !string.IsNullOrWhiteSpace(_state.Settings.GithubRepoUrl))
+        {
+            _ = Task.Run(async () =>
+            {
+                await Task.Delay(2100);
+                await MainThread.InvokeOnMainThreadAsync(() => RunMobileLaunchAutoUpdateAsync());
             });
         }
     }
@@ -602,6 +613,8 @@ public partial class MauiMainPage : ContentPage
         int breakMin = Math.Clamp(_state.Settings.PomoBreak, 1, 90);
         EntryPomoWorkMin.Text = workMin.ToString();
         EntryPomoBreakMin.Text = breakMin.ToString();
+        if (EntrySettingsPomoWorkMin != null) EntrySettingsPomoWorkMin.Text = workMin.ToString();
+        if (EntrySettingsPomoBreakMin != null) EntrySettingsPomoBreakMin.Text = breakMin.ToString();
         BtnPomoWorkMode.Text = $"{workMin}m Work";
         BtnPomoBreakMode.Text = $"{breakMin}m Break";
         _pomoTotalSeconds = workMin * 60;
@@ -618,6 +631,7 @@ public partial class MauiMainPage : ContentPage
         SwitchSettingsCalNotifs.IsToggled = _state.Settings.CalendarNotifsEnabled;
         EntrySettingsMorningTime.Text = _state.Settings.CalendarNotifStartHour;
         LblCalMorningBadge.Text = $"Morning reminders at {_state.Settings.CalendarNotifStartHour}";
+        if (SwitchMobileAutoCheckUpdates != null) SwitchMobileAutoCheckUpdates.IsToggled = _state.Settings.AutoCheckUpdates;
         SwitchMobileAutoSync.IsToggled = _state.Settings.AutoSyncEnabled;
         SwitchMobileSyncFiles.IsToggled = _state.Settings.SyncFilesEnabled;
         SwitchMobileWifiOnly.IsToggled = _state.Settings.WifiOnlyFileSync;
@@ -635,6 +649,7 @@ public partial class MauiMainPage : ContentPage
         ApplyTimerDockPosition(_state.TimerDock ?? "bottom-right");
         ApplySurfaceThemeColors();
         UpdateMobileCloudSyncUiState();
+        UpdateSettingsHubSummaries();
     }
 
     private void ApplySurfaceThemeColors()
@@ -694,15 +709,19 @@ public partial class MauiMainPage : ContentPage
         else
         {
             string bgTheme = (_backdrop.BgTheme ?? "aurora").ToLowerInvariant();
-            (string navBg, string cardBg, string strokeCol) = bgTheme switch
+            (string rootBg, string navBg, string cardBg, string strokeCol) = bgTheme switch
             {
-                "nebula" => ("#E60A0614", "#D8110A22", "#341F5C"),
-                "acrylic" => ("#E60C1D28", "#D8102636", "#23536B"),
-                "obsidian" => ("#E605070C", "#D80A0D16", "#1E263B"),
-                _ => ("#E611152C", "#D8131830", "#263056")
+                "nebula" or "particles" => ("#040510", "#E60A0614", "#D8110A22", "#341F5C"),
+                "acrylic" => ("#0B1630", "#E60C1D28", "#D8102636", "#23536B"),
+                "obsidian" or "oled_obsidian" => ("#000000", "#F2060608", "#F508080A", "#38FFFFFF"),
+                "cyberpunk" or "cyberpunk_matrix" => ("#0C0E16", "#E60E121E", "#DC111524", "#4800F0FF"),
+                "boreal" or "boreal_twilight" => ("#05201B", "#E6061A24", "#DC081A24", "#3E34D399"),
+                "daydusk" => ("#120B20", "#E614142C", "#DC161630", "#30FFFFFF"),
+                "minimal" => ("#0B0F19", "#F5111827", "#F5111827", "#1F2937"),
+                _ => ("#090B1A", "#E611152C", "#D8131830", "#263056")
             };
 
-            RootGrid.BackgroundColor = Color.FromArgb("#090B1A");
+            RootGrid.BackgroundColor = Color.FromArgb(rootBg);
             TopNavBorder.BackgroundColor = Color.FromArgb(navBg);
             TopNavBorder.Stroke = Color.FromArgb(strokeCol);
             LblBrandTitle.TextColor = Color.FromArgb("#F8FAFC");
@@ -3147,31 +3166,10 @@ public partial class MauiMainPage : ContentPage
         OpenCalendarModal();
     }
 
-    private void OnDrawerTimerClicked(object? sender, EventArgs e)
-    {
-        LeftDrawerOverlay.IsVisible = false;
-        FloatingTimerHost.IsVisible = true;
-        BdFloatingTimerExpanded.IsVisible = true;
-        BdFloatingTimerMinimized.IsVisible = false;
-        ShowToast("Focus Timer opened ⏱️");
-    }
-
     private void OnDrawerZenModeClicked(object? sender, EventArgs e)
     {
         LeftDrawerOverlay.IsVisible = false;
         OnToggleZenModeClicked(sender, e);
-    }
-
-    private void OnDrawerMixerClicked(object? sender, EventArgs e)
-    {
-        LeftDrawerOverlay.IsVisible = false;
-        OnToggleSoundMixerClicked(sender, e);
-    }
-
-    private void OnDrawerToggleThemeClicked(object? sender, EventArgs e)
-    {
-        LeftDrawerOverlay.IsVisible = false;
-        OnToggleThemeClicked(sender, e);
     }
 
     private void OnDrawerSettingsClicked(object? sender, EventArgs e)
@@ -3843,8 +3841,117 @@ public partial class MauiMainPage : ContentPage
         _ = _storage.SaveStateAsync(_state);
     }
 
-    private void OnOpenSettingsClicked(object? sender, EventArgs e) => SettingsModalOverlay.IsVisible = true;
+    private void OnOpenSettingsClicked(object? sender, EventArgs e)
+    {
+        OpenSettingsSubMenu("hub");
+        UpdateSettingsHubSummaries();
+        SettingsModalOverlay.IsVisible = true;
+    }
+
     private void OnCloseSettingsClicked(object? sender, EventArgs e) => SettingsModalOverlay.IsVisible = false;
+
+    private void OnSettingsBackClicked(object? sender, EventArgs e) => OpenSettingsSubMenu("hub");
+
+    private void OpenSettingsSubMenu(string menuKey)
+    {
+        SettingsHubView.IsVisible = menuKey == "hub";
+        SubMenuAppearanceView.IsVisible = menuKey == "appearance";
+        SubMenuParticlesView.IsVisible = menuKey == "particles";
+        SubMenuZenView.IsVisible = menuKey == "zen";
+        SubMenuCalTimerView.IsVisible = menuKey == "cal_timer";
+        SubMenuCloudSyncView.IsVisible = menuKey == "cloud";
+        SubMenuUpdatesBackupView.IsVisible = menuKey == "updates";
+
+        BtnSettingsBack.IsVisible = menuKey != "hub";
+        LblSettingsHeaderTitle.Text = menuKey switch
+        {
+            "appearance" => "🎨 Appearance & Surface Themes",
+            "particles" => "✨ Background Particles",
+            "zen" => "🧘 Zen Focus World",
+            "cal_timer" => "📅 Calendar & Focus Timer",
+            "cloud" => "☁️ Google Drive Cloud Sync",
+            "updates" => "🔄 Backup, Data & Updates",
+            _ => "⚙️ Settings & Control Center"
+        };
+
+        _ = SettingsScrollHost.ScrollToAsync(0, 0, false);
+    }
+
+    private void UpdateSettingsHubSummaries()
+    {
+        if (LblHubThemeSummary != null)
+        {
+            string themeLabel = (_backdrop.BgTheme ?? "aurora").ToLowerInvariant() switch
+            {
+                "particles" or "nebula" => "Deep Nebula",
+                "acrylic" => "Frosted Acrylic",
+                "daydusk" => "Day / Dusk Cycle",
+                "minimal" => "Flat Minimalist",
+                "oled_obsidian" or "obsidian" => "OLED Obsidian",
+                "cyberpunk_matrix" or "cyberpunk" => "Cyberpunk Neon Matrix",
+                "boreal_twilight" or "boreal" => "Boreal Twilight",
+                _ => "Dynamic Gradients"
+            };
+            LblHubThemeSummary.Text = $"{themeLabel} • {(_backdrop.IsDarkMode ? "Dark Mode" : "Daylight Mode")}";
+        }
+        if (LblHubParticleSummary != null)
+        {
+            string pLabel = (_backdrop.ParticleEffect ?? "network").ToLowerInvariant() switch
+            {
+                "fireflies" => "Fireflies / Dust Motes",
+                "circuit_trace" or "circuit" => "Interactive Circuit Trace",
+                "plasma_lightning" or "lightning" or "plasma" => "Plasma Lightning",
+                "petals_snowfall" or "sakura" or "snow" => "Cherry Blossom / Snowfall",
+                "disable" or "none" => "Disabled",
+                var x => char.ToUpperInvariant(x[0]) + x.Substring(1).Replace('_', ' ')
+            };
+            LblHubParticleSummary.Text = pLabel;
+        }
+        if (LblHubZenSummary != null)
+        {
+            LblHubZenSummary.Text = $"{(_state?.Settings?.ZenScene ?? "north_pole").Replace('_', ' ')} • 27+ Worlds";
+        }
+        if (LblHubCalTimerSummary != null && _state?.Settings != null)
+        {
+            LblHubCalTimerSummary.Text = $"Morning {_state.Settings.CalendarNotifStartHour} • {_state.Settings.PomoWork}m / {_state.Settings.PomoBreak}m";
+        }
+        if (LblHubCloudSummary != null)
+        {
+            LblHubCloudSummary.Text = _cloudSync.Config.HasValidSession ? "Connected to Google Drive ✅" : "Tap to pair & choose sync items";
+        }
+        if (LblHubUpdatesSummary != null)
+        {
+            string autoLbl = (_state?.Settings?.AutoCheckUpdates ?? true) ? "Auto-Check On" : "Manual Check";
+            LblHubUpdatesSummary.Text = $"v{GitHubUpdateService.CurrentAppVersion} • {autoLbl}";
+        }
+    }
+
+    private void OnOpenSubMenuAppearanceClicked(object? sender, TappedEventArgs e) => OpenSettingsSubMenu("appearance");
+    private void OnOpenSubMenuParticlesClicked(object? sender, TappedEventArgs e) => OpenSettingsSubMenu("particles");
+    private void OnOpenSubMenuZenClicked(object? sender, TappedEventArgs e) => OpenSettingsSubMenu("zen");
+    private void OnOpenSubMenuCalTimerClicked(object? sender, TappedEventArgs e) => OpenSettingsSubMenu("cal_timer");
+    private void OnOpenSubMenuCloudClicked(object? sender, TappedEventArgs e) => OpenSettingsSubMenu("cloud");
+    private void OnOpenSubMenuUpdatesClicked(object? sender, TappedEventArgs e) => OpenSettingsSubMenu("updates");
+
+    private void OnSettingsSavePomoClicked(object? sender, EventArgs e)
+    {
+        if (int.TryParse(EntrySettingsPomoWorkMin.Text, out int w) && w > 0)
+            EntryPomoWorkMin.Text = Math.Clamp(w, 1, 180).ToString();
+        if (int.TryParse(EntrySettingsPomoBreakMin.Text, out int b) && b > 0)
+            EntryPomoBreakMin.Text = Math.Clamp(b, 1, 90).ToString();
+
+        OnPomoDurationChanged(sender, e);
+        UpdateSettingsHubSummaries();
+        ShowToast($"Timer defaults saved: {_state.Settings.PomoWork}m / {_state.Settings.PomoBreak}m ⏱️");
+    }
+
+    private void OnMobileAutoCheckUpdatesToggled(object? sender, ToggledEventArgs e)
+    {
+        if (_isInitializingSettingsUi) return;
+        _state.Settings.AutoCheckUpdates = e.Value;
+        UpdateSettingsHubSummaries();
+        _ = _storage.SaveStateAsync(_state);
+    }
 
     private void SetSurfaceTheme(string themeKey, string label)
     {
@@ -3853,20 +3960,26 @@ public partial class MauiMainPage : ContentPage
         _backdrop.BgTheme = themeKey;
         _state.Settings.BgTheme = themeKey;
         ApplySurfaceThemeColors();
+        UpdateSettingsHubSummaries();
         BackdropCanvas.Invalidate();
         _ = _storage.SaveStateAsync(_state);
         ShowToast($"Theme: {label}");
     }
 
-    private void OnThemeAuroraClicked(object? sender, EventArgs e) => SetSurfaceTheme("aurora", "Midnight Cyber");
-    private void OnThemeNebulaClicked(object? sender, EventArgs e) => SetSurfaceTheme("nebula", "Deep Nebula");
+    private void OnThemeAuroraClicked(object? sender, EventArgs e) => SetSurfaceTheme("aurora", "Dynamic Gradients");
+    private void OnThemeNebulaClicked(object? sender, EventArgs e) => SetSurfaceTheme("particles", "Deep Nebula");
     private void OnThemeAcrylicClicked(object? sender, EventArgs e) => SetSurfaceTheme("acrylic", "Frosted Acrylic");
-    private void OnThemeObsidianClicked(object? sender, EventArgs e) => SetSurfaceTheme("obsidian", "Obsidian OLED");
+    private void OnThemeDayDuskClicked(object? sender, EventArgs e) => SetSurfaceTheme("daydusk", "Day / Dusk Cycle");
+    private void OnThemeMinimalClicked(object? sender, EventArgs e) => SetSurfaceTheme("minimal", "Flat Minimalist");
+    private void OnThemeObsidianClicked(object? sender, EventArgs e) => SetSurfaceTheme("oled_obsidian", "OLED Obsidian");
+    private void OnThemeCyberpunkClicked(object? sender, EventArgs e) => SetSurfaceTheme("cyberpunk_matrix", "Cyberpunk Neon Matrix");
+    private void OnThemeBorealClicked(object? sender, EventArgs e) => SetSurfaceTheme("boreal_twilight", "Boreal Twilight");
 
     private void SetParticleEffect(string effectKey)
     {
         _backdrop.ParticleEffect = effectKey;
         _state.Settings.ParticleEffect = effectKey;
+        UpdateSettingsHubSummaries();
         BackdropCanvas.Invalidate();
         _ = _storage.SaveStateAsync(_state);
         ShowToast($"Particles: {effectKey.Replace('_', ' ')}");
@@ -3879,12 +3992,11 @@ public partial class MauiMainPage : ContentPage
     private void OnParticleMeteorClicked(object? sender, EventArgs e) => SetParticleEffect("meteor");
     private void OnParticleWaterRippleClicked(object? sender, EventArgs e) => SetParticleEffect("water_ripple");
     private void OnParticleStarsClicked(object? sender, EventArgs e) => SetParticleEffect("fading_stars");
-    private void OnParticleSnowClicked(object? sender, EventArgs e) => SetParticleEffect("snow");
     private void OnParticleMatrixClicked(object? sender, EventArgs e) => SetParticleEffect("matrix");
     private void OnParticleFirefliesClicked(object? sender, EventArgs e) => SetParticleEffect("fireflies");
-    private void OnParticleSakuraClicked(object? sender, EventArgs e) => SetParticleEffect("sakura");
-    private void OnParticleEmbersClicked(object? sender, EventArgs e) => SetParticleEffect("embers");
-    private void OnParticleBubblesClicked(object? sender, EventArgs e) => SetParticleEffect("bubbles");
+    private void OnParticleCircuitClicked(object? sender, EventArgs e) => SetParticleEffect("circuit_trace");
+    private void OnParticlePlasmaClicked(object? sender, EventArgs e) => SetParticleEffect("plasma_lightning");
+    private void OnParticlePetalsSnowClicked(object? sender, EventArgs e) => SetParticleEffect("petals_snowfall");
     private void OnParticleNoneClicked(object? sender, EventArgs e) => SetParticleEffect("disable");
 
     private void OnExportBackupClicked(object? sender, EventArgs e)
@@ -3931,6 +4043,81 @@ public partial class MauiMainPage : ContentPage
         }
     }
 
+    private async Task RunMobileLaunchAutoUpdateAsync()
+    {
+        try
+        {
+            string normalizedUrl = UserSettings.NormalizeGithubRepoUrl(_state.Settings?.GithubRepoUrl ?? "");
+            if (string.IsNullOrWhiteSpace(normalizedUrl)) return;
+
+            var res = await _updater.CheckForUpdatesAsync(normalizedUrl, _state.Settings?.InstalledCommitSha ?? "");
+            if (!res.Success || !res.IsUpdateAvailable || string.IsNullOrWhiteSpace(res.DownloadUrl))
+                return;
+
+            _lastUpdateCheckResult = res;
+            _isAutoDownloadingUpdate = true;
+            try
+            {
+                BdMobileUpdateStatusCard.IsVisible = true;
+                LblMobileUpdateStatusTitle.Text = $"⬇️ Downloading Update v{res.LatestVersion} in background...";
+                LblMobileUpdateStatusTitle.TextColor = Color.FromArgb("#38BDF8");
+                ProgMobileUpdateDownload.IsVisible = true;
+                ProgMobileUpdateDownload.Progress = 0.02;
+
+                var bgProgress = new Progress<(int percent, string status)>(p =>
+                {
+                    MainThread.BeginInvokeOnMainThread(() =>
+                    {
+                        ProgMobileUpdateDownload.Progress = Math.Clamp(p.percent / 100.0, 0.0, 1.0);
+                        LblMobileUpdateStatusNotes.Text = $"{p.status} ({p.percent}%)";
+                    });
+                });
+
+                var (ok, stagedPath, err) = await _updater.DownloadUpdatePackageAsync(res, bgProgress);
+                if (ok && !string.IsNullOrWhiteSpace(stagedPath))
+                {
+                    _downloadedApkPath = stagedPath;
+                    LblMobileUpdateStatusTitle.Text = $"🎉 Update Ready to Install: v{res.LatestVersion}";
+                    LblMobileUpdateStatusTitle.TextColor = Color.FromArgb("#10B981");
+                    LblMobileUpdateStatusNotes.Text = $"{res.ReleaseTitle}\nDownloaded quietly in background. Tap to install now.";
+                    BtnMobileInstallUpdateNow.IsVisible = true;
+                    BtnMobileInstallUpdateNow.IsEnabled = true;
+                    BtnMobileInstallUpdateNow.Text = "📦 Install Ready Update Now";
+
+                    LblMobileReadyVersion.Text = $"v{res.LatestVersion} • Downloaded & Ready";
+                    LblMobileReadyNotes.Text = string.IsNullOrWhiteSpace(res.ReleaseNotes)
+                        ? $"{res.ReleaseTitle}\n\nStudy Hub v{res.LatestVersion} has been downloaded in the background and is ready to install."
+                        : res.ReleaseNotes;
+                    MobileUpdateReadyOverlay.IsVisible = true;
+                }
+                else
+                {
+                    LblMobileUpdateStatusNotes.Text = err;
+                }
+            }
+            finally
+            {
+                _isAutoDownloadingUpdate = false;
+            }
+        }
+        catch
+        {
+            _isAutoDownloadingUpdate = false;
+        }
+    }
+
+    private void OnMobileUpdateReadyLaterClicked(object? sender, EventArgs e)
+    {
+        MobileUpdateReadyOverlay.IsVisible = false;
+        ShowToast("Update saved in Settings → Backup, Data & Updates.");
+    }
+
+    private async void OnMobileUpdateReadyInstallNowClicked(object? sender, EventArgs e)
+    {
+        MobileUpdateReadyOverlay.IsVisible = false;
+        await StartInAppUpdateInstallAsync();
+    }
+
     private async void OnCheckGithubUpdateClicked(object? sender, EventArgs e)
     {
         string normalizedUrl = UserSettings.NormalizeGithubRepoUrl(EntryGithubRepoUrl.Text);
@@ -3948,6 +4135,10 @@ public partial class MauiMainPage : ContentPage
 
         ShowToast("Checking GitHub for updates...");
         var res = await _updater.CheckForUpdatesAsync(normalizedUrl, _state.Settings.InstalledCommitSha);
+        if (_lastUpdateCheckResult != null && !string.Equals(_lastUpdateCheckResult.LatestVersion, res.LatestVersion, StringComparison.OrdinalIgnoreCase))
+        {
+            _downloadedApkPath = "";
+        }
         _lastUpdateCheckResult = res;
 
         if (!res.Success)
@@ -3961,7 +4152,10 @@ public partial class MauiMainPage : ContentPage
 
         if (res.IsUpdateAvailable)
         {
-            LblMobileUpdateStatusTitle.Text = $"🎉 Update Available: v{res.LatestVersion}";
+            bool hasReadyApk = !string.IsNullOrWhiteSpace(_downloadedApkPath) && File.Exists(_downloadedApkPath);
+            LblMobileUpdateStatusTitle.Text = hasReadyApk
+                ? $"🎉 Update Ready to Install: v{res.LatestVersion}"
+                : $"🎉 Update Available: v{res.LatestVersion}";
             LblMobileUpdateStatusTitle.TextColor = Color.FromArgb("#10B981");
             LblMobileUpdateStatusNotes.Text = $"{res.ReleaseTitle}\n{res.ReleaseNotes}".Trim();
 
@@ -3969,9 +4163,11 @@ public partial class MauiMainPage : ContentPage
             {
                 BtnMobileInstallUpdateNow.IsVisible = true;
                 BtnMobileInstallUpdateNow.IsEnabled = true;
-                BtnMobileInstallUpdateNow.Text = "⬇️ Download & Install Update In-App";
+                BtnMobileInstallUpdateNow.Text = hasReadyApk ? "📦 Install Ready Update Now" : "⬇️ Download & Install Update In-App";
 
-                string msg = $"New update available: {res.LatestVersion}\n{res.ReleaseTitle}\n\n{res.ReleaseNotes}\n\nDownload and install directly inside Study Hub?";
+                string msg = hasReadyApk
+                    ? $"Update v{res.LatestVersion} is already downloaded and ready.\n{res.ReleaseTitle}\n\nInstall it now?"
+                    : $"New update available: {res.LatestVersion}\n{res.ReleaseTitle}\n\n{res.ReleaseNotes}\n\nDownload and install directly inside Study Hub?";
                 bool installNow = await DisplayAlert("GitHub Updater", msg, "Install Now", "Later");
                 if (installNow)
                 {
@@ -4008,6 +4204,17 @@ public partial class MauiMainPage : ContentPage
         await StartInAppUpdateInstallAsync();
     }
 
+    private void SetMobileInstallProgressModalUi(int percent, string stage, string detail)
+    {
+        int pct = Math.Clamp(percent, 0, 100);
+        ProgMobileInstallModal.Progress = pct / 100.0;
+        LblMobileProgressPercent.Text = $"{pct}%";
+        LblMobileProgressStage.Text = stage;
+        LblMobileProgressDetail.Text = detail;
+        ProgMobileUpdateDownload.Progress = pct / 100.0;
+        LblMobileUpdateStatusNotes.Text = $"{detail} ({pct}%)";
+    }
+
     private async Task StartInAppUpdateInstallAsync()
     {
         if (_isUpdateInstalling) return;
@@ -4022,57 +4229,56 @@ public partial class MauiMainPage : ContentPage
         BtnCheckGithubUpdate.IsEnabled = false;
         BdMobileUpdateStatusCard.IsVisible = true;
         ProgMobileUpdateDownload.IsVisible = true;
+        MobileUpdateProgressOverlay.IsVisible = true;
+        SetMobileInstallProgressModalUi(0, "Preparing Update...", "Initializing Study Hub installer...");
 
         try
         {
-#if ANDROID
-            // If APK was already downloaded and user just granted Unknown Apps permission, launch installer immediately
-            if (!string.IsNullOrWhiteSpace(_downloadedApkPath) && File.Exists(_downloadedApkPath))
+            int waitCount = 0;
+            while (_isAutoDownloadingUpdate && waitCount < 120)
             {
-                LblMobileUpdateStatusTitle.Text = "📦 Launching Android Installer...";
-                LblMobileUpdateStatusNotes.Text = "Installing downloaded StudyHub update...";
-                var (instOk, instErr) = _updater.LaunchAndroidApkInstaller(_downloadedApkPath);
-                if (instOk)
-                {
-                    ShowToast("Android package installer opened 📦");
-                    return;
-                }
-                if (instErr == "PERMISSION_NEEDED")
-                {
-                    LblMobileUpdateStatusTitle.Text = "🔐 Permission Required";
-                    LblMobileUpdateStatusTitle.TextColor = Color.FromArgb("#F59E0B");
-                    LblMobileUpdateStatusNotes.Text = "Allow 'Install unknown apps' for Study Hub, then tap Install again.";
-                    await DisplayAlert("Install Permission Required", "Please enable 'Allow from this source' in Android Settings, then return and tap the Install button again (no re-download needed).", "OK");
-                    return;
-                }
-                // Otherwise fall through to fresh download
-                _downloadedApkPath = "";
+                SetMobileInstallProgressModalUi(Math.Min(45, 10 + waitCount / 3), "Finishing Background Download...", "Completing APK package download...");
+                await Task.Delay(250);
+                waitCount++;
             }
-#endif
 
-            ProgMobileUpdateDownload.Progress = 0.05;
-            LblMobileUpdateStatusTitle.Text = "⬇️ Downloading Update...";
-            LblMobileUpdateStatusTitle.TextColor = Color.FromArgb("#38BDF8");
-
+            bool hasDownloadedApk = !string.IsNullOrWhiteSpace(_downloadedApkPath) && File.Exists(_downloadedApkPath);
             var progress = new Progress<(int percent, string status)>(p =>
             {
                 MainThread.BeginInvokeOnMainThread(() =>
                 {
-                    ProgMobileUpdateDownload.Progress = Math.Clamp(p.percent / 100.0, 0.0, 1.0);
-                    LblMobileUpdateStatusNotes.Text = $"{p.status} ({p.percent}%)";
+                    string stage = hasDownloadedApk
+                        ? "Installing Downloaded Update..."
+                        : (p.percent < 72 ? "Downloading Android APK..." : "Installing Study Hub Update...");
+                    SetMobileInstallProgressModalUi(p.percent, stage, p.status);
                 });
             });
 
-            var (ok, error) = await _updater.DownloadAndApplyUpdateAsync(_lastUpdateCheckResult, progress);
+            var (ok, error) = hasDownloadedApk
+                ? await _updater.ApplyDownloadedUpdateAsync(_lastUpdateCheckResult, _downloadedApkPath, progress)
+                : await _updater.DownloadAndApplyUpdateAsync(_lastUpdateCheckResult, progress);
+
             if (!ok)
             {
-                LblMobileUpdateStatusTitle.Text = "❌ Update Download Failed";
+                MobileUpdateProgressOverlay.IsVisible = false;
+                if (error == "PERMISSION_NEEDED")
+                {
+                    LblMobileUpdateStatusTitle.Text = "🔐 Permission Required";
+                    LblMobileUpdateStatusTitle.TextColor = Color.FromArgb("#F59E0B");
+                    LblMobileUpdateStatusNotes.Text = "Enable 'Allow from this source' in Android Settings, then tap Install again.";
+                    BtnMobileInstallUpdateNow.Text = "📦 Install Downloaded APK";
+                    await DisplayAlert("Allow Unknown Apps", "Android Settings was opened so you can allow Study Hub to install updates. Toggle 'Allow from this source', come back, and tap 'Install Downloaded APK'.", "OK");
+                    return;
+                }
+
+                LblMobileUpdateStatusTitle.Text = "❌ Update Failed";
                 LblMobileUpdateStatusTitle.TextColor = Color.FromArgb("#F43F5E");
                 LblMobileUpdateStatusNotes.Text = error;
                 await DisplayAlert("Update Failed", error, "OK");
                 return;
             }
 
+            SetMobileInstallProgressModalUi(100, "Launching Installer...", "Installation handoff ready!");
             if (!string.IsNullOrWhiteSpace(_lastUpdateCheckResult.LatestCommitSha))
             {
                 _state.Settings.InstalledCommitSha = _lastUpdateCheckResult.LatestCommitSha;
@@ -4081,38 +4287,21 @@ public partial class MauiMainPage : ContentPage
 
 #if ANDROID
             _downloadedApkPath = _updater.LastDownloadedApkPath;
-            LblMobileUpdateStatusTitle.Text = "📦 Installing Update...";
+            LblMobileUpdateStatusTitle.Text = "📦 Installer Launched";
             LblMobileUpdateStatusTitle.TextColor = Color.FromArgb("#10B981");
-            LblMobileUpdateStatusNotes.Text = "Opening Android package installer...";
-
-            var (launched, launchErr) = _updater.LaunchAndroidApkInstaller(_downloadedApkPath);
-            if (launched)
-            {
-                ShowToast("Follow the Android prompt to finish updating 🚀");
-            }
-            else if (launchErr == "PERMISSION_NEEDED")
-            {
-                LblMobileUpdateStatusTitle.Text = "🔐 Permission Required";
-                LblMobileUpdateStatusTitle.TextColor = Color.FromArgb("#F59E0B");
-                LblMobileUpdateStatusNotes.Text = "Enable 'Allow from this source' in Android Settings, then tap Install again.";
-                BtnMobileInstallUpdateNow.Text = "📦 Install Downloaded APK";
-                await DisplayAlert("Allow Unknown Apps", "Android Settings was opened so you can allow Study Hub to install updates. Toggle 'Allow from this source', come back, and tap 'Install Downloaded APK'.", "OK");
-            }
-            else
-            {
-                LblMobileUpdateStatusTitle.Text = "⚠️ Could Not Launch Installer";
-                LblMobileUpdateStatusTitle.TextColor = Color.FromArgb("#F59E0B");
-                LblMobileUpdateStatusNotes.Text = launchErr;
-                await DisplayAlert("Installer Error", $"Could not open Android package installer: {launchErr}", "OK");
-            }
+            LblMobileUpdateStatusNotes.Text = "Follow the Android prompt to finish updating.";
+            await Task.Delay(350);
+            MobileUpdateProgressOverlay.IsVisible = false;
+            ShowToast("Follow the Android prompt to finish updating 🚀");
 #else
             LblMobileUpdateStatusTitle.Text = "🚀 Restarting to Apply Update...";
-            ShowToast("Restarting Study Hub to apply update...");
+            await Task.Delay(300);
             Application.Current?.Quit();
 #endif
         }
         catch (Exception ex)
         {
+            MobileUpdateProgressOverlay.IsVisible = false;
             LblMobileUpdateStatusTitle.Text = "❌ Update Error";
             LblMobileUpdateStatusTitle.TextColor = Color.FromArgb("#F43F5E");
             LblMobileUpdateStatusNotes.Text = ex.Message;
