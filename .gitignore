@@ -2,6 +2,15 @@
 bin/
 obj/
 publish_out/
+publish_win/
 webview_data/
 *.tmp
 StudyHub_Updater.bat
+
+# Google OAuth & Sync Credentials (Device-Local Secrets - Never Commit to Git)
+gdrive_device_config.json
+client_secret*.json
+StudyHub_GDrive_QuickPair.json
+last_synced_snapshot.json
+sync_entity_hashes.json
+StudyHub_SyncCache/

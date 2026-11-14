@@ -13,10 +13,20 @@ namespace StudyHub;
     Icon = "@mipmap/appicon",
     RoundIcon = "@mipmap/appicon_round",
     MainLauncher = true,
-    LaunchMode = LaunchMode.SingleTop,
+    LaunchMode = LaunchMode.SingleTask,
     ConfigurationChanges = ConfigChanges.ScreenSize | ConfigChanges.Orientation | ConfigChanges.UiMode | ConfigChanges.ScreenLayout | ConfigChanges.SmallestScreenSize | ConfigChanges.Density)]
+[IntentFilter(
+    new[] { global::Android.Content.Intent.ActionView },
+    Categories = new[] { global::Android.Content.Intent.CategoryDefault, global::Android.Content.Intent.CategoryBrowsable },
+    DataScheme = "studyhub",
+    DataHost = "oauth-callback")]
 public class MainActivity : MauiAppCompatActivity
 {
+    protected override void OnNewIntent(global::Android.Content.Intent? intent)
+    {
+        base.OnNewIntent(intent);
+        Intent = intent;
+    }
     protected override void OnCreate(Bundle? savedInstanceState)
     {
         base.OnCreate(savedInstanceState);

@@ -21,7 +21,13 @@ public partial class MauiMainPage : ContentPage
     private readonly StorageService _storage;
     private readonly AudioStudioService _audio;
     private readonly GitHubUpdateService _updater;
+    private readonly GoogleDriveSyncService _cloudSync;
     private AppStateData _state;
+
+    private IDispatcherTimer? _autoSyncDebounceTimer;
+    private DateTime _lastAutoSyncTriggerUtc = DateTime.MinValue;
+    private SyncMergeOutcome? _pendingMobileSyncOutcome;
+    private SyncResolutionMode _pendingMobileSyncMode = SyncResolutionMode.SmartMerge;
 
     private readonly MauiBackdropDrawable _backdrop = new();
     private readonly MauiWhiteboardDrawable _whiteboard = new();
@@ -116,9 +122,32 @@ public partial class MauiMainPage : ContentPage
         InitializeComponent();
 
         _storage = new StorageService();
+        _cloudSync = new GoogleDriveSyncService(_storage);
+        _cloudSync.StatusChanged += report => MainThread.BeginInvokeOnMainThread(() => ApplyMobileCloudStatusToUi(report));
+        _storage.StateSaved += () =>
+        {
+            if (!_cloudSync.Config.HasValidSession || !_state.Settings.AutoSyncEnabled) return;
+            MainThread.BeginInvokeOnMainThread(() =>
+            {
+                _autoSyncDebounceTimer?.Stop();
+                _autoSyncDebounceTimer?.Start();
+            });
+        };
+
         _state = _storage.LoadState();
         _audio = new AudioStudioService(_storage.SoundsDir);
         _updater = new GitHubUpdateService(_storage.BaseDir);
+
+        _autoSyncDebounceTimer = Dispatcher.CreateTimer();
+        _autoSyncDebounceTimer.Interval = TimeSpan.FromSeconds(4);
+        _autoSyncDebounceTimer.IsRepeating = false;
+        _autoSyncDebounceTimer.Tick += async (_, _) =>
+        {
+            if (_cloudSync.Config.HasValidSession && _state.Settings.AutoSyncEnabled)
+            {
+                await ExecuteMobileCloudSyncAsync(silentAutoSync: true);
+            }
+        };
 
         _audio.SyncCustomSounds(_state.CustomSounds, _state.Settings.MixerLevels, _state.Settings.MixerMaster);
         _audio.IsMasterMuted = _state.Settings.MixerMuted;
@@ -147,6 +176,18 @@ public partial class MauiMainPage : ContentPage
         CheckDueCalendarNotificationsMobile();
         RescheduleAndroidCalendarAlarms();
         StartBackgroundLoops();
+        UpdateMobileCloudSyncUiState();
+        ApplyMobileCloudStatusToUi(_cloudSync.CurrentStatus);
+
+        if (_cloudSync.Config.HasValidSession && _state.Settings.AutoSyncEnabled)
+        {
+            _lastAutoSyncTriggerUtc = DateTime.UtcNow;
+            _ = Task.Run(async () =>
+            {
+                await Task.Delay(1400);
+                await MainThread.InvokeOnMainThreadAsync(() => ExecuteMobileCloudSyncAsync(silentAutoSync: true));
+            });
+        }
     }
 
     protected override void OnAppearing()
@@ -158,6 +199,14 @@ public partial class MauiMainPage : ContentPage
         UpdateDashboardStats();
         CheckDueCalendarNotificationsMobile();
         RescheduleAndroidCalendarAlarms();
+
+        if (_cloudSync.Config.HasValidSession &&
+            _state.Settings.AutoSyncEnabled &&
+            (DateTime.UtcNow - _lastAutoSyncTriggerUtc).TotalSeconds >= 25)
+        {
+            _lastAutoSyncTriggerUtc = DateTime.UtcNow;
+            _ = ExecuteMobileCloudSyncAsync(silentAutoSync: true);
+        }
     }
 
     protected override void OnSizeAllocated(double width, double height)
@@ -414,10 +463,14 @@ public partial class MauiMainPage : ContentPage
         SwitchSettingsCalNotifs.IsToggled = _state.Settings.CalendarNotifsEnabled;
         EntrySettingsMorningTime.Text = _state.Settings.CalendarNotifStartHour;
         LblCalMorningBadge.Text = $"Morning reminders at {_state.Settings.CalendarNotifStartHour}";
+        SwitchMobileAutoSync.IsToggled = _state.Settings.AutoSyncEnabled;
+        SwitchMobileSyncFiles.IsToggled = _state.Settings.SyncFilesEnabled;
+        SwitchMobileWifiOnly.IsToggled = _state.Settings.WifiOnlyFileSync;
         _isInitializingSettingsUi = false;
 
         ApplyTimerDockPosition(_state.TimerDock ?? "bottom-right");
         ApplySurfaceThemeColors();
+        UpdateMobileCloudSyncUiState();
     }
 
     private void ApplySurfaceThemeColors()
@@ -3421,6 +3474,8 @@ public partial class MauiMainPage : ContentPage
             var imported = _storage.ImportBackupFile(localPath);
             if (imported != null)
             {
+                await _storage.CreatePreSyncLocalBackupAsync(_state, "before_import");
+                _storage.ClearBaseSnapshot();
                 _state = imported;
                 await _storage.SaveStateAsync(_state);
                 ApplySavedSettingsToUi();
@@ -3431,7 +3486,7 @@ public partial class MauiMainPage : ContentPage
                 UpdateDashboardStats();
                 CheckDueCalendarNotificationsMobile();
                 RescheduleAndroidCalendarAlarms();
-                ShowToast("Workspace backup restored ✅");
+                ShowToast("Workspace backup restored! Next Cloud Sync will verify safely ✅");
             }
         }
         catch (Exception ex)
@@ -3686,5 +3741,435 @@ public partial class MauiMainPage : ContentPage
             var s when s.Contains("calculator") || s.Contains("square-root") => "📐",
             _ => "🎓"
         };
+    }
+
+    // ================= GOOGLE DRIVE CLOUD SYNC (MOBILE & TABLET) =================
+
+    private void ApplyMobileCloudStatusToUi(SyncProgressReport report)
+    {
+        if (report == null) return;
+        NavCloudSyncDot.Color = report.Level switch
+        {
+            SyncStatusLevel.Synced => Color.FromArgb("#10B981"),
+            SyncStatusLevel.Idle => Color.FromArgb("#10B981"),
+            SyncStatusLevel.Syncing => Color.FromArgb("#38BDF8"),
+            SyncStatusLevel.NeedsAttention => Color.FromArgb("#F59E0B"),
+            SyncStatusLevel.Conflict => Color.FromArgb("#F59E0B"),
+            SyncStatusLevel.Error => Color.FromArgb("#F43F5E"),
+            SyncStatusLevel.Offline => Color.FromArgb("#FB923C"),
+            _ => Color.FromArgb("#94A3B8")
+        };
+        LblMobileCloudStatusTitle.Text = report.Headline;
+        if (!string.IsNullOrWhiteSpace(report.Detail))
+            LblMobileCloudStatusDetail.Text = report.Detail;
+        UpdateMobileCloudSyncUiState();
+    }
+
+    private void UpdateMobileCloudSyncUiState()
+    {
+        var cfg = _cloudSync.Config;
+        if (EntryMobileCloudClientId.Text != cfg.ClientId)
+            EntryMobileCloudClientId.Text = cfg.ClientId;
+        if (EntryMobileCloudClientSecret.Text != cfg.ClientSecret)
+            EntryMobileCloudClientSecret.Text = cfg.ClientSecret;
+
+        BtnMobileCloudSignIn.IsVisible = !cfg.HasValidSession;
+        BtnMobileCloudSignOut.IsVisible = cfg.HasValidSession;
+        BtnMobileCloudSyncNow.IsEnabled = cfg.HasValidSession;
+        BtnMobileCloudTimeMachine.IsEnabled = cfg.HasValidSession;
+    }
+
+    private async void OnNavCloudSyncClicked(object? sender, EventArgs e)
+    {
+        if (!_cloudSync.Config.HasClientCredentials || !_cloudSync.Config.HasValidSession)
+        {
+            SettingsModalOverlay.IsVisible = true;
+            return;
+        }
+        if (_pendingMobileSyncOutcome != null && _pendingMobileSyncOutcome.MismatchReport.RequiresConfirmation)
+        {
+            ShowMobileMismatchModal(_pendingMobileSyncOutcome);
+            return;
+        }
+        if (_pendingMobileSyncOutcome != null && _pendingMobileSyncOutcome.Conflicts.Count > 0)
+        {
+            ShowMobileConflictModal(_pendingMobileSyncOutcome);
+            return;
+        }
+        await ExecuteMobileCloudSyncAsync(silentAutoSync: false);
+    }
+
+    private void OnMobileSaveCloudCredentialsClicked(object? sender, EventArgs e)
+    {
+        var (ok, msg) = _cloudSync.ApplyClientCredentials(EntryMobileCloudClientId.Text ?? "", EntryMobileCloudClientSecret.Text ?? "");
+        UpdateMobileCloudSyncUiState();
+        ShowToast(ok ? $"✅ {msg}" : $"⚠️ {msg}");
+    }
+
+    private void OnMobileApplyQuickPairCodeClicked(object? sender, EventArgs e)
+    {
+        string raw = EntryMobileQuickPairCode.Text ?? "";
+        var (ok, msg) = _cloudSync.ImportCredentialsFromJsonOrCode(raw);
+        if (ok) EntryMobileQuickPairCode.Text = "";
+        UpdateMobileCloudSyncUiState();
+        ShowToast(ok ? $"✅ {msg}" : $"⚠️ {msg}");
+    }
+
+    private async void OnMobilePickCloudCredentialsJsonClicked(object? sender, EventArgs e)
+    {
+        try
+        {
+            var picked = await FilePicker.Default.PickAsync();
+            if (picked == null) return;
+            string localPath = await CopyPickedFileToLocalTempAsync(picked);
+            string raw = await File.ReadAllTextAsync(localPath);
+            var (ok, msg) = _cloudSync.ImportCredentialsFromJsonOrCode(raw);
+            UpdateMobileCloudSyncUiState();
+            ShowToast(ok ? $"✅ {msg}" : $"⚠️ {msg}");
+        }
+        catch (Exception ex)
+        {
+            ShowToast($"⚠️ Failed to read JSON: {ex.Message}");
+        }
+    }
+
+    private async void OnMobileCopyQuickPairClicked(object? sender, EventArgs e)
+    {
+        string code = _cloudSync.ExportQuickPairCode();
+        if (string.IsNullOrWhiteSpace(code))
+        {
+            ShowToast("Save credentials first to generate Quick-Pair code.");
+            return;
+        }
+        await Microsoft.Maui.ApplicationModel.DataTransfer.Clipboard.Default.SetTextAsync(code);
+        ShowToast("Quick-Pair Code copied! 📋");
+    }
+
+    private async void OnMobileCloudSignInClicked(object? sender, EventArgs e)
+    {
+        if (!_cloudSync.Config.HasClientCredentials)
+        {
+            ShowToast("Paste Quick-Pair code or pick client_secret.json first.");
+            return;
+        }
+        BtnMobileCloudSignIn.IsEnabled = false;
+        try
+        {
+            var (ok, msg) = await _cloudSync.StartInteractiveSignInAsync(async url =>
+            {
+                await MainThread.InvokeOnMainThreadAsync(async () =>
+                {
+                    await Microsoft.Maui.ApplicationModel.Launcher.Default.OpenAsync(new Uri(url));
+                });
+            });
+            UpdateMobileCloudSyncUiState();
+            ShowToast(ok ? $"✅ {msg}" : $"⚠️ {msg}");
+            if (ok)
+            {
+                await ExecuteMobileCloudSyncAsync(silentAutoSync: false);
+            }
+        }
+        finally
+        {
+            BtnMobileCloudSignIn.IsEnabled = true;
+        }
+    }
+
+    private async void OnMobileCloudManualAuthClicked(object? sender, EventArgs e)
+    {
+        var (ok, msg) = await _cloudSync.CompleteSignInFromManualInputAsync(EntryMobileCloudManualAuth.Text ?? "");
+        UpdateMobileCloudSyncUiState();
+        ShowToast(ok ? $"✅ {msg}" : $"⚠️ {msg}");
+        if (ok)
+        {
+            EntryMobileCloudManualAuth.Text = "";
+            await ExecuteMobileCloudSyncAsync(silentAutoSync: false);
+        }
+    }
+
+    private void OnMobileCloudSignOutClicked(object? sender, EventArgs e)
+    {
+        _cloudSync.SignOut();
+        _pendingMobileSyncOutcome = null;
+        UpdateMobileCloudSyncUiState();
+        ShowToast("Signed out from Google Drive. Local data kept safely.");
+    }
+
+    private async void OnMobileCloudSyncNowClicked(object? sender, EventArgs e)
+    {
+        await ExecuteMobileCloudSyncAsync(silentAutoSync: false);
+    }
+
+    private void OnMobileCloudPrefsToggled(object? sender, ToggledEventArgs e)
+    {
+        if (_isInitializingSettingsUi) return;
+        _state.Settings.AutoSyncEnabled = SwitchMobileAutoSync.IsToggled;
+        _state.Settings.SyncFilesEnabled = SwitchMobileSyncFiles.IsToggled;
+        _state.Settings.WifiOnlyFileSync = SwitchMobileWifiOnly.IsToggled;
+        _state.Settings.SettingsUpdatedAtUtc = DateTime.UtcNow.ToString("O");
+        _ = _storage.SaveStateAsync(_state);
+    }
+
+    private async Task ExecuteMobileCloudSyncAsync(
+        bool silentAutoSync,
+        SyncResolutionMode mode = SyncResolutionMode.SmartMerge,
+        IReadOnlyList<SyncConflictItem>? resolvedConflicts = null,
+        bool mismatchAck = false)
+    {
+        var result = await _cloudSync.SyncNowAsync(_state, mode, resolvedConflicts, mismatchAck);
+        if (result.NeedsUserResolution && result.Outcome != null)
+        {
+            _pendingMobileSyncOutcome = result.Outcome;
+            _pendingMobileSyncMode = mode;
+
+            MainThread.BeginInvokeOnMainThread(() =>
+            {
+                if (result.Outcome.MismatchReport.RequiresConfirmation)
+                    ShowMobileMismatchModal(result.Outcome);
+                else if (result.Outcome.Conflicts.Count > 0)
+                    ShowMobileConflictModal(result.Outcome);
+            });
+            return;
+        }
+
+        if (result.Success)
+        {
+            _pendingMobileSyncOutcome = null;
+            if (result.Outcome?.MergedState != null && result.LocalStateUpdated)
+            {
+                MainThread.BeginInvokeOnMainThread(() => ApplySyncedStateToMobileUi(result.Outcome.MergedState));
+            }
+            if (!silentAutoSync) ShowToast($"☁️ {result.Message}");
+        }
+        else if (!silentAutoSync && !string.IsNullOrWhiteSpace(result.Message))
+        {
+            ShowToast($"⚠️ {result.Message}");
+        }
+    }
+
+    private void ShowMobileMismatchModal(SyncMergeOutcome outcome)
+    {
+        var m = outcome.MismatchReport;
+        LblMobileMismatchTitle.Text = m.ReasonTitle;
+        LblMobileMismatchDesc.Text = m.ReasonDescription;
+        LblMobileMismatchLocal.Text =
+            $"{m.LocalCounts.Subjects} course(s)\n" +
+            $"{m.LocalCounts.Pdfs + m.LocalCounts.Videos + m.LocalCounts.Recordings} files & media\n" +
+            $"{m.LocalCounts.Notes} notes • {m.LocalCounts.CalendarEvents} events";
+        LblMobileMismatchCloud.Text =
+            $"{m.CloudCounts.Subjects} course(s)\n" +
+            $"{m.CloudCounts.Pdfs + m.CloudCounts.Videos + m.CloudCounts.Recordings} files & media\n" +
+            $"{m.CloudCounts.Notes} notes • {m.CloudCounts.CalendarEvents} events";
+        MobileSyncMismatchModal.IsVisible = true;
+    }
+
+    private async void OnMobileMismatchSmartMergeClicked(object? sender, EventArgs e)
+    {
+        MobileSyncMismatchModal.IsVisible = false;
+        await ExecuteMobileCloudSyncAsync(false, SyncResolutionMode.SmartMerge, null, mismatchAck: true);
+    }
+
+    private async void OnMobileMismatchKeepAllClicked(object? sender, EventArgs e)
+    {
+        MobileSyncMismatchModal.IsVisible = false;
+        await ExecuteMobileCloudSyncAsync(false, SyncResolutionMode.SmartMergeKeepDeleted, null, mismatchAck: true);
+    }
+
+    private async void OnMobileMismatchForcePullClicked(object? sender, EventArgs e)
+    {
+        MobileSyncMismatchModal.IsVisible = false;
+        await ExecuteMobileCloudSyncAsync(false, SyncResolutionMode.ForcePullCloud, null, mismatchAck: true);
+    }
+
+    private async void OnMobileMismatchForcePushClicked(object? sender, EventArgs e)
+    {
+        MobileSyncMismatchModal.IsVisible = false;
+        await ExecuteMobileCloudSyncAsync(false, SyncResolutionMode.ForcePushLocal, null, mismatchAck: true);
+    }
+
+    private void OnMobileMismatchCancelClicked(object? sender, EventArgs e)
+    {
+        MobileSyncMismatchModal.IsVisible = false;
+        ShowToast("Sync paused safely — no data modified.");
+    }
+
+    private void ShowMobileConflictModal(SyncMergeOutcome outcome)
+    {
+        _pendingMobileSyncOutcome = outcome;
+        MobileConflictsContainer.Children.Clear();
+        LblMobileConflictSub.Text = $"{outcome.Conflicts.Count} conflict(s) detected from offline edits on both devices:";
+
+        foreach (var c in outcome.Conflicts)
+        {
+            if (c.Choice == SyncConflictChoice.Pending)
+                c.Choice = c.SupportsCombine ? SyncConflictChoice.CombineBoth : SyncConflictChoice.KeepLocal;
+
+            var card = new Border
+            {
+                BackgroundColor = Color.FromArgb("#151A36"),
+                Stroke = Color.FromArgb("#28315A"),
+                StrokeThickness = 1,
+                StrokeShape = new RoundRectangle { CornerRadius = 12 },
+                Padding = 12
+            };
+
+            var stack = new VerticalStackLayout { Spacing = 8 };
+            stack.Children.Add(new Label { Text = c.Title, FontSize = 13, FontAttributes = FontAttributes.Bold, TextColor = Colors.White });
+
+            stack.Children.Add(new Label { Text = $"📱 This Phone ({GoogleDriveSyncService.FormatRelativeTime(c.LocalUpdatedAtUtc)}):", FontSize = 10.5, FontAttributes = FontAttributes.Bold, TextColor = Color.FromArgb("#38BDF8") });
+            stack.Children.Add(new Label { Text = c.LocalText, FontSize = 11.5, TextColor = Color.FromArgb("#E2E8F0"), MaxLines = 5, LineBreakMode = LineBreakMode.TailTruncation });
+
+            stack.Children.Add(new Label { Text = $"☁️ Cloud ({GoogleDriveSyncService.FormatRelativeTime(c.CloudUpdatedAtUtc)}):", FontSize = 10.5, FontAttributes = FontAttributes.Bold, TextColor = Color.FromArgb("#A78BFA") });
+            stack.Children.Add(new Label { Text = c.CloudText, FontSize = 11.5, TextColor = Color.FromArgb("#E2E8F0"), MaxLines = 5, LineBreakMode = LineBreakMode.TailTruncation });
+
+            var btnBar = new FlexLayout { Wrap = Microsoft.Maui.Layouts.FlexWrap.Wrap, JustifyContent = Microsoft.Maui.Layouts.FlexJustify.Start };
+            Button? btnComb = null, btnLoc = null, btnCld = null;
+
+            void RefreshBtns()
+            {
+                if (btnComb != null) btnComb.BackgroundColor = c.Choice == SyncConflictChoice.CombineBoth ? Color.FromArgb("#7C5CFF") : Color.FromArgb("#1E2548");
+                if (btnLoc != null) btnLoc.BackgroundColor = c.Choice == SyncConflictChoice.KeepLocal ? Color.FromArgb("#7C5CFF") : Color.FromArgb("#1E2548");
+                if (btnCld != null) btnCld.BackgroundColor = c.Choice == SyncConflictChoice.KeepCloud ? Color.FromArgb("#7C5CFF") : Color.FromArgb("#1E2548");
+            }
+
+            if (c.SupportsCombine)
+            {
+                btnComb = new Button { Text = "✨ Combine Both", FontSize = 10.5, TextColor = Colors.White, CornerRadius = 8, Padding = new Thickness(9, 5), Margin = new Thickness(0, 0, 6, 4) };
+                btnComb.Clicked += (_, _) => { c.Choice = SyncConflictChoice.CombineBoth; RefreshBtns(); };
+                btnBar.Children.Add(btnComb);
+            }
+            btnLoc = new Button { Text = "📱 Keep Phone", FontSize = 10.5, TextColor = Colors.White, CornerRadius = 8, Padding = new Thickness(9, 5), Margin = new Thickness(0, 0, 6, 4) };
+            btnLoc.Clicked += (_, _) => { c.Choice = SyncConflictChoice.KeepLocal; RefreshBtns(); };
+            btnBar.Children.Add(btnLoc);
+
+            btnCld = new Button { Text = "☁️ Keep Cloud", FontSize = 10.5, TextColor = Colors.White, CornerRadius = 8, Padding = new Thickness(9, 5), Margin = new Thickness(0, 0, 6, 4) };
+            btnCld.Clicked += (_, _) => { c.Choice = SyncConflictChoice.KeepCloud; RefreshBtns(); };
+            btnBar.Children.Add(btnCld);
+
+            RefreshBtns();
+            stack.Children.Add(btnBar);
+            card.Content = stack;
+            MobileConflictsContainer.Children.Add(card);
+        }
+
+        MobileSyncConflictModal.IsVisible = true;
+    }
+
+    private async void OnMobileConflictApplyClicked(object? sender, EventArgs e)
+    {
+        if (_pendingMobileSyncOutcome == null) return;
+        MobileSyncConflictModal.IsVisible = false;
+        var decisions = _pendingMobileSyncOutcome.Conflicts.ToList();
+        await ExecuteMobileCloudSyncAsync(false, _pendingMobileSyncMode, decisions, mismatchAck: true);
+    }
+
+    private void OnMobileConflictCancelClicked(object? sender, EventArgs e)
+    {
+        MobileSyncConflictModal.IsVisible = false;
+        ShowToast("Conflict resolution paused.");
+    }
+
+    private async void OnMobileCloudTimeMachineClicked(object? sender, EventArgs e)
+    {
+        MobileTimeMachineModal.IsVisible = true;
+        await RefreshMobileTimeMachineSnapshotsAsync();
+    }
+
+    private void OnCloseMobileTimeMachineClicked(object? sender, EventArgs e) => MobileTimeMachineModal.IsVisible = false;
+
+    private async void OnMobileCreateSnapshotNowClicked(object? sender, EventArgs e)
+    {
+        var (ok, msg) = await _cloudSync.UploadManualBackupSnapshotAsync(_state);
+        ShowToast(ok ? $"📸 {msg}" : $"⚠️ {msg}");
+        if (ok) await RefreshMobileTimeMachineSnapshotsAsync();
+    }
+
+    private async void OnMobileRefreshSnapshotsClicked(object? sender, EventArgs e) => await RefreshMobileTimeMachineSnapshotsAsync();
+
+    private async Task RefreshMobileTimeMachineSnapshotsAsync()
+    {
+        MobileSnapshotsContainer.Children.Clear();
+        MobileSnapshotsContainer.Children.Add(new Label { Text = "Loading snapshots from Google Drive...", FontSize = 11.5, TextColor = Color.FromArgb("#94A3C6") });
+
+        var snaps = await _cloudSync.ListCloudSnapshotsAsync();
+        MobileSnapshotsContainer.Children.Clear();
+        if (snaps.Count == 0)
+        {
+            MobileSnapshotsContainer.Children.Add(new Label { Text = "No cloud snapshots yet.", FontSize = 11.5, TextColor = Color.FromArgb("#94A3C6") });
+            return;
+        }
+
+        foreach (var s in snaps)
+        {
+            var card = new Border
+            {
+                BackgroundColor = Color.FromArgb("#151A36"),
+                Stroke = Color.FromArgb("#28315A"),
+                StrokeThickness = 1,
+                StrokeShape = new RoundRectangle { CornerRadius = 12 },
+                Padding = 12
+            };
+            var grid = new Grid { ColumnDefinitions = new ColumnDefinitionCollection(new ColumnDefinition(GridLength.Star), new ColumnDefinition(GridLength.Auto)), ColumnSpacing = 8 };
+            var info = new VerticalStackLayout { Spacing = 3 };
+            info.Children.Add(new Label { Text = s.FileName, FontSize = 11.5, FontAttributes = FontAttributes.Bold, TextColor = Colors.White });
+            info.Children.Add(new Label
+            {
+                Text = $"{GoogleDriveSyncService.FormatRelativeTime(s.CreatedAtUtc)} • {(s.SizeBytes / 1024.0):F1} KB • {s.SummaryText}",
+                FontSize = 10.5,
+                TextColor = Color.FromArgb("#94A3C6")
+            });
+            grid.Add(info, 0, 0);
+
+            var btnRestore = new Button { Text = "⏪ Restore", FontSize = 11, FontAttributes = FontAttributes.Bold, BackgroundColor = Color.FromArgb("#1E2548"), TextColor = Color.FromArgb("#38BDF8"), CornerRadius = 8, Padding = new Thickness(10, 6), VerticalOptions = LayoutOptions.Center };
+            btnRestore.Clicked += async (_, _) =>
+            {
+                bool confirm = await DisplayAlert("Time Machine Restore", $"Restore '{s.FileName}'?\nYour current phone data is backed up locally first.", "Restore", "Cancel");
+                if (!confirm) return;
+                await _storage.CreatePreSyncLocalBackupAsync(_state, "before_time_machine");
+                var restored = await _cloudSync.DownloadCloudSnapshotAsync(s.DriveFileId);
+                if (restored == null) { ShowToast("⚠️ Snapshot download failed."); return; }
+                _storage.ClearBaseSnapshot();
+                await _storage.SaveMergedStateAsync(restored);
+                ApplySyncedStateToMobileUi(restored);
+                MobileTimeMachineModal.IsVisible = false;
+                ShowToast("Snapshot restored locally! ✅");
+            };
+            grid.Add(btnRestore, 1, 0);
+            card.Content = grid;
+            MobileSnapshotsContainer.Children.Add(card);
+        }
+    }
+
+    private void ApplySyncedStateToMobileUi(AppStateData newState)
+    {
+        _state = newState;
+        _state.Normalize();
+
+        _audio.SyncCustomSounds(_state.CustomSounds, _state.Settings.MixerLevels, _state.Settings.MixerMaster);
+        _audio.IsMasterMuted = _state.Settings.MixerMuted;
+        ApplySavedSettingsToUi();
+        BuildSoundMixerChannelsUi();
+        RenderHeatmap();
+        RenderSubjectsGrid(_currentSearchQuery);
+        RenderHomeUpcomingEvents();
+        RenderActiveDrawerCourses();
+        RenderArchivedDrawer();
+        UpdateDashboardStats();
+        CheckDueCalendarNotificationsMobile();
+        RescheduleAndroidCalendarAlarms();
+
+        if (_currentSubject != null)
+        {
+            var refreshed = _state.Subjects.FirstOrDefault(s => s.Id == _currentSubject.Id);
+            if (refreshed != null)
+            {
+                OpenSubject(refreshed);
+            }
+            else
+            {
+                OnBackToHomeClicked(this, EventArgs.Empty);
+            }
+        }
+        if (CalendarModalOverlay.IsVisible) RefreshCalendarModalViews();
     }
 }

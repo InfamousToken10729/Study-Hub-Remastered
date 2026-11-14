@@ -46,5 +46,8 @@ namespace StudyHub.Models
 
         [JsonPropertyName("createdAt")]
         public string CreatedAt { get; set; } = DateTime.UtcNow.ToString("O");
+
+        [JsonPropertyName("updatedAtUtc")]
+        public string UpdatedAtUtc { get; set; } = "";
     }
 }

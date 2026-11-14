@@ -111,6 +111,9 @@ namespace StudyHub.Models
         [JsonPropertyName("settings")]
         public UserSettings Settings { get; set; } = new();
 
+        [JsonPropertyName("syncMeta")]
+        public AppSyncMetadata SyncMeta { get; set; } = new();
+
         public void Normalize()
         {
             Subjects ??= new();
@@ -122,6 +125,8 @@ namespace StudyHub.Models
             Flashcards ??= new();
             Whiteboards ??= new();
             Deadlines ??= new();
+            CalendarEvents ??= new();
+            FiredNotificationKeys ??= new();
             Links ??= new();
             CustomSounds ??= new();
             SavedSoundPresets ??= new();
@@ -131,6 +136,8 @@ namespace StudyHub.Models
             PomodoroDays ??= new();
             Settings ??= new();
             Settings.Normalize();
+            SyncMeta ??= new();
+            SyncMeta.Normalize();
 
             if (string.IsNullOrWhiteSpace(Theme)) Theme = "dark";
             if (TimerDock != "bottom-right" && TimerDock != "bottom-left" && TimerDock != "top-bar")
@@ -146,6 +153,7 @@ namespace StudyHub.Models
                 {
                     sub.Folders = new List<string> { "Lectures", "Tutorials", "Assignments", "Quizzes", "Labs", "References" };
                 }
+                sub.UpdatedAtUtc ??= "";
             }
 
             foreach (var d in Deadlines)
@@ -153,7 +161,20 @@ namespace StudyHub.Models
                 if (string.IsNullOrWhiteSpace(d.Time)) d.Time = "23:59";
                 if (string.IsNullOrWhiteSpace(d.Type)) d.Type = "Assignment";
                 d.Notes ??= "";
+                d.UpdatedAtUtc ??= "";
             }
+
+            foreach (var e in CalendarEvents) { e.Note ??= ""; e.UpdatedAtUtc ??= ""; }
+            foreach (var f in Pdfs) { f.Sha256 ??= ""; f.UpdatedAtUtc ??= ""; }
+            foreach (var v in Videos) { v.Sha256 ??= ""; v.UpdatedAtUtc ??= ""; }
+            foreach (var r in Recordings) { r.Sha256 ??= ""; r.UpdatedAtUtc ??= ""; }
+            foreach (var n in Notes) { n.Text ??= ""; n.UpdatedAtUtc ??= ""; }
+            foreach (var t in Tasks) { t.Text ??= ""; t.UpdatedAtUtc ??= ""; }
+            foreach (var fc in Flashcards) { fc.Question ??= ""; fc.Answer ??= ""; fc.UpdatedAtUtc ??= ""; }
+            foreach (var w in Whiteboards) { w.ImageDataUrl ??= ""; w.UpdatedAtUtc ??= ""; }
+            foreach (var l in Links) { l.Title ??= ""; l.Url ??= ""; l.UpdatedAtUtc ??= ""; }
+            foreach (var s in CustomSounds) { s.Sha256 ??= ""; s.UpdatedAtUtc ??= ""; }
+            foreach (var sp in SavedSoundPresets) { sp.Levels ??= new(); sp.UpdatedAtUtc ??= ""; }
         }
     }
 
@@ -177,6 +198,9 @@ namespace StudyHub.Models
 
         [JsonPropertyName("folders")]
         public List<string> Folders { get; set; } = new() { "Lectures", "Tutorials", "Assignments", "Quizzes", "Labs", "References" };
+
+        [JsonPropertyName("updatedAtUtc")]
+        public string UpdatedAtUtc { get; set; } = "";
     }
 
     public class StudyFileItem
@@ -197,6 +221,15 @@ namespace StudyHub.Models
 
         [JsonPropertyName("folder")]
         public string Folder { get; set; } = "Lectures";
+
+        [JsonPropertyName("sha256")]
+        public string Sha256 { get; set; } = "";
+
+        [JsonPropertyName("fileSizeBytes")]
+        public long FileSizeBytes { get; set; } = 0;
+
+        [JsonPropertyName("updatedAtUtc")]
+        public string UpdatedAtUtc { get; set; } = "";
     }
 
     public class MediaTrackItem
@@ -220,6 +253,15 @@ namespace StudyHub.Models
 
         [JsonPropertyName("duration")]
         public string Duration { get; set; } = "";
+
+        [JsonPropertyName("sha256")]
+        public string Sha256 { get; set; } = "";
+
+        [JsonPropertyName("fileSizeBytes")]
+        public long FileSizeBytes { get; set; } = 0;
+
+        [JsonPropertyName("updatedAtUtc")]
+        public string UpdatedAtUtc { get; set; } = "";
     }
 
     public class NoteItem
@@ -237,6 +279,9 @@ namespace StudyHub.Models
 
         [JsonPropertyName("date")]
         public string Date { get; set; } = "";
+
+        [JsonPropertyName("updatedAtUtc")]
+        public string UpdatedAtUtc { get; set; } = "";
     }
 
     public class TaskItem
@@ -254,6 +299,9 @@ namespace StudyHub.Models
 
         [JsonPropertyName("completed")]
         public bool Completed { get; set; } = false;
+
+        [JsonPropertyName("updatedAtUtc")]
+        public string UpdatedAtUtc { get; set; } = "";
     }
 
     public class FlashcardItem
@@ -275,6 +323,9 @@ namespace StudyHub.Models
         [JsonPropertyName("a")]
         public string Answer { get; set; } = "";
 
+        [JsonPropertyName("updatedAtUtc")]
+        public string UpdatedAtUtc { get; set; } = "";
+
         [JsonIgnore]
         public bool IsFlipped { get; set; } = false;
     }
@@ -291,6 +342,9 @@ namespace StudyHub.Models
 
         [JsonPropertyName("img")]
         public string ImageDataUrl { get; set; } = "";
+
+        [JsonPropertyName("updatedAtUtc")]
+        public string UpdatedAtUtc { get; set; } = "";
     }
 
     public class DeadlineItem
@@ -323,6 +377,9 @@ namespace StudyHub.Models
 
         [JsonPropertyName("notes")]
         public string Notes { get; set; } = "";
+
+        [JsonPropertyName("updatedAtUtc")]
+        public string UpdatedAtUtc { get; set; } = "";
     }
 
     public class LinkItem
@@ -340,6 +397,9 @@ namespace StudyHub.Models
 
         [JsonPropertyName("url")]
         public string Url { get; set; } = "";
+
+        [JsonPropertyName("updatedAtUtc")]
+        public string UpdatedAtUtc { get; set; } = "";
     }
 
     public class CustomSoundItem
@@ -362,6 +422,15 @@ namespace StudyHub.Models
 
         [JsonPropertyName("addedAt")]
         public string AddedAt { get; set; } = "";
+
+        [JsonPropertyName("sha256")]
+        public string Sha256 { get; set; } = "";
+
+        [JsonPropertyName("fileSizeBytes")]
+        public long FileSizeBytes { get; set; } = 0;
+
+        [JsonPropertyName("updatedAtUtc")]
+        public string UpdatedAtUtc { get; set; } = "";
     }
 
     public class SoundPresetItem
@@ -375,6 +444,9 @@ namespace StudyHub.Models
 
         [JsonPropertyName("levels")]
         public Dictionary<string, int> Levels { get; set; } = new();
+
+        [JsonPropertyName("updatedAtUtc")]
+        public string UpdatedAtUtc { get; set; } = "";
     }
 
     public class UserSettings
@@ -475,6 +547,22 @@ namespace StudyHub.Models
         [JsonPropertyName("lastUpdateCheck")]
         public string LastUpdateCheck { get; set; } = "";
 
+        // --- Cross-Platform Google Drive Sync Preferences ---
+        [JsonPropertyName("autoSyncEnabled")]
+        public bool AutoSyncEnabled { get; set; } = true;
+
+        [JsonPropertyName("syncFilesEnabled")]
+        public bool SyncFilesEnabled { get; set; } = true;
+
+        [JsonPropertyName("wifiOnlyFileSync")]
+        public bool WifiOnlyFileSync { get; set; } = true;
+
+        [JsonPropertyName("lastSyncStatusText")]
+        public string LastSyncStatusText { get; set; } = "";
+
+        [JsonPropertyName("settingsUpdatedAtUtc")]
+        public string SettingsUpdatedAtUtc { get; set; } = "";
+
         public void Normalize()
         {
             DefaultSaveLocation ??= "";
@@ -496,6 +584,8 @@ namespace StudyHub.Models
             GithubRepoUrl ??= "";
             InstalledCommitSha ??= "";
             LastUpdateCheck ??= "";
+            LastSyncStatusText ??= "";
+            SettingsUpdatedAtUtc ??= "";
         }
     }
 }

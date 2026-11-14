@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -26,8 +27,18 @@ namespace StudyHub.Services
         public string BackupsDir { get; }
         public string DefaultExportDir { get; }
         public string WebViewDataDir { get; }
+        public string SyncCacheDir { get; }
+        public string DriveConfigPath { get; }
+        public string BaseSnapshotPath { get; }
+        public string HashManifestPath { get; }
 
         private readonly SemaphoreSlim _saveLock = new(1, 1);
+        private readonly object _trackLock = new();
+        private SyncEntityHashManifest _hashManifest = new();
+        private string _syncDeviceId = "";
+
+        public event Action? StateSaved;
+
         private static readonly JsonSerializerOptions _jsonOptions = new()
         {
             PropertyNameCaseInsensitive = true,
@@ -49,14 +60,25 @@ namespace StudyHub.Services
             BackupsDir = Path.Combine(BaseDir, "StudyHub_Backups");
             DefaultExportDir = Path.Combine(BaseDir, "StudyHub_Converted_PDFs");
             WebViewDataDir = Path.Combine(BaseDir, "webview_data");
+            SyncCacheDir = Path.Combine(BaseDir, "StudyHub_SyncCache");
+            DriveConfigPath = Path.Combine(BaseDir, "gdrive_device_config.json");
+            BaseSnapshotPath = Path.Combine(BaseDir, "last_synced_snapshot.json");
+            HashManifestPath = Path.Combine(BaseDir, "sync_entity_hashes.json");
 
             Directory.CreateDirectory(FilesDir);
             Directory.CreateDirectory(SoundsDir);
             Directory.CreateDirectory(BackupsDir);
             Directory.CreateDirectory(DefaultExportDir);
             Directory.CreateDirectory(WebViewDataDir);
+            Directory.CreateDirectory(SyncCacheDir);
 
             EnsureDatabaseTables();
+        }
+
+        public void SetSyncDeviceId(string deviceId)
+        {
+            if (!string.IsNullOrWhiteSpace(deviceId))
+                _syncDeviceId = deviceId.Trim();
         }
 
         private static string ResolveWritableDataDirectory()
@@ -161,8 +183,7 @@ namespace StudyHub.Services
                         var state = JsonSerializer.Deserialize<AppStateData>(raw, _jsonOptions);
                         if (state != null)
                         {
-                            state.Normalize();
-                            return state;
+                            return FinalizeLoadedState(state);
                         }
                     }
                 }
@@ -181,8 +202,7 @@ namespace StudyHub.Services
                     var state = JsonSerializer.Deserialize<AppStateData>(raw, _jsonOptions);
                     if (state != null)
                     {
-                        state.Normalize();
-                        return state;
+                        return FinalizeLoadedState(state);
                     }
                 }
             }
@@ -200,16 +220,86 @@ namespace StudyHub.Services
                     var state = JsonSerializer.Deserialize<AppStateData>(raw, _jsonOptions);
                     if (state != null)
                     {
-                        state.Normalize();
-                        return state;
+                        return FinalizeLoadedState(state);
                     }
                 }
             }
             catch { }
 
             var fresh = new AppStateData();
-            fresh.Normalize();
-            return fresh;
+            return FinalizeLoadedState(fresh);
+        }
+
+        private AppStateData FinalizeLoadedState(AppStateData state)
+        {
+            state.Normalize();
+            BackfillMissingFileHashes(state);
+            lock (_trackLock)
+            {
+                _hashManifest = LoadHashManifest();
+                if (!_hashManifest.Initialized)
+                {
+                    SmartSyncMergeEngine.TrackLocalChanges(state, _hashManifest, _syncDeviceId, suppressTombstones: true);
+                    SaveHashManifest(_hashManifest);
+                }
+            }
+            return state;
+        }
+
+        private void BackfillMissingFileHashes(AppStateData state)
+        {
+            try
+            {
+                foreach (var pdf in state.Pdfs)
+                {
+                    if ((string.IsNullOrWhiteSpace(pdf.Sha256) || pdf.FileSizeBytes <= 0) && !string.IsNullOrWhiteSpace(pdf.Filename))
+                    {
+                        string path = GetStudyFilePath(pdf.Filename);
+                        if (File.Exists(path))
+                        {
+                            pdf.FileSizeBytes = new FileInfo(path).Length;
+                            pdf.Sha256 = ComputeFileSha256(path);
+                        }
+                    }
+                }
+                foreach (var vid in state.Videos)
+                {
+                    if ((string.IsNullOrWhiteSpace(vid.Sha256) || vid.FileSizeBytes <= 0) && !string.IsNullOrWhiteSpace(vid.Filename))
+                    {
+                        string path = GetStudyFilePath(vid.Filename);
+                        if (File.Exists(path))
+                        {
+                            vid.FileSizeBytes = new FileInfo(path).Length;
+                            vid.Sha256 = ComputeFileSha256(path);
+                        }
+                    }
+                }
+                foreach (var rec in state.Recordings)
+                {
+                    if ((string.IsNullOrWhiteSpace(rec.Sha256) || rec.FileSizeBytes <= 0) && !string.IsNullOrWhiteSpace(rec.Filename))
+                    {
+                        string path = GetStudyFilePath(rec.Filename);
+                        if (File.Exists(path))
+                        {
+                            rec.FileSizeBytes = new FileInfo(path).Length;
+                            rec.Sha256 = ComputeFileSha256(path);
+                        }
+                    }
+                }
+                foreach (var snd in state.CustomSounds)
+                {
+                    if ((string.IsNullOrWhiteSpace(snd.Sha256) || snd.FileSizeBytes <= 0) && !string.IsNullOrWhiteSpace(snd.Filename))
+                    {
+                        string path = GetSoundFilePath(snd.Filename);
+                        if (File.Exists(path))
+                        {
+                            snd.FileSizeBytes = new FileInfo(path).Length;
+                            snd.Sha256 = ComputeFileSha256(path);
+                        }
+                    }
+                }
+            }
+            catch { }
         }
 
         public async Task SaveStateAsync(AppStateData state)
@@ -218,7 +308,21 @@ namespace StudyHub.Services
             await _saveLock.WaitAsync();
             try
             {
-                await Task.Run(() => SaveStateSync(state));
+                await Task.Run(() => SaveStateSyncInternal(state, suppressTombstones: false, raiseStateSaved: true));
+            }
+            finally
+            {
+                _saveLock.Release();
+            }
+        }
+
+        public async Task SaveMergedStateAsync(AppStateData mergedState)
+        {
+            if (mergedState == null) return;
+            await _saveLock.WaitAsync();
+            try
+            {
+                await Task.Run(() => SaveStateSyncInternal(mergedState, suppressTombstones: true, raiseStateSaved: false));
             }
             finally
             {
@@ -228,8 +332,22 @@ namespace StudyHub.Services
 
         public void SaveStateSync(AppStateData state)
         {
+            SaveStateSyncInternal(state, suppressTombstones: false, raiseStateSaved: true);
+        }
+
+        private void SaveStateSyncInternal(AppStateData state, bool suppressTombstones, bool raiseStateSaved)
+        {
+            if (state == null) return;
             try
             {
+                lock (_trackLock)
+                {
+                    if (!_hashManifest.Initialized)
+                        _hashManifest = LoadHashManifest();
+                    SmartSyncMergeEngine.TrackLocalChanges(state, _hashManifest, _syncDeviceId, suppressTombstones);
+                    SaveHashManifest(_hashManifest);
+                }
+
                 string json = JsonSerializer.Serialize(state, _jsonOptions);
                 string nowIso = DateTime.Now.ToString("O");
 
@@ -261,6 +379,198 @@ namespace StudyHub.Services
             {
                 Debug.WriteLine($"SaveState error: {ex.Message}");
             }
+
+            if (raiseStateSaved)
+            {
+                try { StateSaved?.Invoke(); } catch { }
+            }
+        }
+
+        public static string ComputeFileSha256(string filePath)
+        {
+            try
+            {
+                if (string.IsNullOrWhiteSpace(filePath) || !File.Exists(filePath)) return "";
+                using var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                var hash = SHA256.HashData(fs);
+                return Convert.ToHexString(hash).ToLowerInvariant();
+            }
+            catch
+            {
+                return "";
+            }
+        }
+
+        public AppStateData? LoadBaseSnapshot()
+        {
+            try
+            {
+                if (!File.Exists(BaseSnapshotPath)) return null;
+                string raw = File.ReadAllText(BaseSnapshotPath, Encoding.UTF8);
+                var snap = JsonSerializer.Deserialize<AppStateData>(raw, _jsonOptions);
+                snap?.Normalize();
+                return snap;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        public void SaveBaseSnapshot(AppStateData state)
+        {
+            try
+            {
+                if (state == null) return;
+                string json = JsonSerializer.Serialize(state, _jsonOptions);
+                string tmp = BaseSnapshotPath + ".tmp";
+                File.WriteAllText(tmp, json, Encoding.UTF8);
+                File.Move(tmp, BaseSnapshotPath, true);
+            }
+            catch { }
+        }
+
+        public void ClearBaseSnapshot()
+        {
+            try
+            {
+                if (File.Exists(BaseSnapshotPath)) File.Delete(BaseSnapshotPath);
+            }
+            catch { }
+        }
+
+        private SyncEntityHashManifest LoadHashManifest()
+        {
+            try
+            {
+                if (File.Exists(HashManifestPath))
+                {
+                    string raw = File.ReadAllText(HashManifestPath, Encoding.UTF8);
+                    var manifest = JsonSerializer.Deserialize<SyncEntityHashManifest>(raw, _jsonOptions);
+                    if (manifest != null)
+                    {
+                        manifest.Normalize();
+                        return manifest;
+                    }
+                }
+            }
+            catch { }
+            return new SyncEntityHashManifest();
+        }
+
+        private void SaveHashManifest(SyncEntityHashManifest manifest)
+        {
+            try
+            {
+                string json = JsonSerializer.Serialize(manifest, _jsonOptions);
+                string tmp = HashManifestPath + ".tmp";
+                File.WriteAllText(tmp, json, Encoding.UTF8);
+                File.Move(tmp, HashManifestPath, true);
+            }
+            catch { }
+        }
+
+        public async Task<string> CreatePreSyncLocalBackupAsync(AppStateData state, string tag)
+        {
+            if (state == null) return "";
+            try
+            {
+                Directory.CreateDirectory(BackupsDir);
+                string safeTag = Regex.Replace(tag ?? "sync", @"[^A-Za-z0-9_\-]", "_");
+                string stamp = DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss");
+                string filePath = Path.Combine(BackupsDir, $"pre_{safeTag}_{stamp}.json");
+                string json = JsonSerializer.Serialize(state, _jsonOptions);
+                await File.WriteAllTextAsync(filePath, json, Encoding.UTF8);
+
+                var oldPreBackups = Directory.GetFiles(BackupsDir, "pre_*.json")
+                    .OrderByDescending(f => f)
+                    .Skip(25)
+                    .ToList();
+                foreach (var old in oldPreBackups)
+                {
+                    try { File.Delete(old); } catch { }
+                }
+                return filePath;
+            }
+            catch
+            {
+                return "";
+            }
+        }
+
+        public Dictionary<string, LocalBinaryFileMeta> GetLocalBinaryFilesInventory(AppStateData state)
+        {
+            var dict = new Dictionary<string, LocalBinaryFileMeta>(StringComparer.OrdinalIgnoreCase);
+            var filenames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            if (state != null)
+            {
+                foreach (var p in state.Pdfs) if (!string.IsNullOrWhiteSpace(p.Filename)) filenames.Add(p.Filename);
+                foreach (var v in state.Videos) if (!string.IsNullOrWhiteSpace(v.Filename)) filenames.Add(v.Filename);
+                foreach (var r in state.Recordings) if (!string.IsNullOrWhiteSpace(r.Filename)) filenames.Add(r.Filename);
+            }
+            if (Directory.Exists(FilesDir))
+            {
+                foreach (var full in Directory.GetFiles(FilesDir))
+                {
+                    string name = Path.GetFileName(full);
+                    if (!name.EndsWith(".tmp", StringComparison.OrdinalIgnoreCase)) filenames.Add(name);
+                }
+            }
+
+            foreach (var fn in filenames)
+            {
+                string fullPath = GetStudyFilePath(fn);
+                if (File.Exists(fullPath))
+                {
+                    long len = new FileInfo(fullPath).Length;
+                    string? stateSha = state?.Pdfs.FirstOrDefault(x => string.Equals(x.Filename, fn, StringComparison.OrdinalIgnoreCase))?.Sha256
+                        ?? state?.Videos.FirstOrDefault(x => string.Equals(x.Filename, fn, StringComparison.OrdinalIgnoreCase))?.Sha256
+                        ?? state?.Recordings.FirstOrDefault(x => string.Equals(x.Filename, fn, StringComparison.OrdinalIgnoreCase))?.Sha256;
+
+                    dict[fn] = new LocalBinaryFileMeta
+                    {
+                        FileName = fn,
+                        SizeBytes = len,
+                        Sha256 = !string.IsNullOrWhiteSpace(stateSha) ? stateSha : ComputeFileSha256(fullPath)
+                    };
+                }
+            }
+            return dict;
+        }
+
+        public Dictionary<string, LocalBinaryFileMeta> GetLocalBinarySoundsInventory(AppStateData state)
+        {
+            var dict = new Dictionary<string, LocalBinaryFileMeta>(StringComparer.OrdinalIgnoreCase);
+            var filenames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            if (state != null)
+            {
+                foreach (var s in state.CustomSounds) if (!string.IsNullOrWhiteSpace(s.Filename)) filenames.Add(s.Filename);
+            }
+            if (Directory.Exists(SoundsDir))
+            {
+                foreach (var full in Directory.GetFiles(SoundsDir))
+                {
+                    string name = Path.GetFileName(full);
+                    if (!name.EndsWith(".tmp", StringComparison.OrdinalIgnoreCase)) filenames.Add(name);
+                }
+            }
+
+            foreach (var fn in filenames)
+            {
+                string fullPath = GetSoundFilePath(fn);
+                if (File.Exists(fullPath))
+                {
+                    long len = new FileInfo(fullPath).Length;
+                    string? stateSha = state?.CustomSounds.FirstOrDefault(x => string.Equals(x.Filename, fn, StringComparison.OrdinalIgnoreCase))?.Sha256;
+                    dict[fn] = new LocalBinaryFileMeta
+                    {
+                        FileName = fn,
+                        SizeBytes = len,
+                        Sha256 = !string.IsNullOrWhiteSpace(stateSha) ? stateSha : ComputeFileSha256(fullPath)
+                    };
+                }
+            }
+            return dict;
         }
 
         public string LoadRawStateJson()
@@ -440,13 +750,21 @@ namespace StudyHub.Services
             }
             catch { }
 
+            string nowUtc = DateTime.UtcNow.ToString("O");
+            long fileSize = 0;
+            try { fileSize = new FileInfo(destPath).Length; } catch { }
+            string sha256 = ComputeFileSha256(destPath);
+
             return new StudyFileItem
             {
                 Id = $"file_{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}_{hex}",
                 SubjectId = subjectId,
                 OriginalName = origName,
                 Filename = uniqueFilename,
-                Folder = string.IsNullOrWhiteSpace(folderName) ? "Lectures" : folderName
+                Folder = string.IsNullOrWhiteSpace(folderName) ? "Lectures" : folderName,
+                Sha256 = sha256,
+                FileSizeBytes = fileSize,
+                UpdatedAtUtc = nowUtc
             };
         }
 
@@ -473,6 +791,11 @@ namespace StudyHub.Services
             }
             catch { }
 
+            string nowUtc = DateTime.UtcNow.ToString("O");
+            long fileSize = 0;
+            try { fileSize = new FileInfo(destPath).Length; } catch { }
+            string sha256 = ComputeFileSha256(destPath);
+
             return new MediaTrackItem
             {
                 Id = $"media_{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}_{hex}",
@@ -480,7 +803,10 @@ namespace StudyHub.Services
                 Title = string.IsNullOrWhiteSpace(title) ? stem : title,
                 Filename = uniqueFilename,
                 Date = DateTime.Now.ToString("MMM dd, yyyy"),
-                Duration = ""
+                Duration = "",
+                Sha256 = sha256,
+                FileSizeBytes = fileSize,
+                UpdatedAtUtc = nowUtc
             };
         }
 
@@ -535,6 +861,11 @@ namespace StudyHub.Services
             string destPath = Path.Combine(SoundsDir, uniqueName);
             File.Copy(sourceFilePath, destPath, true);
 
+            string nowUtc = DateTime.UtcNow.ToString("O");
+            long fileSize = 0;
+            try { fileSize = new FileInfo(destPath).Length; } catch { }
+            string sha256 = ComputeFileSha256(destPath);
+
             return new CustomSoundItem
             {
                 Id = $"custom_{Guid.NewGuid().ToString("N").Substring(0, 8)}",
@@ -542,7 +873,10 @@ namespace StudyHub.Services
                 Filename = uniqueName,
                 OriginalName = origName,
                 Url = $"/sounds/{uniqueName}",
-                AddedAt = DateTime.Now.ToString("O")
+                AddedAt = DateTime.Now.ToString("O"),
+                Sha256 = sha256,
+                FileSizeBytes = fileSize,
+                UpdatedAtUtc = nowUtc
             };
         }
 
@@ -621,6 +955,12 @@ namespace StudyHub.Services
             {
                 string oldJson = JsonSerializer.Serialize(currentState, _jsonOptions);
                 SnapshotDailyBackup(oldJson);
+                ClearBaseSnapshot();
+                lock (_trackLock)
+                {
+                    _hashManifest = new SyncEntityHashManifest();
+                    SaveHashManifest(_hashManifest);
+                }
 
                 foreach (var dir in new[] { FilesDir, SoundsDir })
                 {

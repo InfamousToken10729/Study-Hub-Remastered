@@ -25,6 +25,7 @@ namespace StudyHub
         private readonly StorageService _storage;
         private readonly GitHubUpdateService _updater;
         private readonly AudioStudioService _audio;
+        private readonly GoogleDriveSyncService _cloudSync;
 
         private AppStateData _state;
         private SubjectItem? _currentSubject;
@@ -36,6 +37,9 @@ namespace StudyHub
         private readonly DispatcherTimer _pomoTimer;
         private readonly DispatcherTimer _toastTimer;
         private readonly DispatcherTimer _sliderSaveTimer;
+        private readonly DispatcherTimer _autoSyncTimer;
+        private SyncMergeOutcome? _pendingSyncOutcome;
+        private SyncResolutionMode _pendingSyncMode = SyncResolutionMode.SmartMerge;
         private readonly Stopwatch _renderStopwatch = new();
         private bool _isRenderLoopAttached = false;
         private bool _isClosing = false;
@@ -127,6 +131,18 @@ namespace StudyHub
             _audio = new AudioStudioService(_storage.SoundsDir);
             _audio.PlaybackStateChanged += Audio_PlaybackStateChanged;
 
+            _cloudSync = new GoogleDriveSyncService(_storage);
+            _cloudSync.StatusChanged += CloudSync_StatusChanged;
+            _storage.StateSaved += () =>
+            {
+                if (_isClosing || !_cloudSync.Config.HasValidSession || (_state?.Settings?.AutoSyncEnabled ?? true) == false) return;
+                Dispatcher.BeginInvoke(() =>
+                {
+                    _autoSyncTimer?.Stop();
+                    _autoSyncTimer?.Start();
+                });
+            };
+
             _state = _storage.LoadState();
             _state.Normalize();
 
@@ -159,6 +175,17 @@ namespace StudyHub
             // Debounced Slider Persistence Timer (prevents disk thrash during drags)
             _sliderSaveTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
             _sliderSaveTimer.Tick += (s, e) => { _sliderSaveTimer.Stop(); SaveState(countActivity: false); };
+
+            // Debounced Background Cloud Sync Timer
+            _autoSyncTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(4) };
+            _autoSyncTimer.Tick += async (s, e) =>
+            {
+                _autoSyncTimer.Stop();
+                if (!_isClosing && _cloudSync.Config.HasValidSession && (_state?.Settings?.AutoSyncEnabled ?? true))
+                {
+                    await ExecuteCloudSyncPcAsync(silentAutoSync: true);
+                }
+            };
 
             StateChanged += (s, e) => UpdateRenderLoopState();
             Loaded += MainWindow_Loaded;
@@ -250,6 +277,21 @@ namespace StudyHub
                         await Dispatcher.InvokeAsync(async () =>
                         {
                             await CheckForGithubUpdatesAsync(silentOnNoUpdate: true);
+                        });
+                    });
+                }
+
+                // Sync with Google Drive shortly after startup if configured & signed in
+                UpdateCloudSyncUiState();
+                ApplyCloudStatusToUi(_cloudSync.CurrentStatus);
+                if (_cloudSync.Config.HasValidSession && (_state.Settings?.AutoSyncEnabled ?? true))
+                {
+                    _ = Task.Run(async () =>
+                    {
+                        await Task.Delay(1100);
+                        await Dispatcher.InvokeAsync(async () =>
+                        {
+                            await ExecuteCloudSyncPcAsync(silentAutoSync: true);
                         });
                     });
                 }
@@ -5746,6 +5788,7 @@ namespace StudyHub
         private void BtnTabAudio_Click(object sender, RoutedEventArgs e) => SwitchSettingsTab("audio");
         private void BtnTabDisplay_Click(object sender, RoutedEventArgs e) => SwitchSettingsTab("display");
         private void BtnTabData_Click(object sender, RoutedEventArgs e) => SwitchSettingsTab("data");
+        private void BtnTabCloud_Click(object sender, RoutedEventArgs e) => SwitchSettingsTab("cloud");
         private void BtnTabSystem_Click(object sender, RoutedEventArgs e) => SwitchSettingsTab("system");
 
         private void SwitchSettingsTab(string tab)
@@ -5754,6 +5797,7 @@ namespace StudyHub
             SpartAudio.Visibility = (tab == "audio") ? Visibility.Visible : Visibility.Collapsed;
             SpartDisplay.Visibility = (tab == "display") ? Visibility.Visible : Visibility.Collapsed;
             SpartData.Visibility = (tab == "data") ? Visibility.Visible : Visibility.Collapsed;
+            SpartCloud.Visibility = (tab == "cloud") ? Visibility.Visible : Visibility.Collapsed;
             SpartSystem.Visibility = (tab == "system") ? Visibility.Visible : Visibility.Collapsed;
 
             var activeStyle = (Style)FindResource("SettingsTabButtonActiveStyle");
@@ -5763,6 +5807,7 @@ namespace StudyHub
             BtnTabAudio.Style = (tab == "audio") ? activeStyle : inactiveStyle;
             BtnTabDisplay.Style = (tab == "display") ? activeStyle : inactiveStyle;
             BtnTabData.Style = (tab == "data") ? activeStyle : inactiveStyle;
+            BtnTabCloud.Style = (tab == "cloud") ? activeStyle : inactiveStyle;
             BtnTabSystem.Style = (tab == "system") ? activeStyle : inactiveStyle;
 
             TxtSettingsHeaderTitle.Text = tab switch
@@ -5771,6 +5816,7 @@ namespace StudyHub
                 "audio" => "Audio & Sound Studio",
                 "display" => "Interface & Display",
                 "data" => "Data Management",
+                "cloud" => "Google Drive Cross-Platform Sync",
                 "system" => "System Utilities",
                 _ => "Control Center"
             };
@@ -5801,6 +5847,7 @@ namespace StudyHub
             ChkAudioChimes.IsChecked = _state.Settings?.Notifications ?? true;
             ChkStartupBoot.IsChecked = _state.Settings?.Startup ?? false;
             ChkPerfThrottle.IsChecked = _state.Settings?.PerfThrottle ?? false;
+            UpdateCloudSyncUiState();
         }
 
         private void BtnClockStyleDigital_Click(object sender, RoutedEventArgs e)
@@ -6111,11 +6158,13 @@ namespace StudyHub
             {
                 try
                 {
+                    _ = _storage.CreatePreSyncLocalBackupAsync(_state, "before_import").GetAwaiter().GetResult();
+                    _storage.ClearBaseSnapshot();
                     string json = File.ReadAllText(dlg.FileName);
                     _storage.SaveRawStateJsonAsync(json).GetAwaiter().GetResult();
                     _state = _storage.LoadState();
-                    RenderSubjects();
-                    ShowToast("Backup restored! ✅");
+                    ApplySyncedStateToPcUi(_state);
+                    ShowToast("Backup restored! Next Cloud Sync will safely verify changes. ✅");
                 }
                 catch (Exception ex)
                 {
@@ -7488,6 +7537,546 @@ namespace StudyHub
             OpenPcCalendarModal();
         }
 
+        // ================= GOOGLE DRIVE CLOUD SYNC (CROSS-PLATFORM) =================
+
+        private void CloudSync_StatusChanged(SyncProgressReport report)
+        {
+            if (_isClosing) return;
+            Dispatcher.BeginInvoke(() => ApplyCloudStatusToUi(report));
+        }
+
+        private void ApplyCloudStatusToUi(SyncProgressReport report)
+        {
+            if (report == null) return;
+            Color dotColor = report.Level switch
+            {
+                SyncStatusLevel.Synced => Color.FromRgb(16, 185, 129),
+                SyncStatusLevel.Idle => Color.FromRgb(16, 185, 129),
+                SyncStatusLevel.Syncing => Color.FromRgb(56, 189, 248),
+                SyncStatusLevel.NeedsAttention => Color.FromRgb(245, 158, 11),
+                SyncStatusLevel.Conflict => Color.FromRgb(245, 158, 11),
+                SyncStatusLevel.Error => Color.FromRgb(244, 63, 94),
+                SyncStatusLevel.Offline => Color.FromRgb(251, 146, 60),
+                _ => Color.FromRgb(148, 163, 184)
+            };
+
+            if (NavCloudSyncDot != null) NavCloudSyncDot.Fill = new SolidColorBrush(dotColor);
+            if (TxtNavCloudSyncLabel != null)
+            {
+                TxtNavCloudSyncLabel.Text = report.Level switch
+                {
+                    SyncStatusLevel.NotConfigured => "Cloud Setup",
+                    SyncStatusLevel.SignedOut => "Sign In",
+                    SyncStatusLevel.Syncing => "Syncing...",
+                    SyncStatusLevel.Synced => "Synced",
+                    SyncStatusLevel.Idle => "Cloud On",
+                    SyncStatusLevel.NeedsAttention => "Review Sync",
+                    SyncStatusLevel.Conflict => $"Conflicts ({report.PendingConflictCount})",
+                    SyncStatusLevel.Offline => "Offline",
+                    SyncStatusLevel.Error => "Sync Error",
+                    _ => "Cloud Sync"
+                };
+            }
+
+            if (TxtCloudStatusBadge != null) TxtCloudStatusBadge.Text = report.Headline;
+            if (TxtCloudLastSyncDetail != null && !string.IsNullOrWhiteSpace(report.Detail))
+                TxtCloudLastSyncDetail.Text = report.Detail;
+
+            UpdateCloudSyncUiState();
+        }
+
+        private void UpdateCloudSyncUiState()
+        {
+            var cfg = _cloudSync.Config;
+            if (TxtCloudClientId != null && TxtCloudClientId.Text != cfg.ClientId)
+                TxtCloudClientId.Text = cfg.ClientId;
+            if (TxtCloudClientSecret != null && TxtCloudClientSecret.Text != cfg.ClientSecret)
+                TxtCloudClientSecret.Text = cfg.ClientSecret;
+
+            if (TxtCloudAccountStatus != null)
+            {
+                if (!cfg.HasClientCredentials)
+                    TxtCloudAccountStatus.Text = $"Device ID: {cfg.DeviceName} • Step 1: Import client_secret.json or paste Client ID below.";
+                else if (!cfg.HasValidSession)
+                    TxtCloudAccountStatus.Text = $"Device ID: {cfg.DeviceName} • Credentials saved. Click 'Sign In with Google' to authorize Drive.";
+                else
+                    TxtCloudAccountStatus.Text = $"Signed in as {cfg.UserEmail} ({cfg.DeviceName}) • Syncing to Google Drive /StudyHub_Sync/";
+            }
+
+            if (BtnCloudSignIn != null) BtnCloudSignIn.Visibility = cfg.HasValidSession ? Visibility.Collapsed : Visibility.Visible;
+            if (BtnCloudSignOut != null) BtnCloudSignOut.Visibility = cfg.HasValidSession ? Visibility.Visible : Visibility.Collapsed;
+            if (BtnCloudSyncNow != null) BtnCloudSyncNow.IsEnabled = cfg.HasValidSession;
+            if (BtnCloudCreateSnapshot != null) BtnCloudCreateSnapshot.IsEnabled = cfg.HasValidSession;
+
+            if (ChkCloudAutoSync != null) ChkCloudAutoSync.IsChecked = _state?.Settings?.AutoSyncEnabled ?? true;
+            if (ChkCloudSyncFiles != null) ChkCloudSyncFiles.IsChecked = _state?.Settings?.SyncFilesEnabled ?? true;
+        }
+
+        private async void BtnNavCloudSync_MouseDown(object sender, MouseButtonEventArgs e)
+        {
+            if (!_cloudSync.Config.HasClientCredentials || !_cloudSync.Config.HasValidSession)
+            {
+                SettingsModalGrid.Visibility = Visibility.Visible;
+                SwitchSettingsTab("cloud");
+                return;
+            }
+            if (_pendingSyncOutcome != null && _pendingSyncOutcome.MismatchReport.RequiresConfirmation)
+            {
+                OpenSyncMismatchModalPc(_pendingSyncOutcome);
+                return;
+            }
+            if (_pendingSyncOutcome != null && _pendingSyncOutcome.Conflicts.Count > 0)
+            {
+                OpenSyncConflictModalPc(_pendingSyncOutcome);
+                return;
+            }
+            await ExecuteCloudSyncPcAsync(silentAutoSync: false);
+        }
+
+        private void BtnCloudSaveCredentials_Click(object sender, RoutedEventArgs e)
+        {
+            var (ok, msg) = _cloudSync.ApplyClientCredentials(TxtCloudClientId.Text, TxtCloudClientSecret.Text);
+            UpdateCloudSyncUiState();
+            ShowToast(ok ? $"✅ {msg}" : $"⚠️ {msg}");
+        }
+
+        private void BtnCloudImportClientJson_Click(object sender, RoutedEventArgs e)
+        {
+            var dlg = new OpenFileDialog
+            {
+                Title = "Select Google Cloud client_secret_*.json or StudyHub_GDrive_QuickPair.json",
+                Filter = "JSON Files (*.json)|*.json"
+            };
+            if (dlg.ShowDialog() == true)
+            {
+                try
+                {
+                    string raw = File.ReadAllText(dlg.FileName);
+                    var (ok, msg) = _cloudSync.ImportCredentialsFromJsonOrCode(raw);
+                    UpdateCloudSyncUiState();
+                    ShowToast(ok ? $"✅ {msg}" : $"⚠️ {msg}");
+                }
+                catch (Exception ex)
+                {
+                    ShowToast($"⚠️ Failed to read JSON: {ex.Message}");
+                }
+            }
+        }
+
+        private void BtnCloudCopyQuickPair_Click(object sender, RoutedEventArgs e)
+        {
+            string code = _cloudSync.ExportQuickPairCode();
+            if (string.IsNullOrWhiteSpace(code))
+            {
+                ShowToast("Save or import your Google OAuth credentials first.");
+                return;
+            }
+            Clipboard.SetText(code);
+            ShowToast("Quick-Pair Code copied! Paste it into StudyHub on your Android phone. 📋");
+        }
+
+        private void BtnCloudExportQuickPairFile_Click(object sender, RoutedEventArgs e)
+        {
+            string json = _cloudSync.ExportQuickPairJson();
+            if (string.IsNullOrWhiteSpace(json))
+            {
+                ShowToast("Save or import your Google OAuth credentials first.");
+                return;
+            }
+            var dlg = new SaveFileDialog
+            {
+                FileName = "StudyHub_GDrive_QuickPair.json",
+                Filter = "JSON Files (*.json)|*.json"
+            };
+            if (dlg.ShowDialog() == true)
+            {
+                File.WriteAllText(dlg.FileName, json);
+                ShowToast("Exported StudyHub_GDrive_QuickPair.json! Transfer it to your phone to pair in 1 tap. 📤");
+            }
+        }
+
+        private void BtnCloudImportQuickPairPrompt_Click(object sender, RoutedEventArgs e)
+        {
+            string input = Microsoft.VisualBasic.Interaction.InputBox(
+                "Paste your StudyHub Quick-Pair code (SHPAIR1:...) or JSON contents here:",
+                "Import Quick-Pair Credentials", "");
+            if (string.IsNullOrWhiteSpace(input)) return;
+            var (ok, msg) = _cloudSync.ImportCredentialsFromJsonOrCode(input);
+            UpdateCloudSyncUiState();
+            ShowToast(ok ? $"✅ {msg}" : $"⚠️ {msg}");
+        }
+
+        private async void BtnCloudSignIn_Click(object sender, RoutedEventArgs e)
+        {
+            if (!_cloudSync.Config.HasClientCredentials)
+            {
+                ShowToast("Import your Google client_secret.json or Client ID first.");
+                return;
+            }
+            BtnCloudSignIn.IsEnabled = false;
+            try
+            {
+                var (ok, msg) = await _cloudSync.StartInteractiveSignInAsync(url =>
+                {
+                    Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
+                    return Task.CompletedTask;
+                });
+                UpdateCloudSyncUiState();
+                ShowToast(ok ? $"✅ {msg}" : $"⚠️ {msg}");
+                if (ok)
+                {
+                    await ExecuteCloudSyncPcAsync(silentAutoSync: false);
+                }
+            }
+            finally
+            {
+                BtnCloudSignIn.IsEnabled = true;
+            }
+        }
+
+        private async void BtnCloudCompleteManualAuth_Click(object sender, RoutedEventArgs e)
+        {
+            var (ok, msg) = await _cloudSync.CompleteSignInFromManualInputAsync(TxtCloudManualAuthInput.Text);
+            UpdateCloudSyncUiState();
+            ShowToast(ok ? $"✅ {msg}" : $"⚠️ {msg}");
+            if (ok)
+            {
+                TxtCloudManualAuthInput.Text = "";
+                await ExecuteCloudSyncPcAsync(silentAutoSync: false);
+            }
+        }
+
+        private void BtnCloudSignOut_Click(object sender, RoutedEventArgs e)
+        {
+            _cloudSync.SignOut();
+            _pendingSyncOutcome = null;
+            CloudSnapshotsStackPanel.Children.Clear();
+            UpdateCloudSyncUiState();
+            ShowToast("Signed out from Google Drive. Your local files and study data remain intact.");
+        }
+
+        private async void BtnCloudSyncNow_Click(object sender, RoutedEventArgs e)
+        {
+            await ExecuteCloudSyncPcAsync(silentAutoSync: false);
+        }
+
+        private async Task ExecuteCloudSyncPcAsync(
+            bool silentAutoSync,
+            SyncResolutionMode mode = SyncResolutionMode.SmartMerge,
+            IReadOnlyList<SyncConflictItem>? resolvedConflicts = null,
+            bool mismatchAck = false)
+        {
+            var result = await _cloudSync.SyncNowAsync(_state, mode, resolvedConflicts, mismatchAck);
+            if (result.NeedsUserResolution && result.Outcome != null)
+            {
+                _pendingSyncOutcome = result.Outcome;
+                _pendingSyncMode = mode;
+
+                if (result.Outcome.MismatchReport.RequiresConfirmation)
+                    OpenSyncMismatchModalPc(result.Outcome);
+                else if (result.Outcome.Conflicts.Count > 0)
+                    OpenSyncConflictModalPc(result.Outcome);
+                return;
+            }
+
+            if (result.Success)
+            {
+                _pendingSyncOutcome = null;
+                if (result.Outcome?.MergedState != null && result.LocalStateUpdated)
+                {
+                    ApplySyncedStateToPcUi(result.Outcome.MergedState);
+                }
+                if (!silentAutoSync) ShowToast($"☁️ {result.Message}");
+            }
+            else if (!silentAutoSync && !string.IsNullOrWhiteSpace(result.Message))
+            {
+                ShowToast($"⚠️ {result.Message}");
+            }
+        }
+
+        private void OpenSyncMismatchModalPc(SyncMergeOutcome outcome)
+        {
+            var m = outcome.MismatchReport;
+            TxtSyncMismatchTitle.Text = m.ReasonTitle;
+            TxtSyncMismatchDesc.Text = m.ReasonDescription;
+            TxtMismatchLocalSummary.Text =
+                $"{m.LocalCounts.Subjects} course(s)\n" +
+                $"{m.LocalCounts.Pdfs + m.LocalCounts.Videos + m.LocalCounts.Recordings} files & media\n" +
+                $"{m.LocalCounts.Notes} notes • {m.LocalCounts.Tasks} tasks • {m.LocalCounts.CalendarEvents} events";
+            TxtMismatchCloudSummary.Text =
+                $"{m.CloudCounts.Subjects} course(s)\n" +
+                $"{m.CloudCounts.Pdfs + m.CloudCounts.Videos + m.CloudCounts.Recordings} files & media\n" +
+                $"{m.CloudCounts.Notes} notes • {m.CloudCounts.Tasks} tasks • {m.CloudCounts.CalendarEvents} events";
+            SyncMismatchModalGrid.Visibility = Visibility.Visible;
+        }
+
+        private async void BtnMismatchSmartMerge_Click(object sender, RoutedEventArgs e)
+        {
+            SyncMismatchModalGrid.Visibility = Visibility.Collapsed;
+            await ExecuteCloudSyncPcAsync(silentAutoSync: false, SyncResolutionMode.SmartMerge, null, mismatchAck: true);
+        }
+
+        private async void BtnMismatchKeepAll_Click(object sender, RoutedEventArgs e)
+        {
+            SyncMismatchModalGrid.Visibility = Visibility.Collapsed;
+            await ExecuteCloudSyncPcAsync(silentAutoSync: false, SyncResolutionMode.SmartMergeKeepDeleted, null, mismatchAck: true);
+        }
+
+        private async void BtnMismatchForcePull_Click(object sender, RoutedEventArgs e)
+        {
+            SyncMismatchModalGrid.Visibility = Visibility.Collapsed;
+            await ExecuteCloudSyncPcAsync(silentAutoSync: false, SyncResolutionMode.ForcePullCloud, null, mismatchAck: true);
+        }
+
+        private async void BtnMismatchForcePush_Click(object sender, RoutedEventArgs e)
+        {
+            SyncMismatchModalGrid.Visibility = Visibility.Collapsed;
+            await ExecuteCloudSyncPcAsync(silentAutoSync: false, SyncResolutionMode.ForcePushLocal, null, mismatchAck: true);
+        }
+
+        private void BtnMismatchCancel_Click(object sender, RoutedEventArgs e)
+        {
+            SyncMismatchModalGrid.Visibility = Visibility.Collapsed;
+            ShowToast("Sync paused safely — no local or cloud data was altered.");
+        }
+
+        private void OpenSyncConflictModalPc(SyncMergeOutcome outcome)
+        {
+            _pendingSyncOutcome = outcome;
+            SyncConflictsStackPanel.Children.Clear();
+            TxtSyncConflictSubtitle.Text = $"{outcome.Conflicts.Count} item(s) were edited on both PC and Android offline. Pick how to keep each:";
+
+            foreach (var c in outcome.Conflicts)
+            {
+                if (c.Choice == SyncConflictChoice.Pending)
+                    c.Choice = c.SupportsCombine ? SyncConflictChoice.CombineBoth : SyncConflictChoice.KeepLocal;
+
+                var card = new Border
+                {
+                    Background = (Brush)FindResource("SubtleBgBrush"),
+                    BorderBrush = (Brush)FindResource("BorderBrushTheme"),
+                    BorderThickness = new Thickness(1),
+                    CornerRadius = new CornerRadius(14),
+                    Padding = new Thickness(14),
+                    Margin = new Thickness(0, 0, 0, 12)
+                };
+
+                var sp = new StackPanel();
+                sp.Children.Add(new TextBlock
+                {
+                    Text = c.Title,
+                    FontSize = 13.5,
+                    FontWeight = FontWeights.Black,
+                    Foreground = (Brush)FindResource("PrimaryTextBrush"),
+                    Margin = new Thickness(0, 0, 0, 8)
+                });
+
+                var grid = new Grid { Margin = new Thickness(0, 0, 0, 10) };
+                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(10) });
+                grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+                var locBox = new Border { Background = (Brush)FindResource("CardBgBrush"), CornerRadius = new CornerRadius(10), Padding = new Thickness(10) };
+                var locStack = new StackPanel();
+                locStack.Children.Add(new TextBlock { Text = $"💻 This PC ({GoogleDriveSyncService.FormatRelativeTime(c.LocalUpdatedAtUtc)})", FontSize = 11, FontWeight = FontWeights.Bold, Foreground = new SolidColorBrush(Color.FromRgb(56, 189, 248)), Margin = new Thickness(0, 0, 0, 4) });
+                locStack.Children.Add(new TextBlock { Text = c.LocalText, FontSize = 11.5, Foreground = (Brush)FindResource("PrimaryTextBrush"), TextWrapping = TextWrapping.Wrap, MaxHeight = 120 });
+                locBox.Child = locStack;
+                Grid.SetColumn(locBox, 0);
+                grid.Children.Add(locBox);
+
+                var remBox = new Border { Background = (Brush)FindResource("CardBgBrush"), CornerRadius = new CornerRadius(10), Padding = new Thickness(10) };
+                var remStack = new StackPanel();
+                remStack.Children.Add(new TextBlock { Text = $"☁️ Cloud ({GoogleDriveSyncService.FormatRelativeTime(c.CloudUpdatedAtUtc)})", FontSize = 11, FontWeight = FontWeights.Bold, Foreground = new SolidColorBrush(Color.FromRgb(167, 139, 250)), Margin = new Thickness(0, 0, 0, 4) });
+                remStack.Children.Add(new TextBlock { Text = c.CloudText, FontSize = 11.5, Foreground = (Brush)FindResource("PrimaryTextBrush"), TextWrapping = TextWrapping.Wrap, MaxHeight = 120 });
+                remBox.Child = remStack;
+                Grid.SetColumn(remBox, 2);
+                grid.Children.Add(remBox);
+
+                sp.Children.Add(grid);
+
+                var btnRow = new StackPanel { Orientation = Orientation.Horizontal };
+                string grp = $"cf_{c.ConflictId}";
+
+                void AddOption(string label, SyncConflictChoice choice)
+                {
+                    var rb = new RadioButton
+                    {
+                        Content = label,
+                        GroupName = grp,
+                        IsChecked = c.Choice == choice,
+                        Foreground = (Brush)FindResource("PrimaryTextBrush"),
+                        FontSize = 12,
+                        Margin = new Thickness(0, 0, 16, 0)
+                    };
+                    rb.Checked += (_, _) => c.Choice = choice;
+                    btnRow.Children.Add(rb);
+                }
+
+                if (c.SupportsCombine) AddOption("✨ Combine Both (Zero Loss)", SyncConflictChoice.CombineBoth);
+                AddOption("💻 Keep This PC", SyncConflictChoice.KeepLocal);
+                AddOption("☁️ Keep Cloud", SyncConflictChoice.KeepCloud);
+
+                sp.Children.Add(btnRow);
+                card.Child = sp;
+                SyncConflictsStackPanel.Children.Add(card);
+            }
+
+            SyncConflictModalGrid.Visibility = Visibility.Visible;
+        }
+
+        private async void BtnSyncConflictApply_Click(object sender, RoutedEventArgs e)
+        {
+            if (_pendingSyncOutcome == null) return;
+            SyncConflictModalGrid.Visibility = Visibility.Collapsed;
+            var decisions = _pendingSyncOutcome.Conflicts.ToList();
+            await ExecuteCloudSyncPcAsync(silentAutoSync: false, _pendingSyncMode, decisions, mismatchAck: true);
+        }
+
+        private void BtnSyncConflictCancel_Click(object sender, RoutedEventArgs e)
+        {
+            SyncConflictModalGrid.Visibility = Visibility.Collapsed;
+            ShowToast("Conflict resolution paused.");
+        }
+
+        private void ChkCloudPrefs_Changed(object sender, RoutedEventArgs e)
+        {
+            if (_state?.Settings == null) return;
+            _state.Settings.AutoSyncEnabled = ChkCloudAutoSync.IsChecked ?? true;
+            _state.Settings.SyncFilesEnabled = ChkCloudSyncFiles.IsChecked ?? true;
+            _state.Settings.SettingsUpdatedAtUtc = DateTime.UtcNow.ToString("O");
+            SaveState(countActivity: false);
+        }
+
+        private async void BtnCloudCreateSnapshot_Click(object sender, RoutedEventArgs e)
+        {
+            var (ok, msg) = await _cloudSync.UploadManualBackupSnapshotAsync(_state);
+            ShowToast(ok ? $"📸 {msg}" : $"⚠️ {msg}");
+            if (ok) await LoadCloudSnapshotsListPcAsync();
+        }
+
+        private async void BtnCloudRefreshSnapshots_Click(object sender, RoutedEventArgs e)
+        {
+            await LoadCloudSnapshotsListPcAsync();
+        }
+
+        private async Task LoadCloudSnapshotsListPcAsync()
+        {
+            CloudSnapshotsStackPanel.Children.Clear();
+            CloudSnapshotsStackPanel.Children.Add(new TextBlock { Text = "Loading snapshots from Google Drive...", FontSize = 11.5, Foreground = (Brush)FindResource("SecondaryTextBrush") });
+
+            var snaps = await _cloudSync.ListCloudSnapshotsAsync();
+            CloudSnapshotsStackPanel.Children.Clear();
+            if (snaps.Count == 0)
+            {
+                CloudSnapshotsStackPanel.Children.Add(new TextBlock { Text = "No Time Machine snapshots found yet.", FontSize = 11.5, Foreground = (Brush)FindResource("SecondaryTextBrush") });
+                return;
+            }
+
+            foreach (var s in snaps)
+            {
+                var row = new Border
+                {
+                    Background = (Brush)FindResource("SubtleBgBrush"),
+                    BorderBrush = (Brush)FindResource("BorderBrushTheme"),
+                    BorderThickness = new Thickness(1),
+                    CornerRadius = new CornerRadius(10),
+                    Padding = new Thickness(12, 8, 12, 8),
+                    Margin = new Thickness(0, 0, 0, 8)
+                };
+                var g = new Grid();
+                var info = new StackPanel();
+                info.Children.Add(new TextBlock { Text = s.FileName, FontSize = 12, FontWeight = FontWeights.Bold, Foreground = (Brush)FindResource("PrimaryTextBrush") });
+                info.Children.Add(new TextBlock
+                {
+                    Text = $"{GoogleDriveSyncService.FormatRelativeTime(s.CreatedAtUtc)} • {(s.SizeBytes / 1024.0):F1} KB • {s.SummaryText}",
+                    FontSize = 11,
+                    Foreground = (Brush)FindResource("SecondaryTextBrush"),
+                    TextWrapping = TextWrapping.Wrap
+                });
+                g.Children.Add(info);
+
+                var btn = new Button
+                {
+                    Content = "⏪ Restore",
+                    Style = (Style)FindResource("SecondaryButtonStyle"),
+                    HorizontalAlignment = HorizontalAlignment.Right,
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Padding = new Thickness(12, 5, 12, 5)
+                };
+                btn.Click += async (_, _) =>
+                {
+                    if (MessageBox.Show($"Restore snapshot '{s.FileName}'?\n\nYour current PC data will be backed up locally in StudyHub_Backups/ first.", "Time Machine Restore", MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes)
+                        return;
+
+                    await _storage.CreatePreSyncLocalBackupAsync(_state, "before_time_machine");
+                    var restored = await _cloudSync.DownloadCloudSnapshotAsync(s.DriveFileId);
+                    if (restored == null)
+                    {
+                        ShowToast("⚠️ Could not download that snapshot.");
+                        return;
+                    }
+                    _storage.ClearBaseSnapshot();
+                    await _storage.SaveMergedStateAsync(restored);
+                    ApplySyncedStateToPcUi(restored);
+                    ShowToast($"Restored snapshot! Pushing snapshot safely or tap Sync Now to push to Cloud. ✅");
+                };
+                g.Children.Add(btn);
+                row.Child = g;
+                CloudSnapshotsStackPanel.Children.Add(row);
+            }
+        }
+
+        private void ApplySyncedStateToPcUi(AppStateData newState)
+        {
+            _state = newState;
+            _state.Normalize();
+
+            _isPdfDarkMode = _state.Settings?.PdfDarkMode ?? false;
+            UpdatePdfDarkModeButtonUi();
+
+            bool targetDark = string.Equals(_state.Theme, "dark", StringComparison.OrdinalIgnoreCase);
+            if (_isDarkMode != targetDark) ApplyTheme(targetDark, saveToDisk: false);
+
+            _audio.IsMasterMuted = _state.Settings?.MixerMuted ?? false;
+            _audio.SyncCustomSounds(_state.CustomSounds, _state.Settings?.MixerLevels, _state.Settings?.MixerMaster ?? 80);
+            RenderSoundMixerChannels();
+            RenderCustomSoundPresets();
+            UpdateMixerUIState();
+
+            RenderSubjects();
+            RenderArchivedSubjects();
+            RenderPcHomeUpcomingEvents();
+            RenderActivityHeatmap();
+            UpdateDashboardStats();
+            UpdateControlCenterUiState();
+            RenderControlCenterThemesAndEffects();
+
+            if (CalendarModalGrid.Visibility == Visibility.Visible)
+                RenderPcCalendarModalViews();
+
+            if (_currentSubject != null)
+            {
+                var refreshed = _state.Subjects.FirstOrDefault(s => s.Id == _currentSubject.Id);
+                if (refreshed != null)
+                {
+                    _currentSubject = refreshed;
+                    UpdateSubjectDetailStats();
+                    RenderFoldersAndFiles();
+                    RenderVideosList();
+                    RenderRecordingsList();
+                    UpdateNotesStats();
+                    RenderTasksList();
+                    RenderLinksList();
+                    RenderDeadlinesList();
+                    RenderFlashcards();
+                }
+                else
+                {
+                    GoToHome();
+                }
+            }
+        }
+
         private void Window_Closing(object? sender, CancelEventArgs e)
         {
             _isClosing = true;
@@ -7496,6 +8085,7 @@ namespace StudyHub
             _pomoTimer?.Stop();
             _toastTimer?.Stop();
             _sliderSaveTimer?.Stop();
+            _autoSyncTimer?.Stop();
             _audio?.StopAndResetAll();
             _audio?.Dispose();
             SaveState(countActivity: false);

@@ -147,6 +147,25 @@
                         <!-- Always-Visible Right Action Buttons: Calendar, Sound Mixer, Zen Mode, Theme Toggle, Settings -->
                         <HorizontalStackLayout Grid.Column="2" Spacing="5" VerticalOptions="Center">
                             <Grid WidthRequest="33" HeightRequest="33" VerticalOptions="Center">
+                                <Button Text="☁️"
+                                        FontSize="13.5"
+                                        Padding="0"
+                                        CornerRadius="17"
+                                        BackgroundColor="#181D38"
+                                        BorderColor="#283056"
+                                        BorderWidth="1"
+                                        Clicked="OnNavCloudSyncClicked" />
+                                <BoxView x:Name="NavCloudSyncDot"
+                                         WidthRequest="8"
+                                         HeightRequest="8"
+                                         CornerRadius="4"
+                                         Color="#94A3B8"
+                                         HorizontalOptions="End"
+                                         VerticalOptions="Start"
+                                         Margin="0,2,2,0" />
+                            </Grid>
+
+                            <Grid WidthRequest="33" HeightRequest="33" VerticalOptions="Center">
                                 <Button Text="📅"
                                         FontSize="13.5"
                                         Padding="0"
@@ -1533,6 +1552,57 @@
                                 </VerticalStackLayout>
                             </Border>
 
+                            <!-- Google Drive Cross-Platform Sync -->
+                            <Label Text="GOOGLE DRIVE CLOUD SYNC (ZERO COST)" FontSize="10.5" FontAttributes="Bold" TextColor="#38BDF8" />
+                            <Border BackgroundColor="#0D1124" Stroke="#252E56" StrokeThickness="1" StrokeShape="RoundRectangle 12" Padding="12">
+                                <VerticalStackLayout Spacing="8">
+                                    <Label x:Name="LblMobileCloudStatusTitle" Text="Cloud Setup Needed" FontSize="12.5" FontAttributes="Bold" TextColor="#F8FAFC" />
+                                    <Label x:Name="LblMobileCloudStatusDetail" Text="Pair with your PC using a Quick-Pair code or client_secret.json to sync courses, notes, PDFs, audio &amp; calendar safely." FontSize="10.5" TextColor="#94A3C6" />
+
+                                    <FlexLayout Wrap="Wrap" JustifyContent="Start">
+                                        <Button x:Name="BtnMobileCloudSignIn" Text="🔑 Sign In Google" FontSize="11" FontAttributes="Bold" BackgroundColor="#7C5CFF" TextColor="White" CornerRadius="9" Padding="10,6" Margin="0,0,6,6" Clicked="OnMobileCloudSignInClicked" />
+                                        <Button x:Name="BtnMobileCloudSyncNow" Text="🔄 Sync Now" FontSize="11" FontAttributes="Bold" BackgroundColor="#10B981" TextColor="White" CornerRadius="9" Padding="10,6" Margin="0,0,6,6" Clicked="OnMobileCloudSyncNowClicked" />
+                                        <Button x:Name="BtnMobileCloudTimeMachine" Text="🕒 Time Machine" FontSize="11" BackgroundColor="#1E2548" TextColor="#A78BFA" CornerRadius="9" Padding="10,6" Margin="0,0,6,6" Clicked="OnMobileCloudTimeMachineClicked" />
+                                        <Button x:Name="BtnMobileCloudSignOut" Text="Sign Out" IsVisible="False" FontSize="11" BackgroundColor="#4C1D24" TextColor="#FCA5A5" CornerRadius="9" Padding="10,6" Margin="0,0,0,6" Clicked="OnMobileCloudSignOutClicked" />
+                                    </FlexLayout>
+
+                                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
+                                        <Entry x:Name="EntryMobileCloudManualAuth" Placeholder="Callback redirect URL or code (fallback)" PlaceholderColor="#687296" TextColor="#F8FAFC" BackgroundColor="#151A36" FontSize="11" />
+                                        <Button Grid.Column="1" Text="Verify" FontSize="11" BackgroundColor="#1E2548" TextColor="#38BDF8" CornerRadius="8" Padding="10,6" Clicked="OnMobileCloudManualAuthClicked" />
+                                    </Grid>
+
+                                    <BoxView HeightRequest="1" Color="#1E2646" Margin="0,2" />
+
+                                    <Label Text="Quick-Pair (from PC Control Center) or OAuth Client ID:" FontSize="10.5" TextColor="#94A3C6" />
+                                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
+                                        <Entry x:Name="EntryMobileQuickPairCode" Placeholder="Paste SHPAIR1:... code here" PlaceholderColor="#687296" TextColor="#F8FAFC" BackgroundColor="#151A36" FontSize="11" />
+                                        <Button Grid.Column="1" Text="Apply Code" FontSize="11" FontAttributes="Bold" BackgroundColor="#232D58" TextColor="#38BDF8" CornerRadius="8" Padding="10,6" Clicked="OnMobileApplyQuickPairCodeClicked" />
+                                    </Grid>
+
+                                    <Entry x:Name="EntryMobileCloudClientId" Placeholder="Google OAuth Client ID (*.apps.googleusercontent.com)" PlaceholderColor="#687296" TextColor="#F8FAFC" BackgroundColor="#151A36" FontSize="11" />
+                                    <Entry x:Name="EntryMobileCloudClientSecret" Placeholder="Client Secret (optional/from JSON)" IsPassword="True" PlaceholderColor="#687296" TextColor="#F8FAFC" BackgroundColor="#151A36" FontSize="11" />
+
+                                    <FlexLayout Wrap="Wrap" JustifyContent="Start">
+                                        <Button Text="💾 Save ID/Secret" FontSize="10.5" BackgroundColor="#1E2548" TextColor="#F8FAFC" CornerRadius="8" Padding="9,5" Margin="0,0,6,6" Clicked="OnMobileSaveCloudCredentialsClicked" />
+                                        <Button Text="📄 Pick QuickPair/client_secret.json" FontSize="10.5" BackgroundColor="#1E2548" TextColor="#F8FAFC" CornerRadius="8" Padding="9,5" Margin="0,0,6,6" Clicked="OnMobilePickCloudCredentialsJsonClicked" />
+                                        <Button Text="📋 Copy Quick-Pair" FontSize="10.5" BackgroundColor="#1E2548" TextColor="#CBD5E1" CornerRadius="8" Padding="9,5" Margin="0,0,0,6" Clicked="OnMobileCopyQuickPairClicked" />
+                                    </FlexLayout>
+
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <Label Text="Auto-Sync on Edit &amp; Launch" FontSize="11.5" TextColor="#CBD5E1" VerticalOptions="Center" />
+                                        <Switch x:Name="SwitchMobileAutoSync" Grid.Column="1" IsToggled="True" OnColor="#7C5CFF" Toggled="OnMobileCloudPrefsToggled" />
+                                    </Grid>
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <Label Text="Sync PDFs, Recordings &amp; Sounds" FontSize="11.5" TextColor="#CBD5E1" VerticalOptions="Center" />
+                                        <Switch x:Name="SwitchMobileSyncFiles" Grid.Column="1" IsToggled="True" OnColor="#7C5CFF" Toggled="OnMobileCloudPrefsToggled" />
+                                    </Grid>
+                                    <Grid ColumnDefinitions="*,Auto">
+                                        <Label Text="Transfer Large Files on Wi-Fi Only" FontSize="11.5" TextColor="#CBD5E1" VerticalOptions="Center" />
+                                        <Switch x:Name="SwitchMobileWifiOnly" Grid.Column="1" IsToggled="True" OnColor="#7C5CFF" Toggled="OnMobileCloudPrefsToggled" />
+                                    </Grid>
+                                </VerticalStackLayout>
+                            </Border>
+
                             <!-- Backup & Restore -->
                             <Label Text="DATA BACKUP &amp; GITHUB UPDATER" FontSize="10.5" FontAttributes="Bold" TextColor="#94A3C6" />
                             <FlexLayout Wrap="Wrap" JustifyContent="Start">
@@ -1835,7 +1905,106 @@
             </Border>
         </Grid>
 
-        <!-- ================= 12. TOAST NOTIFICATION BANNER ================= -->
+        <!-- ================= 12. CLOUD SYNC MISMATCH SAFETY GUARDRAIL MODAL ================= -->
+        <Grid x:Name="MobileSyncMismatchModal" IsVisible="False" BackgroundColor="#B8000000" Padding="14">
+            <Border MaximumWidthRequest="500"
+                    MaximumHeightRequest="660"
+                    BackgroundColor="#FA11152C"
+                    Stroke="#F59E0B"
+                    StrokeThickness="2"
+                    StrokeShape="RoundRectangle 20"
+                    Padding="18"
+                    HorizontalOptions="Center"
+                    VerticalOptions="Center">
+                <ScrollView>
+                    <VerticalStackLayout Spacing="12">
+                        <Label x:Name="LblMobileMismatchTitle" Text="🛡️ Cloud Backup Safety Check" FontSize="16" FontAttributes="Bold" TextColor="#FBBF24" />
+                        <Label x:Name="LblMobileMismatchDesc" Text="" FontSize="12" TextColor="#CBD5E1" />
+
+                        <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+                            <Border Grid.Column="0" BackgroundColor="#0D1124" Stroke="#252E56" StrokeThickness="1" StrokeShape="RoundRectangle 12" Padding="10">
+                                <VerticalStackLayout Spacing="4">
+                                    <Label Text="📱 THIS DEVICE" FontSize="10.5" FontAttributes="Bold" TextColor="#38BDF8" />
+                                    <Label x:Name="LblMobileMismatchLocal" Text="" FontSize="11" TextColor="#F8FAFC" />
+                                </VerticalStackLayout>
+                            </Border>
+                            <Border Grid.Column="1" BackgroundColor="#0D1124" Stroke="#252E56" StrokeThickness="1" StrokeShape="RoundRectangle 12" Padding="10">
+                                <VerticalStackLayout Spacing="4">
+                                    <Label Text="☁️ GOOGLE DRIVE" FontSize="10.5" FontAttributes="Bold" TextColor="#A78BFA" />
+                                    <Label x:Name="LblMobileMismatchCloud" Text="" FontSize="11" TextColor="#F8FAFC" />
+                                </VerticalStackLayout>
+                            </Border>
+                        </Grid>
+
+                        <Button Text="✨ Smart Merge Both (Zero Data Loss)" FontSize="12.5" FontAttributes="Bold" BackgroundColor="#7C5CFF" TextColor="White" CornerRadius="10" Padding="12,10" Clicked="OnMobileMismatchSmartMergeClicked" />
+                        <Button Text="🛡️ Merge Both + Keep All Deleted Items" FontSize="12" FontAttributes="Bold" BackgroundColor="#0F3A2E" TextColor="#34D399" CornerRadius="10" Padding="12,10" Clicked="OnMobileMismatchKeepAllClicked" />
+                        <Button Text="⬇️ Restore Cloud -> Replace This Phone" FontSize="12" BackgroundColor="#1E2548" TextColor="#F8FAFC" CornerRadius="10" Padding="12,10" Clicked="OnMobileMismatchForcePullClicked" />
+                        <Button Text="⬆️ Push This Phone -> Replace Cloud" FontSize="12" BackgroundColor="#1E2548" TextColor="#F8FAFC" CornerRadius="10" Padding="12,10" Clicked="OnMobileMismatchForcePushClicked" />
+                        <Button Text="Cancel" FontSize="12" BackgroundColor="#151A36" TextColor="#94A3C6" CornerRadius="10" Padding="12,8" Clicked="OnMobileMismatchCancelClicked" />
+                    </VerticalStackLayout>
+                </ScrollView>
+            </Border>
+        </Grid>
+
+        <!-- ================= 13. CLOUD SYNC CONFLICT RESOLVER MODAL ================= -->
+        <Grid x:Name="MobileSyncConflictModal" IsVisible="False" BackgroundColor="#B8000000" Padding="14">
+            <Border MaximumWidthRequest="540"
+                    MaximumHeightRequest="680"
+                    BackgroundColor="#FA11152C"
+                    Stroke="#7C5CFF"
+                    StrokeThickness="2"
+                    StrokeShape="RoundRectangle 20"
+                    Padding="16"
+                    HorizontalOptions="Center"
+                    VerticalOptions="Center">
+                <Grid RowDefinitions="Auto,*,Auto" RowSpacing="10">
+                    <VerticalStackLayout Grid.Row="0" Spacing="3">
+                        <Label Text="🔀 Resolve Offline Edits Side-by-Side" FontSize="15.5" FontAttributes="Bold" TextColor="#F8FAFC" />
+                        <Label x:Name="LblMobileConflictSub" Text="Choose how to merge items edited on both devices." FontSize="11" TextColor="#94A3C6" />
+                    </VerticalStackLayout>
+                    <ScrollView Grid.Row="1">
+                        <VerticalStackLayout x:Name="MobileConflictsContainer" Spacing="10" />
+                    </ScrollView>
+                    <Grid Grid.Row="2" ColumnDefinitions="Auto,*" ColumnSpacing="8">
+                        <Button Text="Cancel" FontSize="12" BackgroundColor="#151A36" TextColor="#94A3C6" CornerRadius="10" Padding="14,8" Clicked="OnMobileConflictCancelClicked" />
+                        <Button Grid.Column="1" Text="✅ Apply Decisions &amp; Finish Sync" FontSize="12" FontAttributes="Bold" BackgroundColor="#7C5CFF" TextColor="White" CornerRadius="10" Padding="14,8" Clicked="OnMobileConflictApplyClicked" />
+                    </Grid>
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- ================= 14. CLOUD TIME MACHINE SNAPSHOTS MODAL ================= -->
+        <Grid x:Name="MobileTimeMachineModal" IsVisible="False" BackgroundColor="#B8000000" Padding="14">
+            <Border MaximumWidthRequest="520"
+                    MaximumHeightRequest="660"
+                    BackgroundColor="#FA11152C"
+                    Stroke="#334175"
+                    StrokeThickness="1.5"
+                    StrokeShape="RoundRectangle 20"
+                    Padding="16"
+                    HorizontalOptions="Center"
+                    VerticalOptions="Center">
+                <Grid RowDefinitions="Auto,Auto,*,Auto" RowSpacing="10">
+                    <Grid Grid.Row="0" ColumnDefinitions="*,Auto">
+                        <VerticalStackLayout Spacing="2">
+                            <Label Text="🕒 Cloud Time Machine" FontSize="16" FontAttributes="Bold" TextColor="#F8FAFC" />
+                            <Label Text="Restore any rolling snapshot from StudyHub_Sync/Snapshots/" FontSize="11" TextColor="#94A3C6" />
+                        </VerticalStackLayout>
+                        <Button Grid.Column="1" Text="✕" FontSize="13" WidthRequest="32" HeightRequest="32" CornerRadius="16" Padding="0" BackgroundColor="#1A1E36" TextColor="#CBD5E1" Clicked="OnCloseMobileTimeMachineClicked" />
+                    </Grid>
+                    <Grid Grid.Row="1" ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                        <Button Text="📸 Create Snapshot Now" FontSize="11.5" FontAttributes="Bold" BackgroundColor="#7C5CFF" TextColor="White" CornerRadius="9" Clicked="OnMobileCreateSnapshotNowClicked" />
+                        <Button Grid.Column="1" Text="🔄 Refresh" FontSize="11.5" BackgroundColor="#1E2548" TextColor="#38BDF8" CornerRadius="9" Padding="12,6" Clicked="OnMobileRefreshSnapshotsClicked" />
+                    </Grid>
+                    <ScrollView Grid.Row="2">
+                        <VerticalStackLayout x:Name="MobileSnapshotsContainer" Spacing="8" />
+                    </ScrollView>
+                    <Button Grid.Row="3" Text="Close" FontSize="12" BackgroundColor="#151A36" TextColor="#CBD5E1" CornerRadius="10" Clicked="OnCloseMobileTimeMachineClicked" />
+                </Grid>
+            </Border>
+        </Grid>
+
+        <!-- ================= 15. TOAST NOTIFICATION BANNER ================= -->
         <Border x:Name="ToastBanner"
                 IsVisible="False"
                 BackgroundColor="#F0181F3E"

@@ -647,8 +647,8 @@ del ""%~f0""
                     sb.AppendLine(")");
                     sb.AppendLine("echo Updating Study Hub files (preserving your database and files)...");
 
-                    // Copy updated source/app files while preserving user data folders & db
-                    sb.AppendLine($"robocopy \"{sourceRoot}\" \"{_baseDir}\" /E /XD \"StudyHub_Files\" \"StudyHub_Sounds\" \"StudyHub_Backups\" \"StudyHub_Converted_PDFs\" \"webview_data\" \"_update_staging\" \".git\" \"bin\" \"obj\" /XF \"study_hub.db\" \"study_hub_state.json\" \"StudyHub_Updater.bat\" >NUL 2>&1");
+                    // Copy updated source/app files while preserving user data folders, db, and local sync config
+                    sb.AppendLine($"robocopy \"{sourceRoot}\" \"{_baseDir}\" /E /XD \"StudyHub_Files\" \"StudyHub_Sounds\" \"StudyHub_Backups\" \"StudyHub_Converted_PDFs\" \"StudyHub_SyncCache\" \"webview_data\" \"_update_staging\" \".git\" \"bin\" \"obj\" /XF \"study_hub.db\" \"study_hub_state.json\" \"gdrive_device_config.json\" \"last_synced_snapshot.json\" \"sync_entity_hashes.json\" \"StudyHub_Updater.bat\" >NUL 2>&1");
 
                     if (hasCsproj)
                     {
