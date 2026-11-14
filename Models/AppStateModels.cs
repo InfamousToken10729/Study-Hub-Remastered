@@ -82,6 +82,9 @@ namespace StudyHub.Models
         [JsonPropertyName("savedSoundPresets")]
         public List<SoundPresetItem> SavedSoundPresets { get; set; } = new();
 
+        [JsonPropertyName("customZenMedia")]
+        public List<CustomZenMediaItem> CustomZenMedia { get; set; } = new();
+
         [JsonPropertyName("activity")]
         public Dictionary<string, int> Activity { get; set; } = new();
 
@@ -130,6 +133,7 @@ namespace StudyHub.Models
             Links ??= new();
             CustomSounds ??= new();
             SavedSoundPresets ??= new();
+            CustomZenMedia ??= new();
             Activity ??= new();
             SubjectTimes ??= new();
             PdfProgress ??= new();
@@ -175,6 +179,14 @@ namespace StudyHub.Models
             foreach (var l in Links) { l.Title ??= ""; l.Url ??= ""; l.UpdatedAtUtc ??= ""; }
             foreach (var s in CustomSounds) { s.Sha256 ??= ""; s.UpdatedAtUtc ??= ""; }
             foreach (var sp in SavedSoundPresets) { sp.Levels ??= new(); sp.UpdatedAtUtc ??= ""; }
+            foreach (var z in CustomZenMedia)
+            {
+                z.Title ??= "";
+                z.Filename ??= "";
+                z.MediaType = string.IsNullOrWhiteSpace(z.MediaType) ? "video" : z.MediaType;
+                z.Sha256 ??= "";
+                z.UpdatedAtUtc ??= "";
+            }
         }
     }
 
@@ -449,6 +461,31 @@ namespace StudyHub.Models
         public string UpdatedAtUtc { get; set; } = "";
     }
 
+    public class CustomZenMediaItem
+    {
+        [JsonPropertyName("id")]
+        [JsonConverter(typeof(FlexibleStringConverter))]
+        public string Id { get; set; } = "";
+
+        [JsonPropertyName("title")]
+        public string Title { get; set; } = "";
+
+        [JsonPropertyName("filename")]
+        public string Filename { get; set; } = "";
+
+        [JsonPropertyName("mediaType")]
+        public string MediaType { get; set; } = "video";
+
+        [JsonPropertyName("sha256")]
+        public string Sha256 { get; set; } = "";
+
+        [JsonPropertyName("fileSizeBytes")]
+        public long FileSizeBytes { get; set; } = 0;
+
+        [JsonPropertyName("updatedAtUtc")]
+        public string UpdatedAtUtc { get; set; } = "";
+    }
+
     public class UserSettings
     {
         [JsonPropertyName("defaultSaveLocation")]
@@ -556,6 +593,30 @@ namespace StudyHub.Models
 
         [JsonPropertyName("wifiOnlyFileSync")]
         public bool WifiOnlyFileSync { get; set; } = true;
+
+        [JsonPropertyName("syncCoursesAndNotes")]
+        public bool SyncCoursesAndNotes { get; set; } = true;
+
+        [JsonPropertyName("syncLinksAndDeadlines")]
+        public bool SyncLinksAndDeadlines { get; set; } = true;
+
+        [JsonPropertyName("syncCalendar")]
+        public bool SyncCalendar { get; set; } = true;
+
+        [JsonPropertyName("syncPdfs")]
+        public bool SyncPdfs { get; set; } = true;
+
+        [JsonPropertyName("syncVideosAndRecordings")]
+        public bool SyncVideosAndRecordings { get; set; } = true;
+
+        [JsonPropertyName("syncExtraZenScenes")]
+        public bool SyncExtraZenScenes { get; set; } = true;
+
+        [JsonPropertyName("syncExtraAudio")]
+        public bool SyncExtraAudio { get; set; } = true;
+
+        [JsonPropertyName("syncPreferences")]
+        public bool SyncPreferences { get; set; } = true;
 
         [JsonPropertyName("lastSyncStatusText")]
         public string LastSyncStatusText { get; set; } = "";

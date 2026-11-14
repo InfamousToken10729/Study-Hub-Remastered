@@ -114,6 +114,16 @@ public partial class MauiMainPage : ContentPage
         ("city_shoreline", "🌉 City Shoreline", "City Shoreline • Waterfront Harbor Reflections"),
         ("sunset", "🌅 Sunset", "Sunset • Golden Dusk Sky & Gliding Flock"),
         ("rainy_forest", "🌧️ Rainy Forest", "Rainy Forest • Misty Canopy & Falling Rain"),
+        ("bioluminescent_grotto", "🐚 Bioluminescent Grotto", "Bioluminescent Grotto • Glowing Cavern & Lagoon"),
+        ("observatory_morning", "🔭 Observatory (Morning)", "Observatory (Morning) • Alpine Dawn Telescope"),
+        ("observatory_night", "🌌 Observatory (Night)", "Observatory (Night) • Milky Way & Starlit Peak"),
+        ("observatory_sunset", "🌇 Observatory (Sunset)", "Observatory (Sunset) • Alpenglow Telescope Dome"),
+        ("bamboo_garden", "🎋 Zen Bamboo Garden", "Zen Bamboo Garden • Swaying Grove & Lantern"),
+        ("volcanic_caldera", "🌋 Volcanic Caldera", "Volcanic Caldera • Molten Lava Basin & Embers"),
+        ("ancient_temple", "⛩️ Ancient Temple", "Ancient Temple • Twilight Sanctuary & Braziers"),
+        ("fireplace", "🔥 Fireplace", "Fireplace • Crackling Hearth Flames & Sparks"),
+        ("ocean_shore", "🏖️ Ocean Shore", "Ocean Shore • Rolling Surf & Coastal Tide"),
+        ("crystal_cave", "💎 Crystal Cave", "Crystal Cave • Amethyst & Quartz Reflections"),
         ("none", "🌑 None (Minimalist)", "None • Static Focus Backdrop")
     };
 
@@ -329,13 +339,20 @@ public partial class MauiMainPage : ContentPage
         }
     }
 
-    private static string NormalizeZenSceneKey(string? key) => (key ?? "north_pole").ToLowerInvariant() switch
+    private static string NormalizeZenSceneKey(string? key)
     {
-        "desert_dunes" => "desert",
-        "shipwreck_cove" => "shipwreck",
-        "custom" or "" => "north_pole",
-        var k => k
-    };
+        string raw = (key ?? "north_pole").Trim();
+        if (raw.StartsWith("custom_media:", StringComparison.OrdinalIgnoreCase))
+            return raw;
+
+        return raw.ToLowerInvariant() switch
+        {
+            "desert_dunes" => "desert",
+            "shipwreck_cove" => "shipwreck",
+            "custom" or "" => "north_pole",
+            var k => k
+        };
+    }
 
     private void PopulateZenScenePicker()
     {
@@ -348,6 +365,29 @@ public partial class MauiMainPage : ContentPage
     private void UpdateZenSceneUi()
     {
         string activeKey = NormalizeZenSceneKey(_state.Settings.ZenScene);
+        if (activeKey.StartsWith("custom_media:", StringComparison.OrdinalIgnoreCase))
+        {
+            string id = activeKey.Substring("custom_media:".Length);
+            var cm = _state.CustomZenMedia.FirstOrDefault(z => z.Id == id);
+            if (cm != null)
+            {
+                string typeTag = string.Equals(cm.MediaType, "image", StringComparison.OrdinalIgnoreCase) ? "Image" : "Video";
+                BtnZenSceneSelector.Text = $"✨ {cm.Title} ▾";
+                BtnSettingsZenScene.Text = $"🧘 Zen World: {cm.Title} ▾";
+                LblZenSceneBadge.Text = $"● Synced Custom {typeTag} • {cm.Title}";
+                _backdrop.ZenScene = "north_pole";
+                _ = ApplyMobileCustomZenMediaVisualAsync(cm);
+                return;
+            }
+            activeKey = "north_pole";
+            _state.Settings.ZenScene = activeKey;
+        }
+
+        ImgZenCustomMedia.Source = null;
+        ImgZenCustomMedia.IsVisible = false;
+        BtnZenPlayCustomVideo.IsVisible = false;
+        _backdrop.ZenScene = activeKey;
+
         var match = ZenScenes.FirstOrDefault(s => string.Equals(s.Key, activeKey, StringComparison.OrdinalIgnoreCase));
         if (string.IsNullOrEmpty(match.Key))
             match = ZenScenes[0];
@@ -355,6 +395,36 @@ public partial class MauiMainPage : ContentPage
         BtnZenSceneSelector.Text = $"{match.Label} ▾";
         BtnSettingsZenScene.Text = $"🧘 Zen World: {match.Label} ▾";
         LblZenSceneBadge.Text = $"● {match.Subtitle}";
+    }
+
+    private async Task ApplyMobileCustomZenMediaVisualAsync(CustomZenMediaItem cm)
+    {
+        string path = _storage.GetZenMediaFilePath(cm.Filename);
+        if (!File.Exists(path) && _cloudSync.Config.HasValidSession)
+        {
+            var (ok, dlPath, _) = await _cloudSync.EnsureBinaryFileDownloadedAsync(cm.Filename, "zen", cm.Filename);
+            if (ok && File.Exists(dlPath)) path = dlPath;
+        }
+
+        MainThread.BeginInvokeOnMainThread(() =>
+        {
+            if (!string.Equals(_state.Settings.ZenScene, $"custom_media:{cm.Id}", StringComparison.OrdinalIgnoreCase))
+                return;
+
+            bool isImage = string.Equals(cm.MediaType, "image", StringComparison.OrdinalIgnoreCase);
+            if (isImage && File.Exists(path))
+            {
+                ImgZenCustomMedia.Source = ImageSource.FromFile(path);
+                ImgZenCustomMedia.IsVisible = true;
+                BtnZenPlayCustomVideo.IsVisible = false;
+            }
+            else
+            {
+                ImgZenCustomMedia.Source = null;
+                ImgZenCustomMedia.IsVisible = false;
+                BtnZenPlayCustomVideo.IsVisible = !isImage;
+            }
+        });
     }
 
     private void BuildZenSceneModalList()
@@ -429,6 +499,91 @@ public partial class MauiMainPage : ContentPage
             card.Content = row;
             ZenScenesListContainer.Children.Add(card);
         }
+
+        if (_state.CustomZenMedia.Count > 0)
+        {
+            ZenScenesListContainer.Children.Add(new Label
+            {
+                Text = "SYNCED CUSTOM ZEN SCENES",
+                FontSize = 10.5,
+                FontAttributes = FontAttributes.Bold,
+                TextColor = Color.FromArgb("#94A3C6"),
+                Margin = new Thickness(4, 8, 4, 0)
+            });
+
+            foreach (var cm in _state.CustomZenMedia.ToList())
+            {
+                string targetKey = $"custom_media:{cm.Id}";
+                bool isSelected = string.Equals(targetKey, activeKey, StringComparison.OrdinalIgnoreCase);
+
+                var card = new Border
+                {
+                    BackgroundColor = isSelected ? Color.FromArgb("#232B58") : Color.FromArgb("#151A36"),
+                    Stroke = isSelected ? Color.FromArgb("#7C5CFF") : Color.FromArgb("#28315A"),
+                    StrokeThickness = isSelected ? 1.8 : 1.0,
+                    StrokeShape = new RoundRectangle { CornerRadius = 14 },
+                    Padding = new Thickness(14, 10)
+                };
+
+                var row = new Grid
+                {
+                    ColumnDefinitions =
+                    {
+                        new ColumnDefinition { Width = GridLength.Star },
+                        new ColumnDefinition { Width = GridLength.Auto }
+                    },
+                    ColumnSpacing = 8
+                };
+
+                var info = new VerticalStackLayout { Spacing = 2, VerticalOptions = LayoutOptions.Center };
+                info.Children.Add(new Label
+                {
+                    Text = $"✨ {cm.Title}",
+                    FontSize = 13.5,
+                    FontAttributes = FontAttributes.Bold,
+                    TextColor = isSelected ? Color.FromArgb("#FACC15") : Color.FromArgb("#F8FAFC")
+                });
+                info.Children.Add(new Label
+                {
+                    Text = $"Synced Custom {(string.Equals(cm.MediaType, "image", StringComparison.OrdinalIgnoreCase) ? "Image" : "Video")} • {cm.Filename}",
+                    FontSize = 10.5,
+                    TextColor = Color.FromArgb("#94A3C6"),
+                    LineBreakMode = LineBreakMode.TailTruncation
+                });
+                row.Add(info, 0, 0);
+
+                var delBtn = new Button
+                {
+                    Text = "🗑️",
+                    FontSize = 12,
+                    BackgroundColor = Color.FromArgb("#3B182A"),
+                    TextColor = Color.FromArgb("#F43F5E"),
+                    CornerRadius = 8,
+                    Padding = new Thickness(8, 4),
+                    VerticalOptions = LayoutOptions.Center
+                };
+                var captureCm = cm;
+                delBtn.Clicked += async (_, _) =>
+                {
+                    _state.CustomZenMedia.RemoveAll(z => z.Id == captureCm.Id);
+                    _storage.DeleteZenMediaFile(captureCm.Filename);
+                    if (string.Equals(_state.Settings.ZenScene, targetKey, StringComparison.OrdinalIgnoreCase))
+                        _state.Settings.ZenScene = "north_pole";
+                    await _storage.SaveStateAsync(_state);
+                    UpdateZenSceneUi();
+                    BuildZenSceneModalList();
+                    BackdropCanvas.Invalidate();
+                };
+                row.Add(delBtn, 1, 0);
+
+                var tap = new TapGestureRecognizer();
+                tap.Tapped += (_, _) => SelectZenScene(targetKey);
+                card.GestureRecognizers.Add(tap);
+
+                card.Content = row;
+                ZenScenesListContainer.Children.Add(card);
+            }
+        }
     }
 
     private void ApplySavedSettingsToUi()
@@ -466,8 +621,17 @@ public partial class MauiMainPage : ContentPage
         SwitchMobileAutoSync.IsToggled = _state.Settings.AutoSyncEnabled;
         SwitchMobileSyncFiles.IsToggled = _state.Settings.SyncFilesEnabled;
         SwitchMobileWifiOnly.IsToggled = _state.Settings.WifiOnlyFileSync;
+        SwitchMobileSyncCourses.IsToggled = _state.Settings.SyncCoursesAndNotes;
+        SwitchMobileSyncLinks.IsToggled = _state.Settings.SyncLinksAndDeadlines;
+        SwitchMobileSyncCalendar.IsToggled = _state.Settings.SyncCalendar;
+        SwitchMobileSyncPdfs.IsToggled = _state.Settings.SyncPdfs;
+        SwitchMobileSyncVideos.IsToggled = _state.Settings.SyncVideosAndRecordings;
+        SwitchMobileSyncZen.IsToggled = _state.Settings.SyncExtraZenScenes;
+        SwitchMobileSyncAudio.IsToggled = _state.Settings.SyncExtraAudio;
+        SwitchMobileSyncPrefs.IsToggled = _state.Settings.SyncPreferences;
         _isInitializingSettingsUi = false;
 
+        UpdateZenSceneUi();
         ApplyTimerDockPosition(_state.TimerDock ?? "bottom-right");
         ApplySurfaceThemeColors();
         UpdateMobileCloudSyncUiState();
@@ -1344,6 +1508,8 @@ public partial class MauiMainPage : ContentPage
         (string Key, string Label)[] tabs =
         {
             ("Files", "📁 Files & PDF"),
+            ("Videos", "🎬 Videos"),
+            ("Recordings", "🎙️ Recordings"),
             ("Notes", "📝 Notes"),
             ("Tasks", "✅ Tasks"),
             ("Flashcards", "🃏 Flashcards"),
@@ -1377,6 +1543,8 @@ public partial class MauiMainPage : ContentPage
         BuildSubjectTabsBar();
 
         TabFilesView.IsVisible = tabKey == "Files";
+        TabVideosView.IsVisible = tabKey == "Videos";
+        TabRecordingsView.IsVisible = tabKey == "Recordings";
         TabNotesView.IsVisible = tabKey == "Notes";
         TabTasksView.IsVisible = tabKey == "Tasks";
         TabFlashcardsView.IsVisible = tabKey == "Flashcards";
@@ -1385,6 +1553,8 @@ public partial class MauiMainPage : ContentPage
         TabLinksView.IsVisible = tabKey == "Links";
 
         if (tabKey == "Files") RenderSubjectFilesTab();
+        else if (tabKey == "Videos") RenderSubjectVideosTab();
+        else if (tabKey == "Recordings") RenderSubjectRecordingsTab();
         else if (tabKey == "Notes") LoadSubjectNotesTab();
         else if (tabKey == "Tasks") RenderSubjectTasksTab();
         else if (tabKey == "Flashcards") RenderSubjectFlashcardsTab();
@@ -1593,21 +1763,55 @@ public partial class MauiMainPage : ContentPage
 
     // ---- In-App Native PDF Reader with Dark Mode ----
 
+    private async Task<string?> ResolveOrDownloadStudyFileAsync(string filename, string displayName)
+    {
+        string fullPath = _storage.GetStudyFilePath(filename);
+        if (File.Exists(fullPath)) return fullPath;
+
+        if (_cloudSync.Config.HasValidSession)
+        {
+            ShowToast($"⬇️ Downloading '{displayName}' from Google Drive...");
+            var (ok, downloadedPath, err) = await _cloudSync.EnsureBinaryFileDownloadedAsync(filename, "files", displayName);
+            if (ok && File.Exists(downloadedPath))
+                return downloadedPath;
+
+            await DisplayAlert("File Not Found", $"Could not locate '{displayName}' on disk or download it from Google Drive.\n{err}", "OK");
+            return null;
+        }
+
+        await DisplayAlert("File Not Found", $"Could not locate '{displayName}' on disk. Sign in to Google Drive Sync and run Sync Now to download synced files.", "OK");
+        return null;
+    }
+
     private async Task OpenStudyFileAsync(StudyFileItem file)
     {
-        string fullPath = _storage.GetStudyFilePath(file.Filename);
-        if (!File.Exists(fullPath))
+        string? fullPath = await ResolveOrDownloadStudyFileAsync(file.Filename, file.OriginalName);
+        if (string.IsNullOrEmpty(fullPath)) return;
+
+        string ext = Path.GetExtension(fullPath).ToLowerInvariant();
+        if (ext == ".pdf" || ext == ".png" || ext == ".jpg" || ext == ".jpeg" || ext == ".webp" || ext == ".bmp" || ext == ".gif")
         {
-            await DisplayAlert("File Not Found", $"Could not locate '{file.OriginalName}' on disk.", "OK");
+            _currentPdfFilePath = fullPath;
+            LblPdfTitle.Text = file.OriginalName;
+            LblPdfSubject.Text = $"{_currentSubject?.Name ?? "Course"} • StudyHub In-App PDF Reader";
+            PdfReaderOverlay.IsVisible = true;
+
+            await RenderPdfDocumentPagesAsync(fullPath);
             return;
         }
 
-        _currentPdfFilePath = fullPath;
-        LblPdfTitle.Text = file.OriginalName;
-        LblPdfSubject.Text = $"{_currentSubject?.Name ?? "Course"} • StudyHub In-App PDF Reader";
-        PdfReaderOverlay.IsVisible = true;
-
-        await RenderPdfDocumentPagesAsync(fullPath);
+        try
+        {
+            await Launcher.Default.OpenAsync(new OpenFileRequest
+            {
+                Title = file.OriginalName,
+                File = new ReadOnlyFile(fullPath)
+            });
+        }
+        catch (Exception ex)
+        {
+            await DisplayAlert("Open File", $"Could not open '{file.OriginalName}': {ex.Message}", "OK");
+        }
     }
 
     private async Task RenderPdfDocumentPagesAsync(string fullPath)
@@ -2290,6 +2494,170 @@ public partial class MauiMainPage : ContentPage
         }
     }
 
+    private void RenderMediaTracksTab(VerticalStackLayout container, List<MediaTrackItem> masterList, string subjectId, string icon, string emptyMsg)
+    {
+        container.Children.Clear();
+        var tracks = masterList.Where(t => t.SubjectId == subjectId).ToList();
+        if (tracks.Count == 0)
+        {
+            container.Children.Add(new Label
+            {
+                Text = emptyMsg,
+                FontSize = 12,
+                TextColor = Color.FromArgb("#94A3C6"),
+                Margin = new Thickness(4, 12)
+            });
+            return;
+        }
+
+        foreach (var item in tracks.ToList())
+        {
+            var row = new Border
+            {
+                BackgroundColor = Color.FromArgb("#141933"),
+                Stroke = Color.FromArgb("#252F58"),
+                StrokeThickness = 1,
+                StrokeShape = new RoundRectangle { CornerRadius = 10 },
+                Padding = new Thickness(12, 8)
+            };
+            var g = new Grid
+            {
+                ColumnDefinitions =
+                {
+                    new ColumnDefinition { Width = GridLength.Star },
+                    new ColumnDefinition { Width = GridLength.Auto },
+                    new ColumnDefinition { Width = GridLength.Auto }
+                },
+                ColumnSpacing = 8
+            };
+
+            var info = new VerticalStackLayout { Spacing = 2, VerticalOptions = LayoutOptions.Center };
+            info.Children.Add(new Label
+            {
+                Text = $"{icon} {item.Title}",
+                FontSize = 13,
+                FontAttributes = FontAttributes.Bold,
+                TextColor = Color.FromArgb("#F8FAFC"),
+                LineBreakMode = LineBreakMode.TailTruncation
+            });
+            bool isLocal = File.Exists(_storage.GetStudyFilePath(item.Filename));
+            info.Children.Add(new Label
+            {
+                Text = isLocal ? item.Date : $"{item.Date} • Stored in Cloud (tap Play to download)",
+                FontSize = 10.5,
+                TextColor = isLocal ? Color.FromArgb("#94A3C6") : Color.FromArgb("#38BDF8")
+            });
+            g.Add(info, 0, 0);
+
+            var playBtn = new Button
+            {
+                Text = "▶ Play",
+                FontSize = 11,
+                BackgroundColor = Color.FromArgb("#7C5CFF"),
+                TextColor = Colors.White,
+                CornerRadius = 8,
+                Padding = new Thickness(10, 4)
+            };
+            var captureItem = item;
+            playBtn.Clicked += async (_, _) =>
+            {
+                string? path = await ResolveOrDownloadStudyFileAsync(captureItem.Filename, captureItem.Title);
+                if (string.IsNullOrEmpty(path)) return;
+                try
+                {
+                    await Launcher.Default.OpenAsync(new OpenFileRequest
+                    {
+                        Title = captureItem.Title,
+                        File = new ReadOnlyFile(path)
+                    });
+                }
+                catch (Exception ex)
+                {
+                    await DisplayAlert("Playback Error", $"Could not play '{captureItem.Title}': {ex.Message}", "OK");
+                }
+            };
+            g.Add(playBtn, 1, 0);
+
+            var delBtn = new Button
+            {
+                Text = "🗑️",
+                FontSize = 11,
+                BackgroundColor = Color.FromArgb("#3B182A"),
+                TextColor = Color.FromArgb("#F43F5E"),
+                CornerRadius = 8,
+                Padding = new Thickness(8, 4)
+            };
+            delBtn.Clicked += async (_, _) =>
+            {
+                masterList.Remove(captureItem);
+                if (!string.IsNullOrWhiteSpace(captureItem.Filename))
+                    _storage.DeleteStudyFile(captureItem.Filename);
+                RenderMediaTracksTab(container, masterList, subjectId, icon, emptyMsg);
+                await _storage.SaveStateAsync(_state);
+            };
+            g.Add(delBtn, 2, 0);
+
+            row.Content = g;
+            container.Children.Add(row);
+        }
+    }
+
+    private void RenderSubjectVideosTab()
+    {
+        if (_currentSubject == null) return;
+        RenderMediaTracksTab(VideosListContainer, _state.Videos, _currentSubject.Id, "🎬", "No lecture videos yet. Tap + Upload Video to add one.");
+    }
+
+    private void RenderSubjectRecordingsTab()
+    {
+        if (_currentSubject == null) return;
+        RenderMediaTracksTab(RecordingsListContainer, _state.Recordings, _currentSubject.Id, "🎙️", "No audio recordings yet. Tap + Upload Audio to add one.");
+    }
+
+    private async void OnAddVideoClicked(object? sender, EventArgs e)
+    {
+        if (_currentSubject == null) return;
+        try
+        {
+            var picked = await FilePicker.Default.PickAsync(new PickOptions { PickerTitle = "Select Lecture Video" });
+            if (picked == null) return;
+            string localPath = await CopyPickedFileToLocalTempAsync(picked);
+            string title = await DisplayPromptAsync("Video Title", "Enter a title for this video:", initialValue: Path.GetFileNameWithoutExtension(picked.FileName))
+                           ?? Path.GetFileNameWithoutExtension(picked.FileName);
+            var item = _storage.ImportMediaFile(localPath, _currentSubject.Id, string.IsNullOrWhiteSpace(title) ? picked.FileName : title.Trim());
+            _state.Videos.Add(item);
+            RenderSubjectVideosTab();
+            await _storage.SaveStateAsync(_state);
+            ShowToast($"Added video '{item.Title}' 🎬");
+        }
+        catch (Exception ex)
+        {
+            await DisplayAlert("Video Import", ex.Message, "OK");
+        }
+    }
+
+    private async void OnAddRecordingClicked(object? sender, EventArgs e)
+    {
+        if (_currentSubject == null) return;
+        try
+        {
+            var picked = await FilePicker.Default.PickAsync(new PickOptions { PickerTitle = "Select Audio Recording" });
+            if (picked == null) return;
+            string localPath = await CopyPickedFileToLocalTempAsync(picked);
+            string title = await DisplayPromptAsync("Recording Title", "Enter a title for this recording:", initialValue: Path.GetFileNameWithoutExtension(picked.FileName))
+                           ?? Path.GetFileNameWithoutExtension(picked.FileName);
+            var item = _storage.ImportMediaFile(localPath, _currentSubject.Id, string.IsNullOrWhiteSpace(title) ? picked.FileName : title.Trim());
+            _state.Recordings.Add(item);
+            RenderSubjectRecordingsTab();
+            await _storage.SaveStateAsync(_state);
+            ShowToast($"Added recording '{item.Title}' 🎙️");
+        }
+        catch (Exception ex)
+        {
+            await DisplayAlert("Recording Import", ex.Message, "OK");
+        }
+    }
+
     private async void OnAddLinkClicked(object? sender, EventArgs e)
     {
         if (_currentSubject == null) return;
@@ -2655,11 +3023,74 @@ public partial class MauiMainPage : ContentPage
         ZenScenePickerModal.IsVisible = false;
     }
 
+    private async void OnAddCustomZenMediaClicked(object? sender, EventArgs e)
+    {
+        try
+        {
+            var picked = await FilePicker.Default.PickAsync(new PickOptions { PickerTitle = "Pick Custom Zen Video or Wallpaper (Synced)" });
+            if (picked == null) return;
+            string localPath = await CopyPickedFileToLocalTempAsync(picked);
+            string defName = Path.GetFileNameWithoutExtension(picked.FileName);
+            string? title = await DisplayPromptAsync("Synced Zen Scene", "Name for this custom Zen scene:", initialValue: defName);
+            if (string.IsNullOrWhiteSpace(title)) title = defName;
+
+            var item = _storage.ImportCustomZenMedia(localPath, title);
+            _state.CustomZenMedia.Add(item);
+            await _storage.SaveStateAsync(_state);
+            SelectZenScene($"custom_media:{item.Id}");
+            ShowToast($"Added synced Zen scene '{item.Title}' ✨");
+        }
+        catch (Exception ex)
+        {
+            await DisplayAlert("Zen Import", ex.Message, "OK");
+        }
+    }
+
+    private async void OnPlayCustomZenVideoClicked(object? sender, EventArgs e)
+    {
+        string activeKey = NormalizeZenSceneKey(_state.Settings.ZenScene);
+        if (!activeKey.StartsWith("custom_media:", StringComparison.OrdinalIgnoreCase)) return;
+        string id = activeKey.Substring("custom_media:".Length);
+        var cm = _state.CustomZenMedia.FirstOrDefault(z => z.Id == id);
+        if (cm == null) return;
+
+        string path = _storage.GetZenMediaFilePath(cm.Filename);
+        if (!File.Exists(path) && _cloudSync.Config.HasValidSession)
+        {
+            ShowToast($"⬇️ Downloading '{cm.Title}' from Google Drive...");
+            var (ok, dlPath, err) = await _cloudSync.EnsureBinaryFileDownloadedAsync(cm.Filename, "zen", cm.Filename);
+            if (ok && File.Exists(dlPath)) path = dlPath;
+            else
+            {
+                await DisplayAlert("File Not Found", $"Could not download Zen video '{cm.Title}': {err}", "OK");
+                return;
+            }
+        }
+        if (!File.Exists(path))
+        {
+            await DisplayAlert("File Not Found", $"Could not locate '{cm.Title}' on disk.", "OK");
+            return;
+        }
+        try
+        {
+            await Launcher.Default.OpenAsync(new OpenFileRequest
+            {
+                Title = cm.Title,
+                File = new ReadOnlyFile(path)
+            });
+        }
+        catch (Exception ex)
+        {
+            await DisplayAlert("Zen Video", ex.Message, "OK");
+        }
+    }
+
     private void SelectZenScene(string sceneKey)
     {
         string normalized = NormalizeZenSceneKey(sceneKey);
-        _backdrop.ZenScene = normalized;
         _state.Settings.ZenScene = normalized;
+        if (!normalized.StartsWith("custom_media:", StringComparison.OrdinalIgnoreCase))
+            _backdrop.ZenScene = normalized;
 
         if (!ZenModeOverlay.IsVisible)
         {
@@ -3441,7 +3872,12 @@ public partial class MauiMainPage : ContentPage
         ShowToast($"Particles: {effectKey.Replace('_', ' ')}");
     }
 
+    private void OnParticleCosmicClicked(object? sender, EventArgs e) => SetParticleEffect("cosmic");
     private void OnParticleNetworkClicked(object? sender, EventArgs e) => SetParticleEffect("network");
+    private void OnParticleOrbsClicked(object? sender, EventArgs e) => SetParticleEffect("orbs");
+    private void OnParticleLavaLampClicked(object? sender, EventArgs e) => SetParticleEffect("lava_lamp");
+    private void OnParticleMeteorClicked(object? sender, EventArgs e) => SetParticleEffect("meteor");
+    private void OnParticleWaterRippleClicked(object? sender, EventArgs e) => SetParticleEffect("water_ripple");
     private void OnParticleStarsClicked(object? sender, EventArgs e) => SetParticleEffect("fading_stars");
     private void OnParticleSnowClicked(object? sender, EventArgs e) => SetParticleEffect("snow");
     private void OnParticleMatrixClicked(object? sender, EventArgs e) => SetParticleEffect("matrix");
@@ -3449,7 +3885,7 @@ public partial class MauiMainPage : ContentPage
     private void OnParticleSakuraClicked(object? sender, EventArgs e) => SetParticleEffect("sakura");
     private void OnParticleEmbersClicked(object? sender, EventArgs e) => SetParticleEffect("embers");
     private void OnParticleBubblesClicked(object? sender, EventArgs e) => SetParticleEffect("bubbles");
-    private void OnParticleNoneClicked(object? sender, EventArgs e) => SetParticleEffect("none");
+    private void OnParticleNoneClicked(object? sender, EventArgs e) => SetParticleEffect("disable");
 
     private void OnExportBackupClicked(object? sender, EventArgs e)
     {
@@ -3906,6 +4342,14 @@ public partial class MauiMainPage : ContentPage
         _state.Settings.AutoSyncEnabled = SwitchMobileAutoSync.IsToggled;
         _state.Settings.SyncFilesEnabled = SwitchMobileSyncFiles.IsToggled;
         _state.Settings.WifiOnlyFileSync = SwitchMobileWifiOnly.IsToggled;
+        _state.Settings.SyncCoursesAndNotes = SwitchMobileSyncCourses.IsToggled;
+        _state.Settings.SyncLinksAndDeadlines = SwitchMobileSyncLinks.IsToggled;
+        _state.Settings.SyncCalendar = SwitchMobileSyncCalendar.IsToggled;
+        _state.Settings.SyncPdfs = SwitchMobileSyncPdfs.IsToggled;
+        _state.Settings.SyncVideosAndRecordings = SwitchMobileSyncVideos.IsToggled;
+        _state.Settings.SyncExtraZenScenes = SwitchMobileSyncZen.IsToggled;
+        _state.Settings.SyncExtraAudio = SwitchMobileSyncAudio.IsToggled;
+        _state.Settings.SyncPreferences = SwitchMobileSyncPrefs.IsToggled;
         _state.Settings.SettingsUpdatedAtUtc = DateTime.UtcNow.ToString("O");
         _ = _storage.SaveStateAsync(_state);
     }
@@ -4171,5 +4615,7 @@ public partial class MauiMainPage : ContentPage
             }
         }
         if (CalendarModalOverlay.IsVisible) RefreshCalendarModalViews();
+        if (ZenScenePickerModal.IsVisible) BuildZenSceneModalList();
+        BackdropCanvas.Invalidate();
     }
 }

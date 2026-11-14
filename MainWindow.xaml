@@ -2683,7 +2683,23 @@
                                         <StackPanel>
                                             <TextBlock Text="⚙️ Sync Preferences" FontWeight="Black" FontSize="14" Foreground="{DynamicResource PrimaryTextBrush}" Margin="0,0,0,10"/>
                                             <CheckBox x:Name="ChkCloudAutoSync" Content="Auto-sync automatically after saving changes &amp; on app launch" Checked="ChkCloudPrefs_Changed" Unchecked="ChkCloudPrefs_Changed" Foreground="{DynamicResource PrimaryTextBrush}" FontSize="12" Margin="0,0,0,8"/>
-                                            <CheckBox x:Name="ChkCloudSyncFiles" Content="Sync Study Files (PDFs, Recordings, Videos &amp; Custom Sounds)" Checked="ChkCloudPrefs_Changed" Unchecked="ChkCloudPrefs_Changed" Foreground="{DynamicResource PrimaryTextBrush}" FontSize="12"/>
+                                            <CheckBox x:Name="ChkCloudSyncFiles" Content="Enable Binary Media Sync (Downloads &amp; Uploads for Files, Videos, Audio &amp; Custom Zen)" Checked="ChkCloudPrefs_Changed" Unchecked="ChkCloudPrefs_Changed" Foreground="{DynamicResource PrimaryTextBrush}" FontSize="12" Margin="0,0,0,14"/>
+
+                                            <Border Background="{DynamicResource InputBgBrush}" BorderBrush="{DynamicResource BorderBrushTheme}" BorderThickness="1" CornerRadius="12" Padding="14,12">
+                                                <StackPanel>
+                                                    <TextBlock Text="Choose What to Sync (per device — unchecked items stay untouched on other devices)" FontWeight="Bold" FontSize="11.5" Foreground="{DynamicResource SecondaryTextBrush}" Margin="0,0,0,10" TextWrapping="Wrap"/>
+                                                    <UniformGrid Columns="2">
+                                                        <CheckBox x:Name="ChkCloudSyncCourses" Content="📚 Subjects, Notes &amp; Flashcards" Checked="ChkCloudPrefs_Changed" Unchecked="ChkCloudPrefs_Changed" Foreground="{DynamicResource PrimaryTextBrush}" FontSize="11.5" Margin="0,0,8,8"/>
+                                                        <CheckBox x:Name="ChkCloudSyncLinks" Content="🔗 Links, Tasks &amp; Deadlines" Checked="ChkCloudPrefs_Changed" Unchecked="ChkCloudPrefs_Changed" Foreground="{DynamicResource PrimaryTextBrush}" FontSize="11.5" Margin="0,0,0,8"/>
+                                                        <CheckBox x:Name="ChkCloudSyncCalendar" Content="📅 Calendar Events &amp; Heatmap" Checked="ChkCloudPrefs_Changed" Unchecked="ChkCloudPrefs_Changed" Foreground="{DynamicResource PrimaryTextBrush}" FontSize="11.5" Margin="0,0,8,8"/>
+                                                        <CheckBox x:Name="ChkCloudSyncPdfs" Content="📄 PDFs &amp; Study Documents" Checked="ChkCloudPrefs_Changed" Unchecked="ChkCloudPrefs_Changed" Foreground="{DynamicResource PrimaryTextBrush}" FontSize="11.5" Margin="0,0,0,8"/>
+                                                        <CheckBox x:Name="ChkCloudSyncVideos" Content="🎬 Videos &amp; Recordings" Checked="ChkCloudPrefs_Changed" Unchecked="ChkCloudPrefs_Changed" Foreground="{DynamicResource PrimaryTextBrush}" FontSize="11.5" Margin="0,0,8,8"/>
+                                                        <CheckBox x:Name="ChkCloudSyncZen" Content="🏔️ Extra Zen Scenes &amp; Custom Media" Checked="ChkCloudPrefs_Changed" Unchecked="ChkCloudPrefs_Changed" Foreground="{DynamicResource PrimaryTextBrush}" FontSize="11.5" Margin="0,0,0,8"/>
+                                                        <CheckBox x:Name="ChkCloudSyncAudio" Content="🎧 Extra Audio &amp; Mixer Presets" Checked="ChkCloudPrefs_Changed" Unchecked="ChkCloudPrefs_Changed" Foreground="{DynamicResource PrimaryTextBrush}" FontSize="11.5" Margin="0,0,8,0"/>
+                                                        <CheckBox x:Name="ChkCloudSyncPrefs" Content="🎨 Theme, Particles &amp; App Preferences" Checked="ChkCloudPrefs_Changed" Unchecked="ChkCloudPrefs_Changed" Foreground="{DynamicResource PrimaryTextBrush}" FontSize="11.5" Margin="0,0,0,0"/>
+                                                    </UniformGrid>
+                                                </StackPanel>
+                                            </Border>
                                         </StackPanel>
                                     </Border>
 

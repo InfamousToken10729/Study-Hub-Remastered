@@ -24,6 +24,7 @@ namespace StudyHub.Services
         public string JsonMirrorPath { get; }
         public string FilesDir { get; }
         public string SoundsDir { get; }
+        public string ZenMediaDir { get; }
         public string BackupsDir { get; }
         public string DefaultExportDir { get; }
         public string WebViewDataDir { get; }
@@ -57,6 +58,7 @@ namespace StudyHub.Services
             JsonMirrorPath = Path.Combine(BaseDir, "study_hub_state.json");
             FilesDir = Path.Combine(BaseDir, "StudyHub_Files");
             SoundsDir = Path.Combine(BaseDir, "StudyHub_Sounds");
+            ZenMediaDir = Path.Combine(BaseDir, "StudyHub_ZenMedia");
             BackupsDir = Path.Combine(BaseDir, "StudyHub_Backups");
             DefaultExportDir = Path.Combine(BaseDir, "StudyHub_Converted_PDFs");
             WebViewDataDir = Path.Combine(BaseDir, "webview_data");
@@ -67,6 +69,7 @@ namespace StudyHub.Services
 
             Directory.CreateDirectory(FilesDir);
             Directory.CreateDirectory(SoundsDir);
+            Directory.CreateDirectory(ZenMediaDir);
             Directory.CreateDirectory(BackupsDir);
             Directory.CreateDirectory(DefaultExportDir);
             Directory.CreateDirectory(WebViewDataDir);
@@ -295,6 +298,18 @@ namespace StudyHub.Services
                         {
                             snd.FileSizeBytes = new FileInfo(path).Length;
                             snd.Sha256 = ComputeFileSha256(path);
+                        }
+                    }
+                }
+                foreach (var zen in state.CustomZenMedia)
+                {
+                    if ((string.IsNullOrWhiteSpace(zen.Sha256) || zen.FileSizeBytes <= 0) && !string.IsNullOrWhiteSpace(zen.Filename))
+                    {
+                        string path = GetZenMediaFilePath(zen.Filename);
+                        if (File.Exists(path))
+                        {
+                            zen.FileSizeBytes = new FileInfo(path).Length;
+                            zen.Sha256 = ComputeFileSha256(path);
                         }
                     }
                 }
@@ -573,6 +588,41 @@ namespace StudyHub.Services
             return dict;
         }
 
+        public Dictionary<string, LocalBinaryFileMeta> GetLocalBinaryZenMediaInventory(AppStateData state)
+        {
+            var dict = new Dictionary<string, LocalBinaryFileMeta>(StringComparer.OrdinalIgnoreCase);
+            var filenames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            if (state != null)
+            {
+                foreach (var z in state.CustomZenMedia) if (!string.IsNullOrWhiteSpace(z.Filename)) filenames.Add(z.Filename);
+            }
+            if (Directory.Exists(ZenMediaDir))
+            {
+                foreach (var full in Directory.GetFiles(ZenMediaDir))
+                {
+                    string name = Path.GetFileName(full);
+                    if (!name.EndsWith(".tmp", StringComparison.OrdinalIgnoreCase)) filenames.Add(name);
+                }
+            }
+
+            foreach (var fn in filenames)
+            {
+                string fullPath = GetZenMediaFilePath(fn);
+                if (File.Exists(fullPath))
+                {
+                    long len = new FileInfo(fullPath).Length;
+                    string? stateSha = state?.CustomZenMedia.FirstOrDefault(x => string.Equals(x.Filename, fn, StringComparison.OrdinalIgnoreCase))?.Sha256;
+                    dict[fn] = new LocalBinaryFileMeta
+                    {
+                        FileName = fn,
+                        SizeBytes = len,
+                        Sha256 = !string.IsNullOrWhiteSpace(stateSha) ? stateSha : ComputeFileSha256(fullPath)
+                    };
+                }
+            }
+            return dict;
+        }
+
         public string LoadRawStateJson()
         {
             // 1. Try SQLite app_state table
@@ -810,23 +860,43 @@ namespace StudyHub.Services
             };
         }
 
-        public string GetStudyFilePath(string filename)
+        private string ResolveExistingFileInDirectories(string rawFilename, string primaryDir, string subFolderName)
         {
-            string p1 = Path.Combine(FilesDir, filename);
-            if (File.Exists(p1)) return p1;
+            string normalized = (rawFilename ?? "").Replace('\\', '/').Trim();
+            string safe = Path.GetFileName(normalized);
+            if (string.IsNullOrWhiteSpace(safe)) return Path.Combine(primaryDir, "");
 
-            // Check fallback locations (parent or dist)
-            string p2 = Path.Combine(BaseDir, "dist", "StudyHub_Files", filename);
+            string direct = Path.Combine(primaryDir, safe);
+            if (File.Exists(direct)) return direct;
+
+            // Case-insensitive match inside primaryDir (vital when Windows filenames sync to case-sensitive Android)
+            try
+            {
+                if (Directory.Exists(primaryDir))
+                {
+                    foreach (var candidate in Directory.EnumerateFiles(primaryDir))
+                    {
+                        if (string.Equals(Path.GetFileName(candidate), safe, StringComparison.OrdinalIgnoreCase))
+                            return candidate;
+                    }
+                }
+            }
+            catch { }
+
+            string p2 = Path.Combine(BaseDir, "dist", subFolderName, safe);
             if (File.Exists(p2)) return p2;
 
             var parent = Directory.GetParent(BaseDir);
             if (parent != null)
             {
-                string p3 = Path.Combine(parent.FullName, "StudyHub_Files", filename);
+                string p3 = Path.Combine(parent.FullName, subFolderName, safe);
                 if (File.Exists(p3)) return p3;
             }
-            return p1;
+            return direct;
         }
+
+        public string GetStudyFilePath(string filename) =>
+            ResolveExistingFileInDirectories(filename, FilesDir, "StudyHub_Files");
 
         public void DeleteStudyFile(string filename)
         {
@@ -880,28 +950,67 @@ namespace StudyHub.Services
             };
         }
 
-        public string GetSoundFilePath(string filename)
-        {
-            string safe = Path.GetFileName(filename);
-            string p1 = Path.Combine(SoundsDir, safe);
-            if (File.Exists(p1)) return p1;
-
-            string p2 = Path.Combine(BaseDir, "dist", "StudyHub_Sounds", safe);
-            if (File.Exists(p2)) return p2;
-
-            var parent = Directory.GetParent(BaseDir);
-            if (parent != null)
-            {
-                string p3 = Path.Combine(parent.FullName, "StudyHub_Sounds", safe);
-                if (File.Exists(p3)) return p3;
-            }
-            return p1;
-        }
+        public string GetSoundFilePath(string filename) =>
+            ResolveExistingFileInDirectories(filename, SoundsDir, "StudyHub_Sounds");
 
         public void DeleteSoundFile(string filename)
         {
             if (string.IsNullOrWhiteSpace(filename)) return;
-            string p = Path.Combine(SoundsDir, Path.GetFileName(filename));
+            string p = GetSoundFilePath(filename);
+            try { if (File.Exists(p)) File.Delete(p); } catch { }
+        }
+
+        public CustomZenMediaItem ImportCustomZenMedia(string sourceFilePath, string? customTitle = null)
+        {
+            Directory.CreateDirectory(ZenMediaDir);
+            string origName = Path.GetFileName(sourceFilePath);
+            string ext = Path.GetExtension(origName).ToLowerInvariant();
+            string stem = Path.GetFileNameWithoutExtension(origName);
+            string safeStem = Regex.Replace(stem, @"[^A-Za-z0-9_\-]", "_");
+            if (safeStem.Length > 60) safeStem = safeStem[..60];
+            if (string.IsNullOrWhiteSpace(safeStem)) safeStem = "zen";
+
+            string hex = Guid.NewGuid().ToString("N")[..8];
+            string uniqueName = $"zen_{hex}_{safeStem}{ext}";
+            string destPath = Path.Combine(ZenMediaDir, uniqueName);
+            File.Copy(sourceFilePath, destPath, true);
+
+            try
+            {
+                string distZen = Path.Combine(BaseDir, "dist", "StudyHub_ZenMedia");
+                if (Directory.Exists(distZen) && !string.Equals(ZenMediaDir, distZen, StringComparison.OrdinalIgnoreCase))
+                    File.Copy(destPath, Path.Combine(distZen, uniqueName), true);
+            }
+            catch { }
+
+            bool isImage = ext is ".gif" or ".webp" or ".png" or ".jpg" or ".jpeg";
+            long fileSize = 0;
+            try { fileSize = new FileInfo(destPath).Length; } catch { }
+            string sha256 = ComputeFileSha256(destPath);
+            string title = !string.IsNullOrWhiteSpace(customTitle)
+                ? customTitle.Trim()
+                : stem.Replace('_', ' ').Replace('-', ' ').Trim();
+            if (string.IsNullOrWhiteSpace(title)) title = origName;
+
+            return new CustomZenMediaItem
+            {
+                Id = $"zen_{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}_{hex}",
+                Title = title,
+                Filename = uniqueName,
+                MediaType = isImage ? "image" : "video",
+                Sha256 = sha256,
+                FileSizeBytes = fileSize,
+                UpdatedAtUtc = DateTime.UtcNow.ToString("O")
+            };
+        }
+
+        public string GetZenMediaFilePath(string filename) =>
+            ResolveExistingFileInDirectories(filename, ZenMediaDir, "StudyHub_ZenMedia");
+
+        public void DeleteZenMediaFile(string filename)
+        {
+            if (string.IsNullOrWhiteSpace(filename)) return;
+            string p = GetZenMediaFilePath(filename);
             try { if (File.Exists(p)) File.Delete(p); } catch { }
         }
 
@@ -962,7 +1071,7 @@ namespace StudyHub.Services
                     SaveHashManifest(_hashManifest);
                 }
 
-                foreach (var dir in new[] { FilesDir, SoundsDir })
+                foreach (var dir in new[] { FilesDir, SoundsDir, ZenMediaDir })
                 {
                     if (Directory.Exists(dir))
                     {

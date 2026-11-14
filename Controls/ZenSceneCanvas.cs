@@ -136,6 +136,86 @@ namespace StudyHub.Controls
         private static readonly ImageSource RainMistSprite = BuildSoftOrbSprite(128, 64,
             (Color.FromArgb(33, 204, 251, 241), 0.0), (Color.FromArgb(0, 204, 251, 241), 1.0));
 
+        // LUTs & Sprites for extended Zen scenes (Grotto, Observatories, Bamboo, Volcano, Temple, Fireplace, Ocean Shore, Crystal Cave)
+        private static readonly Brush[] TealBioLut = BuildAlphaBrushLut(45, 212, 191);
+        private static readonly Brush[] VioletBioLut = BuildAlphaBrushLut(167, 139, 250);
+        private static readonly Brush[] AzureBioLut = BuildAlphaBrushLut(56, 189, 248);
+        private static readonly Pen[] GrottoRipplePenLut = BuildAlphaPenLut(45, 212, 191, 1.4);
+        private static readonly ImageSource GrottoOrbCyan = BuildSoftOrbSprite(112, 112,
+            (Color.FromArgb(140, 34, 211, 238), 0.0), (Color.FromArgb(45, 20, 184, 166), 0.5), (Color.FromArgb(0, 15, 23, 42), 1.0));
+        private static readonly ImageSource GrottoOrbViolet = BuildSoftOrbSprite(112, 112,
+            (Color.FromArgb(135, 192, 132, 252), 0.0), (Color.FromArgb(42, 124, 58, 237), 0.5), (Color.FromArgb(0, 15, 23, 42), 1.0));
+
+        private static readonly ImageSource ObsCloudMorning = BuildSoftOrbSprite(144, 64,
+            (Color.FromArgb(80, 255, 247, 237), 0.0), (Color.FromArgb(0, 255, 247, 237), 1.0));
+        private static readonly ImageSource ObsCloudSunset = BuildSoftOrbSprite(144, 64,
+            (Color.FromArgb(72, 251, 146, 60), 0.0), (Color.FromArgb(0, 251, 146, 60), 1.0));
+        private static readonly Pen ObsMorningBirdPen = Freeze(new Pen(Freeze(new SolidColorBrush(Color.FromRgb(51, 65, 85))), 1.5));
+        private static readonly Brush ObsTelescopeMetalBrush = Freeze(new SolidColorBrush(Color.FromRgb(148, 163, 184)));
+        private static readonly Pen ObsTelescopeBarrelPen = Freeze(new Pen(Freeze(new SolidColorBrush(Color.FromRgb(226, 232, 240))), 6.0)
+        { StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Flat });
+        private static readonly Pen ObsSunsetTelescopePen = Freeze(new Pen(Freeze(new SolidColorBrush(Color.FromRgb(45, 20, 36))), 6.5)
+        { StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Flat });
+        private static readonly Pen ObsNightTelescopePen = Freeze(new Pen(Freeze(new SolidColorBrush(Color.FromRgb(100, 116, 139))), 6.5)
+        { StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Flat });
+        private static readonly ImageSource ObsSunGlow = BuildSoftOrbSprite(160, 160,
+            (Color.FromArgb(245, 254, 240, 138), 0.0), (Color.FromArgb(115, 253, 186, 116), 0.35), (Color.FromArgb(0, 251, 146, 60), 1.0));
+        private static readonly ImageSource ObsSunsetGlow = BuildSoftOrbSprite(180, 180,
+            (Color.FromArgb(230, 253, 186, 116), 0.0), (Color.FromArgb(120, 244, 63, 94), 0.45), (Color.FromArgb(0, 88, 28, 135), 1.0));
+
+        private static readonly Brush[] BambooLeafLut = BuildAlphaBrushLut(134, 239, 172);
+        private static readonly ImageSource BambooMistSprite = BuildSoftOrbSprite(160, 64,
+            (Color.FromArgb(46, 220, 252, 231), 0.0), (Color.FromArgb(0, 220, 252, 231), 1.0));
+        private static readonly ImageSource LanternGlowSprite = BuildSoftOrbSprite(128, 128,
+            (Color.FromArgb(155, 253, 224, 71), 0.0), (Color.FromArgb(45, 251, 146, 60), 0.45), (Color.FromArgb(0, 251, 146, 60), 1.0));
+        private static readonly Pen BambooStalkBackPen = Freeze(new Pen(Freeze(new SolidColorBrush(Color.FromRgb(22, 101, 52))), 8.0));
+        private static readonly Pen BambooStalkMidPen = Freeze(new Pen(Freeze(new SolidColorBrush(Color.FromRgb(34, 139, 74))), 11.0));
+        private static readonly Pen BambooStalkFrontPen = Freeze(new Pen(Freeze(new SolidColorBrush(Color.FromRgb(74, 222, 128))), 14.0));
+        private static readonly Pen BambooNodePen = Freeze(new Pen(Freeze(new SolidColorBrush(Color.FromRgb(187, 247, 208))), 2.2));
+        private static readonly Brush BambooLeafClusterBrush = Freeze(new SolidColorBrush(Color.FromArgb(185, 74, 222, 128)));
+
+        private static readonly Brush[] VolcanoEmberLut = BuildAlphaBrushLut(251, 146, 60);
+        private static readonly Brush[] VolcanoCoreLut = BuildAlphaBrushLut(254, 240, 138);
+        private static readonly Pen[] VolcanoCracksPenLut = BuildAlphaPenLut(251, 146, 60, 3.0, roundCaps: true);
+        private static readonly ImageSource VolcanoSmokeSprite = BuildSoftOrbSprite(160, 128,
+            (Color.FromArgb(95, 41, 37, 36), 0.0), (Color.FromArgb(40, 154, 52, 18), 0.55), (Color.FromArgb(0, 28, 25, 23), 1.0));
+        private static readonly ImageSource VolcanoLavaGlowSprite = BuildSoftOrbSprite(220, 110,
+            (Color.FromArgb(170, 251, 146, 60), 0.0), (Color.FromArgb(75, 220, 38, 38), 0.5), (Color.FromArgb(0, 28, 25, 23), 1.0));
+
+        private static readonly Brush[] TempleIncenseLut = BuildAlphaBrushLut(253, 230, 138);
+        private static readonly ImageSource TempleMistSprite = BuildSoftOrbSprite(160, 64,
+            (Color.FromArgb(42, 226, 232, 240), 0.0), (Color.FromArgb(0, 226, 232, 240), 1.0));
+        private static readonly ImageSource TempleFlameSprite = BuildSoftOrbSprite(96, 96,
+            (Color.FromArgb(215, 254, 240, 138), 0.0), (Color.FromArgb(100, 249, 115, 22), 0.45), (Color.FromArgb(0, 154, 52, 18), 1.0));
+
+        private static readonly Brush[] SparkEmberLut = BuildAlphaBrushLut(254, 215, 170);
+        private static readonly ImageSource HearthAmbientSprite = BuildSoftOrbSprite(256, 256,
+            (Color.FromArgb(165, 251, 146, 60), 0.0), (Color.FromArgb(75, 239, 68, 68), 0.42), (Color.FromArgb(0, 24, 12, 8), 1.0));
+        private static readonly Brush FlameOuterBrush = MakeVerticalGradRelative(
+            (Color.FromArgb(230, 249, 115, 22), 0.0), (Color.FromArgb(240, 220, 38, 38), 0.6), (Color.FromArgb(200, 153, 27, 27), 1.0));
+        private static readonly Brush FlameMidBrush = MakeVerticalGradRelative(
+            (Color.FromArgb(245, 253, 224, 71), 0.0), (Color.FromArgb(240, 251, 146, 60), 0.7), (Color.FromArgb(210, 234, 88, 12), 1.0));
+        private static readonly Brush FlameCoreBrush = MakeVerticalGradRelative(
+            (Color.FromArgb(255, 255, 251, 235), 0.0), (Color.FromArgb(245, 254, 240, 138), 0.65), (Color.FromArgb(220, 253, 186, 116), 1.0));
+        private static readonly Brush EmberGlowBrush = Freeze(new SolidColorBrush(Color.FromArgb(185, 249, 115, 22)));
+
+        private static readonly ImageSource ShoreCloudSprite = BuildSoftOrbSprite(160, 64,
+            (Color.FromArgb(88, 255, 255, 255), 0.0), (Color.FromArgb(0, 255, 255, 255), 1.0));
+        private static readonly Brush ShoreSeaFoamBrush = Freeze(new SolidColorBrush(Color.FromArgb(195, 240, 253, 250)));
+        private static readonly Brush ShoreWetSandBrush = Freeze(new SolidColorBrush(Color.FromArgb(100, 14, 116, 144)));
+        private static readonly Brush ShoreWaveAquaBrush = MakeVerticalGradRelative(
+            (Color.FromArgb(195, 14, 116, 144), 0.0), (Color.FromArgb(170, 6, 182, 212), 0.65), (Color.FromArgb(145, 165, 243, 252), 1.0));
+        private static readonly Pen ShoreWaveCrestPen = Freeze(new Pen(Freeze(new SolidColorBrush(Color.FromArgb(215, 255, 255, 255))), 3.0)
+        { StartLineCap = PenLineCap.Round, EndLineCap = PenLineCap.Round });
+
+        private static readonly Brush[] CrystalAmethystLut = BuildAlphaBrushLut(216, 180, 254);
+        private static readonly Brush[] CrystalCyanLut = BuildAlphaBrushLut(103, 232, 249);
+        private static readonly Brush[] CrystalPinkLut = BuildAlphaBrushLut(249, 168, 212);
+        private static readonly ImageSource CrystalGlowAmethyst = BuildSoftOrbSprite(128, 128,
+            (Color.FromArgb(135, 192, 132, 252), 0.0), (Color.FromArgb(45, 126, 34, 206), 0.5), (Color.FromArgb(0, 15, 10, 35), 1.0));
+        private static readonly ImageSource CrystalGlowCyan = BuildSoftOrbSprite(128, 128,
+            (Color.FromArgb(135, 103, 232, 249), 0.0), (Color.FromArgb(45, 14, 116, 144), 0.5), (Color.FromArgb(0, 15, 10, 35), 1.0));
+
         private sealed class StarSeed
         {
             public double X, Y, R, Phase, Speed;
@@ -663,6 +743,165 @@ namespace StudyHub.Controls
                             r.Y = -30;
                             r.X = _rng.NextDouble() * (w + 180);
                         }
+                    }
+                    break;
+
+                case "bioluminescent_grotto":
+                    foreach (var f in _fireflies)
+                    {
+                        f.X += (f.Vx + Math.Sin(_t * 0.8 + f.Phase) * 0.16) * scale;
+                        f.Y += (f.Vy + Math.Cos(_t * 0.7 + f.Phase) * 0.12) * scale;
+                        f.Phase += 0.032 * scale;
+                        if (f.X < -20) f.X = w + 20;
+                        if (f.X > w + 20) f.X = -20;
+                        if (f.Y < h * 0.12) f.Y = h * 0.76;
+                        if (f.Y > h * 0.82) f.Y = h * 0.18;
+                    }
+                    foreach (var p in _planktons) p.Phase += 0.028 * scale;
+                    foreach (var pd in _puddles)
+                    {
+                        pd.RippleR += 0.35 * scale;
+                        if (pd.RippleR > pd.MaxR) pd.RippleR = 3;
+                    }
+                    break;
+
+                case "observatory_morning":
+                case "observatory_sunset":
+                    foreach (var cl in _clouds)
+                    {
+                        cl.X += cl.Vx * scale;
+                        if (cl.X - cl.W * 0.5 > w) cl.X = -cl.W * 0.5;
+                    }
+                    foreach (var bd in _birds)
+                    {
+                        bd.X += bd.Vx * scale;
+                        bd.Y += bd.Vy * scale;
+                        bd.WingPhase += 0.11 * scale;
+                        if (bd.X > w + 30)
+                        {
+                            bd.X = -30;
+                            bd.Y = h * 0.14 + _rng.NextDouble() * (h * 0.28);
+                        }
+                    }
+                    break;
+
+                case "observatory_night":
+                    if (_shootingStar != null)
+                    {
+                        if (_shootingStar.Timer > 0)
+                            _shootingStar.Timer -= (int)Math.Max(1, Math.Round(scale));
+                        else
+                        {
+                            _shootingStar.X += _shootingStar.Vx * scale;
+                            _shootingStar.Y += _shootingStar.Vy * scale;
+                            if (_shootingStar.X < -120 || _shootingStar.Y > h + 120)
+                            {
+                                _shootingStar.X = w * (0.35 + _rng.NextDouble() * 0.6);
+                                _shootingStar.Y = _rng.NextDouble() * (h * 0.35);
+                                _shootingStar.Timer = 180 + _rng.Next(0, 220);
+                            }
+                        }
+                    }
+                    break;
+
+                case "bamboo_garden":
+                    foreach (var cl in _clouds)
+                    {
+                        cl.X += cl.Vx * scale;
+                        if (cl.X > w + cl.W * 0.5) cl.X = -cl.W * 0.5;
+                    }
+                    foreach (var lf in _leafSpores)
+                    {
+                        lf.X += (lf.Vx + Math.Sin(_t * 1.1 + lf.Phase) * 0.35) * scale;
+                        lf.Y += lf.Vy * scale;
+                        lf.Phase += 0.03 * scale;
+                        lf.RotDeg += lf.RotSpeedDeg * scale;
+                        if (lf.Y > h + 20) { lf.Y = -20; lf.X = _rng.NextDouble() * w; }
+                        if (lf.X > w + 20) lf.X = -20;
+                        if (lf.X < -20) lf.X = w + 20;
+                    }
+                    foreach (var pd in _puddles)
+                    {
+                        pd.RippleR += 0.28 * scale;
+                        if (pd.RippleR > pd.MaxR) pd.RippleR = 3;
+                    }
+                    break;
+
+                case "volcanic_caldera":
+                    foreach (var cl in _clouds)
+                    {
+                        cl.X += (cl.Vx + Math.Sin(_t * 0.4 + cl.Y * 0.02) * 0.2) * scale;
+                        cl.Y -= 0.18 * scale;
+                        if (cl.Y < -80) { cl.Y = h * 0.62; cl.X = w * 0.2 + _rng.NextDouble() * (w * 0.6); }
+                    }
+                    foreach (var f in _fireflies)
+                    {
+                        f.X += (f.Vx + Math.Sin(_t * 1.5 + f.Phase) * 0.4) * scale;
+                        f.Y += f.Vy * scale;
+                        f.Phase += 0.045 * scale;
+                        if (f.Y < -20) { f.Y = h * 0.78 + _rng.NextDouble() * (h * 0.14); f.X = w * 0.15 + _rng.NextDouble() * (w * 0.7); }
+                    }
+                    break;
+
+                case "ancient_temple":
+                    foreach (var cl in _clouds)
+                    {
+                        cl.X += cl.Vx * scale;
+                        if (cl.X > w + cl.W * 0.5) cl.X = -cl.W * 0.5;
+                    }
+                    foreach (var f in _fireflies)
+                    {
+                        f.X += Math.Sin(_t + f.Phase) * 0.25 * scale;
+                        f.Y += f.Vy * scale;
+                        f.Phase += 0.038 * scale;
+                        if (f.Y < h * 0.18) { f.Y = h * 0.78; f.X = w * 0.25 + _rng.NextDouble() * (w * 0.5); }
+                    }
+                    break;
+
+                case "fireplace":
+                    foreach (var f in _fireflies)
+                    {
+                        f.X += (f.Vx + Math.Sin(_t * 2.1 + f.Phase) * 0.42) * scale;
+                        f.Y += f.Vy * scale;
+                        f.Phase += 0.055 * scale;
+                        if (f.Y < h * 0.15)
+                        {
+                            f.Y = h * 0.80 + _rng.NextDouble() * (h * 0.08);
+                            f.X = w * 0.5 + (_rng.NextDouble() - 0.5) * (w * 0.22);
+                        }
+                    }
+                    break;
+
+                case "ocean_shore":
+                    foreach (var cl in _clouds)
+                    {
+                        cl.X += cl.Vx * scale;
+                        if (cl.X - cl.W * 0.5 > w) cl.X = -cl.W * 0.5;
+                    }
+                    foreach (var bd in _birds)
+                    {
+                        bd.X += bd.Vx * scale;
+                        bd.Y += Math.Sin(_t * 1.4 + bd.WingPhase) * 0.14 * scale;
+                        bd.WingPhase += 0.10 * scale;
+                        if (bd.X > w + 30) { bd.X = -30; bd.Y = h * 0.14 + _rng.NextDouble() * (h * 0.22); }
+                    }
+                    foreach (var p in _planktons) p.Phase += 0.055 * scale;
+                    break;
+
+                case "crystal_cave":
+                    foreach (var f in _fireflies)
+                    {
+                        f.X += f.Vx * scale;
+                        f.Y += Math.Sin(_t * 0.8 + f.Phase) * 0.2 * scale;
+                        f.Phase += 0.035 * scale;
+                        if (f.X < 0) f.X = w;
+                        if (f.X > w) f.X = 0;
+                    }
+                    foreach (var p in _planktons) p.Phase += 0.052 * scale;
+                    foreach (var pd in _puddles)
+                    {
+                        pd.RippleR += 0.25 * scale;
+                        if (pd.RippleR > pd.MaxR) pd.RippleR = 3;
                     }
                     break;
             }
@@ -1363,6 +1602,257 @@ namespace StudyHub.Controls
                         });
                     }
                     break;
+
+                case "bioluminescent_grotto":
+                    for (int i = 0; i < 42; i++)
+                    {
+                        _fireflies.Add(new Firefly
+                        {
+                            X = _rng.NextDouble() * w,
+                            Y = h * 0.15 + _rng.NextDouble() * (h * 0.62),
+                            R = 1.8 + _rng.NextDouble() * 3.0,
+                            Phase = _rng.NextDouble() * Math.PI * 2,
+                            Vx = (_rng.NextDouble() - 0.5) * 0.25,
+                            Vy = -0.08 - _rng.NextDouble() * 0.18
+                        });
+                    }
+                    for (int i = 0; i < 48; i++)
+                    {
+                        _planktons.Add(new Plankton
+                        {
+                            X = _rng.NextDouble() * w,
+                            Y = h * 0.66 + _rng.NextDouble() * (h * 0.32),
+                            R = 1.2 + _rng.NextDouble() * 2.2,
+                            Phase = _rng.NextDouble() * Math.PI * 2
+                        });
+                    }
+                    for (int i = 0; i < 5; i++)
+                    {
+                        _puddles.Add(new PuddleRipple
+                        {
+                            X = w * (0.15 + i * 0.17),
+                            Y = h * (0.72 + (i % 2) * 0.08),
+                            RippleR = 4 + i * 9,
+                            MaxR = 45 + _rng.NextDouble() * 35
+                        });
+                    }
+                    break;
+
+                case "observatory_morning":
+                case "observatory_sunset":
+                    for (int c = 0; c < 7; c++)
+                    {
+                        _clouds.Add(new CloudBand
+                        {
+                            X = _rng.NextDouble() * w,
+                            Y = h * 0.24 + _rng.NextDouble() * (h * 0.34),
+                            W = 140 + _rng.NextDouble() * 180,
+                            H = 26 + _rng.NextDouble() * 24,
+                            Vx = 0.12 + _rng.NextDouble() * 0.22
+                        });
+                    }
+                    for (int b = 0; b < 8; b++)
+                    {
+                        _birds.Add(new BirdGlider
+                        {
+                            X = _rng.NextDouble() * w,
+                            Y = h * 0.15 + _rng.NextDouble() * (h * 0.25),
+                            Vx = 0.55 + _rng.NextDouble() * 0.45,
+                            Vy = (_rng.NextDouble() - 0.5) * 0.1,
+                            WingPhase = _rng.NextDouble() * Math.PI * 2,
+                            Size = 5 + _rng.NextDouble() * 4
+                        });
+                    }
+                    break;
+
+                case "observatory_night":
+                    _shootingStar = new ShootingStar
+                    {
+                        X = w * 0.68,
+                        Y = h * 0.14,
+                        Vx = -7.5,
+                        Vy = 3.2,
+                        Timer = 90
+                    };
+                    break;
+
+                case "bamboo_garden":
+                    for (int c = 0; c < 5; c++)
+                    {
+                        _clouds.Add(new CloudBand
+                        {
+                            X = _rng.NextDouble() * w,
+                            Y = h * 0.55 + c * (h * 0.08),
+                            W = w * 0.5 + _rng.NextDouble() * (w * 0.35),
+                            H = 38 + _rng.NextDouble() * 30,
+                            Vx = 0.16 + _rng.NextDouble() * 0.18
+                        });
+                    }
+                    for (int l = 0; l < 28; l++)
+                    {
+                        _leafSpores.Add(new LeafSpore
+                        {
+                            IsLeaf = true,
+                            X = _rng.NextDouble() * w,
+                            Y = _rng.NextDouble() * h,
+                            Vx = 0.25 + _rng.NextDouble() * 0.35,
+                            Vy = 0.55 + _rng.NextDouble() * 0.55,
+                            R = 7 + _rng.NextDouble() * 6,
+                            Phase = _rng.NextDouble() * Math.PI * 2,
+                            RotDeg = _rng.NextDouble() * 360.0,
+                            RotSpeedDeg = (_rng.NextDouble() - 0.5) * 2.5,
+                            ColBrush = PickLut(BambooLeafLut, 0.55 + _rng.NextDouble() * 0.35)
+                        });
+                    }
+                    for (int i = 0; i < 4; i++)
+                    {
+                        _puddles.Add(new PuddleRipple
+                        {
+                            X = w * (0.28 + i * 0.16),
+                            Y = h * (0.86 + (i % 2) * 0.05),
+                            RippleR = 5 + i * 8,
+                            MaxR = 38 + _rng.NextDouble() * 24
+                        });
+                    }
+                    break;
+
+                case "volcanic_caldera":
+                    for (int s = 0; s < 8; s++)
+                    {
+                        _clouds.Add(new CloudBand
+                        {
+                            X = w * 0.22 + _rng.NextDouble() * (w * 0.56),
+                            Y = h * 0.10 + _rng.NextDouble() * (h * 0.55),
+                            W = 130 + _rng.NextDouble() * 140,
+                            H = 75 + _rng.NextDouble() * 60,
+                            Vx = (_rng.NextDouble() - 0.5) * 0.2
+                        });
+                    }
+                    for (int i = 0; i < 55; i++)
+                    {
+                        _fireflies.Add(new Firefly
+                        {
+                            X = w * 0.12 + _rng.NextDouble() * (w * 0.76),
+                            Y = _rng.NextDouble() * h * 0.85,
+                            R = 1.6 + _rng.NextDouble() * 2.5,
+                            Phase = _rng.NextDouble() * Math.PI * 2,
+                            Vx = (_rng.NextDouble() - 0.5) * 0.35,
+                            Vy = -0.65 - _rng.NextDouble() * 0.95
+                        });
+                    }
+                    break;
+
+                case "ancient_temple":
+                    for (int c = 0; c < 5; c++)
+                    {
+                        _clouds.Add(new CloudBand
+                        {
+                            X = _rng.NextDouble() * w,
+                            Y = h * 0.62 + c * 28,
+                            W = w * 0.45 + _rng.NextDouble() * (w * 0.3),
+                            H = 32 + _rng.NextDouble() * 24,
+                            Vx = 0.12 + _rng.NextDouble() * 0.16
+                        });
+                    }
+                    for (int i = 0; i < 34; i++)
+                    {
+                        _fireflies.Add(new Firefly
+                        {
+                            X = w * 0.22 + _rng.NextDouble() * (w * 0.56),
+                            Y = h * 0.22 + _rng.NextDouble() * (h * 0.56),
+                            R = 1.4 + _rng.NextDouble() * 2.0,
+                            Phase = _rng.NextDouble() * Math.PI * 2,
+                            Vx = 0,
+                            Vy = -0.22 - _rng.NextDouble() * 0.32
+                        });
+                    }
+                    break;
+
+                case "fireplace":
+                    for (int i = 0; i < 42; i++)
+                    {
+                        _fireflies.Add(new Firefly
+                        {
+                            X = w * 0.5 + (_rng.NextDouble() - 0.5) * (w * 0.22),
+                            Y = h * 0.35 + _rng.NextDouble() * (h * 0.5),
+                            R = 1.4 + _rng.NextDouble() * 2.2,
+                            Phase = _rng.NextDouble() * Math.PI * 2,
+                            Vx = (_rng.NextDouble() - 0.5) * 0.3,
+                            Vy = -0.8 - _rng.NextDouble() * 1.1
+                        });
+                    }
+                    break;
+
+                case "ocean_shore":
+                    for (int c = 0; c < 6; c++)
+                    {
+                        _clouds.Add(new CloudBand
+                        {
+                            X = _rng.NextDouble() * w,
+                            Y = h * 0.10 + _rng.NextDouble() * (h * 0.22),
+                            W = 140 + _rng.NextDouble() * 190,
+                            H = 26 + _rng.NextDouble() * 22,
+                            Vx = 0.14 + _rng.NextDouble() * 0.18
+                        });
+                    }
+                    for (int b = 0; b < 7; b++)
+                    {
+                        _birds.Add(new BirdGlider
+                        {
+                            X = _rng.NextDouble() * w,
+                            Y = h * 0.12 + _rng.NextDouble() * (h * 0.22),
+                            Vx = 0.55 + _rng.NextDouble() * 0.35,
+                            Vy = 0,
+                            WingPhase = _rng.NextDouble() * Math.PI * 2,
+                            Size = 5 + _rng.NextDouble() * 4
+                        });
+                    }
+                    for (int i = 0; i < 36; i++)
+                    {
+                        _planktons.Add(new Plankton
+                        {
+                            X = _rng.NextDouble() * w,
+                            Y = h * 0.50 + _rng.NextDouble() * (h * 0.22),
+                            R = 1.5 + _rng.NextDouble() * 1.8,
+                            Phase = _rng.NextDouble() * Math.PI * 2
+                        });
+                    }
+                    break;
+
+                case "crystal_cave":
+                    for (int i = 0; i < 45; i++)
+                    {
+                        _fireflies.Add(new Firefly
+                        {
+                            X = _rng.NextDouble() * w,
+                            Y = h * 0.12 + _rng.NextDouble() * (h * 0.62),
+                            R = 1.4 + _rng.NextDouble() * 2.2,
+                            Phase = _rng.NextDouble() * Math.PI * 2,
+                            Vx = (_rng.NextDouble() - 0.5) * 0.18,
+                            Vy = 0
+                        });
+                    }
+                    for (int i = 0; i < 35; i++)
+                    {
+                        _planktons.Add(new Plankton
+                        {
+                            X = _rng.NextDouble() * w,
+                            Y = h * 0.08 + _rng.NextDouble() * (h * 0.72),
+                            R = 1.8 + _rng.NextDouble() * 2.5,
+                            Phase = _rng.NextDouble() * Math.PI * 2
+                        });
+                    }
+                    for (int i = 0; i < 4; i++)
+                    {
+                        _puddles.Add(new PuddleRipple
+                        {
+                            X = w * (0.22 + i * 0.18),
+                            Y = h * (0.80 + (i % 2) * 0.06),
+                            RippleR = 4 + i * 8,
+                            MaxR = 40 + _rng.NextDouble() * 26
+                        });
+                    }
+                    break;
             }
         }
 
@@ -1439,6 +1929,16 @@ namespace StudyHub.Controls
                 case "city_shoreline": RenderCityMetropolis(dc, w, h, isShore: true); break;
                 case "sunset": RenderSunset(dc, w, h); break;
                 case "rainy_forest": RenderRainyForest(dc, w, h); break;
+                case "bioluminescent_grotto": RenderBioluminescentGrotto(dc, w, h); break;
+                case "observatory_morning": RenderObservatory(dc, w, h, "morning"); break;
+                case "observatory_night": RenderObservatory(dc, w, h, "night"); break;
+                case "observatory_sunset": RenderObservatory(dc, w, h, "sunset"); break;
+                case "bamboo_garden": RenderBambooGarden(dc, w, h); break;
+                case "volcanic_caldera": RenderVolcanicCaldera(dc, w, h); break;
+                case "ancient_temple": RenderAncientTemple(dc, w, h); break;
+                case "fireplace": RenderFireplace(dc, w, h); break;
+                case "ocean_shore": RenderOceanShore(dc, w, h); break;
+                case "crystal_cave": RenderCrystalCave(dc, w, h); break;
                 default: RenderNorthPole(dc, w, h); break;
             }
 
@@ -2480,6 +2980,301 @@ namespace StudyHub.Controls
                         _layerBitmaps[lIdx - 1] = BakeToBitmap(w, h, dpiX, dpiY, bdc => DrawForestLayer(bdc, capture));
                     }
                     break;
+
+                case "bioluminescent_grotto":
+                    _staticBgBitmap = BakeToBitmap(w, h, dpiX, dpiY, bdc =>
+                    {
+                        var cavernBg = MakeVerticalGrad(new Rect(0, 0, w, h),
+                            (Color.FromRgb(4, 9, 24), 0.0), (Color.FromRgb(6, 22, 42), 0.55), (Color.FromRgb(4, 15, 32), 1.0));
+                        bdc.DrawRectangle(cavernBg, null, new Rect(0, 0, w, h));
+
+                        // Far chamber vault glow
+                        var vaultGlow = MakeRadialGrad(new Point(0.5, 0.44), new Point(0.5, 0.44), 0.45, 0.35,
+                            (Color.FromArgb(75, 20, 184, 166), 0.0), (Color.FromArgb(25, 56, 189, 248), 0.5), (Color.FromArgb(0, 4, 9, 24), 1.0));
+                        bdc.DrawRectangle(vaultGlow, null, new Rect(0, 0, w, h * 0.72));
+
+                        // Underground lagoon
+                        double waterY = h * 0.68;
+                        var waterBrush = MakeVerticalGrad(new Rect(0, waterY, w, h - waterY),
+                            (Color.FromRgb(7, 36, 58), 0.0), (Color.FromRgb(5, 22, 42), 0.45), (Color.FromRgb(2, 8, 20), 1.0));
+                        bdc.DrawRectangle(waterBrush, null, new Rect(0, waterY, w, h - waterY));
+
+                        // Framing basalt cavern rock arches & stalactites
+                        var rockDark = Freeze(new SolidColorBrush(Color.FromRgb(7, 13, 24)));
+                        var rockEdge = Freeze(new SolidColorBrush(Color.FromRgb(14, 30, 48)));
+                        var veinCyan = Freeze(new Pen(Freeze(new SolidColorBrush(Color.FromArgb(145, 45, 212, 191))), 2.2));
+                        var leftWall = BuildPolyline(true,
+                            new Point(0, 0), new Point(w * 0.34, 0), new Point(w * 0.22, h * 0.14),
+                            new Point(w * 0.14, h * 0.38), new Point(w * 0.19, h * 0.68), new Point(0, h));
+                        bdc.DrawGeometry(rockDark, null, leftWall);
+                        var rightWall = BuildPolyline(true,
+                            new Point(w, 0), new Point(w * 0.66, 0), new Point(w * 0.78, h * 0.15),
+                            new Point(w * 0.85, h * 0.42), new Point(w * 0.80, h * 0.69), new Point(w, h));
+                        bdc.DrawGeometry(rockDark, null, rightWall);
+
+                        // Stalactites hanging from roof
+                        double[] stX = { 0.16, 0.27, 0.37, 0.49, 0.61, 0.72, 0.83 };
+                        double[] stH = { 0.22, 0.16, 0.26, 0.14, 0.24, 0.18, 0.21 };
+                        for (int i = 0; i < stX.Length; i++)
+                        {
+                            double cx = w * stX[i];
+                            double bw = 18 + (i % 3) * 10;
+                            double sh = h * stH[i];
+                            bdc.DrawGeometry(i % 2 == 0 ? rockDark : rockEdge, null,
+                                BuildTriangle(new Point(cx - bw, 0), new Point(cx + bw, 0), new Point(cx + 2, sh)));
+                            bdc.DrawLine(veinCyan, new Point(cx, sh * 0.55), new Point(cx + 2, sh));
+                        }
+
+                        // Glowing bio-moss ledges along lower banks
+                        var mossCyan = Freeze(new SolidColorBrush(Color.FromArgb(160, 34, 211, 238)));
+                        var mossViolet = Freeze(new SolidColorBrush(Color.FromArgb(145, 167, 139, 250)));
+                        bdc.DrawGeometry(rockDark, null, BuildPolyline(true,
+                            new Point(0, h * 0.68), new Point(w * 0.26, h * 0.66), new Point(w * 0.31, h * 0.73), new Point(0, h * 0.76)));
+                        bdc.DrawGeometry(rockDark, null, BuildPolyline(true,
+                            new Point(w, h * 0.67), new Point(w * 0.73, h * 0.65), new Point(w * 0.68, h * 0.73), new Point(w, h * 0.76)));
+                        bdc.DrawEllipse(mossCyan, null, new Point(w * 0.17, h * 0.66), w * 0.08, 6);
+                        bdc.DrawEllipse(mossViolet, null, new Point(w * 0.81, h * 0.65), w * 0.09, 6);
+                    });
+                    break;
+
+                case "observatory_morning":
+                case "observatory_night":
+                case "observatory_sunset":
+                    _staticBgBitmap = BakeToBitmap(w, h, dpiX, dpiY, bdc =>
+                    {
+                        bool isMorning = _sceneId == "observatory_morning";
+                        bool isSunset = _sceneId == "observatory_sunset";
+                        Brush skyBrush = isMorning
+                            ? MakeVerticalGrad(new Rect(0, 0, w, h),
+                                (Color.FromRgb(30, 64, 130), 0.0), (Color.FromRgb(96, 165, 250), 0.42),
+                                (Color.FromRgb(253, 186, 116), 0.82), (Color.FromRgb(254, 240, 138), 1.0))
+                            : isSunset
+                            ? MakeVerticalGrad(new Rect(0, 0, w, h),
+                                (Color.FromRgb(24, 14, 52), 0.0), (Color.FromRgb(107, 33, 98), 0.40),
+                                (Color.FromRgb(225, 29, 72), 0.72), (Color.FromRgb(251, 146, 60), 1.0))
+                            : MakeVerticalGrad(new Rect(0, 0, w, h),
+                                (Color.FromRgb(2, 6, 20), 0.0), (Color.FromRgb(7, 17, 46), 0.55), (Color.FromRgb(15, 32, 68), 1.0));
+                        bdc.DrawRectangle(skyBrush, null, new Rect(0, 0, w, h));
+
+                        if (!isMorning && !isSunset)
+                        {
+                            var milkyWay = MakeLinearAbs(new Point(w * 0.1, h * 0.6), new Point(w * 0.85, h * 0.05),
+                                (Color.FromArgb(0, 56, 189, 248), 0.0),
+                                (Color.FromArgb(32, 129, 140, 248), 0.45),
+                                (Color.FromArgb(24, 192, 132, 252), 0.65),
+                                (Color.FromArgb(0, 56, 189, 248), 1.0));
+                            bdc.DrawEllipse(milkyWay, null, new Point(w * 0.46, h * 0.30), w * 0.42, h * 0.16);
+                        }
+
+                        // Alpine peaks layers
+                        var farRidge = Freeze(new SolidColorBrush(isMorning ? Color.FromRgb(125, 152, 196) : isSunset ? Color.FromRgb(88, 36, 74) : Color.FromRgb(14, 24, 48)));
+                        var midRidge = Freeze(new SolidColorBrush(isMorning ? Color.FromRgb(71, 95, 136) : isSunset ? Color.FromRgb(56, 20, 52) : Color.FromRgb(10, 17, 36)));
+                        var frontRidge = Freeze(new SolidColorBrush(isMorning ? Color.FromRgb(26, 36, 56) : isSunset ? Color.FromRgb(24, 10, 28) : Color.FromRgb(5, 9, 20)));
+
+                        bdc.DrawGeometry(farRidge, null, BuildPolyline(true,
+                            new Point(0, h), new Point(0, h * 0.60), new Point(w * 0.16, h * 0.46),
+                            new Point(w * 0.32, h * 0.56), new Point(w * 0.52, h * 0.41), new Point(w * 0.72, h * 0.54),
+                            new Point(w * 0.88, h * 0.44), new Point(w, h * 0.56), new Point(w, h)));
+
+                        bdc.DrawGeometry(midRidge, null, BuildPolyline(true,
+                            new Point(0, h), new Point(0, h * 0.72), new Point(w * 0.12, h * 0.57),
+                            new Point(w * 0.26, h * 0.67), new Point(w * 0.44, h * 0.53), new Point(w * 0.62, h * 0.65),
+                            new Point(w * 0.82, h * 0.54), new Point(w, h * 0.66), new Point(w, h)));
+
+                        // Foreground summit & stone observatory platform on right
+                        bdc.DrawGeometry(frontRidge, null, BuildPolyline(true,
+                            new Point(0, h), new Point(0, h * 0.82), new Point(w * 0.24, h * 0.74),
+                            new Point(w * 0.54, h * 0.78), new Point(w * 0.66, h * 0.64), new Point(w * 0.88, h * 0.64),
+                            new Point(w, h * 0.74), new Point(w, h)));
+
+                        // Observatory drum & masonry base on plateau
+                        double ox = w * 0.76;
+                        double oy = h * 0.64;
+                        double domeR = Math.Min(w, h) * 0.085;
+                        var drumBrush = Freeze(new SolidColorBrush(isMorning ? Color.FromRgb(226, 232, 240) : isSunset ? Color.FromRgb(64, 34, 58) : Color.FromRgb(30, 41, 59)));
+                        bdc.DrawRectangle(drumBrush, null, new Rect(ox - domeR * 0.92, oy - domeR * 0.75, domeR * 1.84, domeR * 0.78));
+                        bdc.DrawEllipse(drumBrush, null, new Point(ox, oy - domeR * 0.72), domeR, domeR * 0.92);
+                        var warmWindow = Freeze(new SolidColorBrush(isMorning ? Color.FromRgb(254, 243, 199) : Color.FromRgb(251, 191, 36)));
+                        bdc.DrawRectangle(warmWindow, null, new Rect(ox - domeR * 0.16, oy - domeR * 0.48, domeR * 0.32, domeR * 0.24));
+                    });
+                    break;
+
+                case "bamboo_garden":
+                    _staticBgBitmap = BakeToBitmap(w, h, dpiX, dpiY, bdc =>
+                    {
+                        var mistSky = MakeVerticalGrad(new Rect(0, 0, w, h),
+                            (Color.FromRgb(6, 40, 32), 0.0), (Color.FromRgb(16, 78, 56), 0.48), (Color.FromRgb(6, 30, 24), 1.0));
+                        bdc.DrawRectangle(mistSky, null, new Rect(0, 0, w, h));
+
+                        // Distant bamboo haze hill
+                        var distantHill = Freeze(new SolidColorBrush(Color.FromRgb(12, 54, 40)));
+                        bdc.DrawGeometry(distantHill, null, BuildPolyline(true,
+                            new Point(0, h), new Point(0, h * 0.64), new Point(w * 0.35, h * 0.54),
+                            new Point(w * 0.70, h * 0.62), new Point(w, h * 0.56), new Point(w, h)));
+
+                        // Tranquil garden pond at foreground bottom
+                        var pond = MakeVerticalGrad(new Rect(0, h * 0.79, w, h * 0.21),
+                            (Color.FromRgb(9, 46, 42), 0.0), (Color.FromRgb(5, 25, 25), 1.0));
+                        bdc.DrawRectangle(pond, null, new Rect(0, h * 0.79, w, h * 0.21));
+
+                        // Mossy stone ledge + traditional stone lantern (toro)
+                        var stone = Freeze(new SolidColorBrush(Color.FromRgb(51, 65, 68)));
+                        var stoneDark = Freeze(new SolidColorBrush(Color.FromRgb(30, 41, 43)));
+                        bdc.DrawGeometry(stoneDark, null, BuildPolyline(true,
+                            new Point(0, h * 0.78), new Point(w * 0.36, h * 0.77), new Point(w * 0.42, h * 0.84), new Point(0, h * 0.87)));
+
+                        double lx = w * 0.21;
+                        double ly = h * 0.77;
+                        bdc.DrawRectangle(stone, null, new Rect(lx - 10, ly - 48, 20, 48));
+                        bdc.DrawRectangle(stoneDark, null, new Rect(lx - 18, ly - 54, 36, 8));
+                        bdc.DrawRectangle(stone, null, new Rect(lx - 14, ly - 78, 28, 24));
+                        var lampCore = Freeze(new SolidColorBrush(Color.FromRgb(254, 240, 138)));
+                        bdc.DrawRectangle(lampCore, null, new Rect(lx - 6, ly - 73, 12, 14));
+                        bdc.DrawGeometry(stoneDark, null, BuildTriangle(
+                            new Point(lx - 26, ly - 78), new Point(lx + 26, ly - 78), new Point(lx, ly - 98)));
+                    });
+                    break;
+
+                case "volcanic_caldera":
+                    _staticBgBitmap = BakeToBitmap(w, h, dpiX, dpiY, bdc =>
+                    {
+                        var ashSky = MakeVerticalGrad(new Rect(0, 0, w, h * 0.72),
+                            (Color.FromRgb(14, 10, 12), 0.0), (Color.FromRgb(48, 16, 14), 0.52), (Color.FromRgb(124, 34, 14), 1.0));
+                        bdc.DrawRectangle(ashSky, null, new Rect(0, 0, w, h * 0.72));
+
+                        // Molten lava basin
+                        var lavaLake = MakeVerticalGrad(new Rect(0, h * 0.70, w, h * 0.30),
+                            (Color.FromRgb(251, 146, 60), 0.0), (Color.FromRgb(220, 38, 38), 0.45), (Color.FromRgb(69, 10, 10), 1.0));
+                        bdc.DrawRectangle(lavaLake, null, new Rect(0, h * 0.70, w, h * 0.30));
+
+                        // Basalt caldera cone walls framing left & right
+                        var basaltFar = Freeze(new SolidColorBrush(Color.FromRgb(32, 18, 18)));
+                        var basaltDark = Freeze(new SolidColorBrush(Color.FromRgb(18, 10, 12)));
+                        bdc.DrawGeometry(basaltFar, null, BuildPolyline(true,
+                            new Point(w * 0.14, h * 0.70), new Point(w * 0.34, h * 0.56), new Point(w * 0.48, h * 0.65),
+                            new Point(w * 0.68, h * 0.54), new Point(w * 0.86, h * 0.70)));
+                        bdc.DrawGeometry(basaltDark, null, BuildPolyline(true,
+                            new Point(0, h), new Point(0, h * 0.36), new Point(w * 0.24, h * 0.62), new Point(w * 0.38, h * 0.78), new Point(0, h * 0.90)));
+                        bdc.DrawGeometry(basaltDark, null, BuildPolyline(true,
+                            new Point(w, h), new Point(w, h * 0.34), new Point(w * 0.76, h * 0.60), new Point(w * 0.62, h * 0.78), new Point(w, h * 0.90)));
+                    });
+                    break;
+
+                case "ancient_temple":
+                    _staticBgBitmap = BakeToBitmap(w, h, dpiX, dpiY, bdc =>
+                    {
+                        var duskSky = MakeVerticalGrad(new Rect(0, 0, w, h * 0.74),
+                            (Color.FromRgb(15, 23, 42), 0.0), (Color.FromRgb(55, 48, 86), 0.55), (Color.FromRgb(146, 94, 72), 1.0));
+                        bdc.DrawRectangle(duskSky, null, new Rect(0, 0, w, h * 0.74));
+
+                        // Reflective pool
+                        var pool = MakeVerticalGrad(new Rect(0, h * 0.74, w, h * 0.26),
+                            (Color.FromRgb(42, 34, 52), 0.0), (Color.FromRgb(15, 17, 29), 1.0));
+                        bdc.DrawRectangle(pool, null, new Rect(0, h * 0.74, w, h * 0.26));
+
+                        // Jungle canyon hills
+                        var cliff = Freeze(new SolidColorBrush(Color.FromRgb(22, 24, 34)));
+                        bdc.DrawGeometry(cliff, null, BuildPolyline(true,
+                            new Point(0, h * 0.74), new Point(0, h * 0.44), new Point(w * 0.22, h * 0.64),
+                            new Point(w * 0.78, h * 0.64), new Point(w, h * 0.42), new Point(w, h * 0.74)));
+
+                        // Stepped stone temple tiers + pillars
+                        var stone = Freeze(new SolidColorBrush(Color.FromRgb(44, 42, 54)));
+                        var stoneTrim = Freeze(new SolidColorBrush(Color.FromRgb(68, 64, 78)));
+                        double cx = w * 0.5;
+                        bdc.DrawRectangle(stone, null, new Rect(cx - w * 0.20, h * 0.62, w * 0.40, h * 0.12));
+                        bdc.DrawRectangle(stoneTrim, null, new Rect(cx - w * 0.15, h * 0.51, w * 0.30, h * 0.11));
+                        bdc.DrawRectangle(stone, null, new Rect(cx - w * 0.10, h * 0.41, w * 0.20, h * 0.10));
+                        bdc.DrawGeometry(stoneTrim, null, BuildTriangle(
+                            new Point(cx - w * 0.13, h * 0.41), new Point(cx + w * 0.13, h * 0.41), new Point(cx, h * 0.29)));
+                        for (int p = -2; p <= 2; p++)
+                            bdc.DrawRectangle(stoneTrim, null, new Rect(cx + p * w * 0.055 - 6, h * 0.41, 12, h * 0.21));
+                    });
+                    break;
+
+                case "fireplace":
+                    _staticBgBitmap = BakeToBitmap(w, h, dpiX, dpiY, bdc =>
+                    {
+                        var roomBg = MakeVerticalGrad(new Rect(0, 0, w, h),
+                            (Color.FromRgb(18, 10, 8), 0.0), (Color.FromRgb(28, 16, 12), 1.0));
+                        bdc.DrawRectangle(roomBg, null, new Rect(0, 0, w, h));
+
+                        // Brick surround
+                        double hx = w * 0.26;
+                        double hw = w * 0.48;
+                        double hy = h * 0.24;
+                        double hh = h * 0.66;
+                        var brickMain = Freeze(new SolidColorBrush(Color.FromRgb(58, 28, 22)));
+                        var brickInner = Freeze(new SolidColorBrush(Color.FromRgb(15, 9, 8)));
+                        var mantleBrush = Freeze(new SolidColorBrush(Color.FromRgb(46, 26, 16)));
+                        bdc.DrawRectangle(brickMain, null, new Rect(hx, hy, hw, hh));
+                        bdc.DrawRectangle(mantleBrush, null, new Rect(hx - 24, hy - 18, hw + 48, 24));
+                        bdc.DrawRectangle(brickInner, null, new Rect(hx + hw * 0.14, hy + 46, hw * 0.72, hh - 46));
+                        bdc.DrawRectangle(mantleBrush, null, new Rect(hx - 28, h * 0.88, hw + 56, h * 0.12));
+
+                        // Charred wooden logs in firebox
+                        var logBrush = Freeze(new SolidColorBrush(Color.FromRgb(42, 24, 14)));
+                        bdc.DrawRoundedRectangle(logBrush, null, new Rect(w * 0.37, h * 0.81, w * 0.26, 22), 9, 9);
+                        bdc.DrawRoundedRectangle(logBrush, null, new Rect(w * 0.41, h * 0.78, w * 0.18, 18), 8, 8);
+                    });
+                    break;
+
+                case "ocean_shore":
+                    _staticBgBitmap = BakeToBitmap(w, h, dpiX, dpiY, bdc =>
+                    {
+                        var coastSky = MakeVerticalGrad(new Rect(0, 0, w, h * 0.50),
+                            (Color.FromRgb(14, 116, 144), 0.0), (Color.FromRgb(56, 189, 248), 0.58), (Color.FromRgb(254, 243, 199), 1.0));
+                        bdc.DrawRectangle(coastSky, null, new Rect(0, 0, w, h * 0.50));
+
+                        var deepSea = MakeVerticalGrad(new Rect(0, h * 0.50, w, h * 0.22),
+                            (Color.FromRgb(12, 74, 110), 0.0), (Color.FromRgb(14, 116, 144), 1.0));
+                        bdc.DrawRectangle(deepSea, null, new Rect(0, h * 0.50, w, h * 0.22));
+
+                        var drySand = MakeVerticalGrad(new Rect(0, h * 0.70, w, h * 0.30),
+                            (Color.FromRgb(217, 179, 130), 0.0), (Color.FromRgb(194, 152, 102), 0.6), (Color.FromRgb(161, 118, 72), 1.0));
+                        bdc.DrawRectangle(drySand, null, new Rect(0, h * 0.70, w, h * 0.30));
+
+                        // Left rocky headland silhouette
+                        var cliff = Freeze(new SolidColorBrush(Color.FromRgb(51, 65, 85)));
+                        bdc.DrawGeometry(cliff, null, BuildPolyline(true,
+                            new Point(0, h * 0.56), new Point(w * 0.14, h * 0.46), new Point(w * 0.22, h * 0.55), new Point(0, h * 0.62)));
+                    });
+                    break;
+
+                case "crystal_cave":
+                    _staticBgBitmap = BakeToBitmap(w, h, dpiX, dpiY, bdc =>
+                    {
+                        var crystalBg = MakeVerticalGrad(new Rect(0, 0, w, h),
+                            (Color.FromRgb(12, 6, 30), 0.0), (Color.FromRgb(28, 12, 58), 0.55), (Color.FromRgb(10, 8, 28), 1.0));
+                        bdc.DrawRectangle(crystalBg, null, new Rect(0, 0, w, h));
+
+                        // Dark mirror cavern floor pool
+                        var floor = MakeVerticalGrad(new Rect(0, h * 0.74, w, h * 0.26),
+                            (Color.FromRgb(24, 15, 48), 0.0), (Color.FromRgb(7, 5, 18), 1.0));
+                        bdc.DrawRectangle(floor, null, new Rect(0, h * 0.74, w, h * 0.26));
+
+                        // Faceted crystal clusters (left/right floor & hanging upper clusters)
+                        var crAmethystL = Freeze(new SolidColorBrush(Color.FromArgb(200, 168, 85, 247)));
+                        var crAmethystR = Freeze(new SolidColorBrush(Color.FromArgb(190, 107, 33, 168)));
+                        var crCyanL = Freeze(new SolidColorBrush(Color.FromArgb(200, 103, 232, 249)));
+                        var crCyanR = Freeze(new SolidColorBrush(Color.FromArgb(185, 14, 116, 144)));
+
+                        void DrawCrystalSpire(double bx, double by, double tipX, double tipY, double halfW, bool cyan)
+                        {
+                            bdc.DrawGeometry(cyan ? crCyanL : crAmethystL, null,
+                                BuildTriangle(new Point(bx - halfW, by), new Point(bx, by), new Point(tipX, tipY)));
+                            bdc.DrawGeometry(cyan ? crCyanR : crAmethystR, null,
+                                BuildTriangle(new Point(bx, by), new Point(bx + halfW, by), new Point(tipX, tipY)));
+                        }
+
+                        DrawCrystalSpire(w * 0.14, h * 0.78, w * 0.19, h * 0.44, 34, false);
+                        DrawCrystalSpire(w * 0.23, h * 0.80, w * 0.28, h * 0.56, 24, true);
+                        DrawCrystalSpire(w * 0.84, h * 0.79, w * 0.78, h * 0.42, 36, false);
+                        DrawCrystalSpire(w * 0.75, h * 0.81, w * 0.71, h * 0.58, 24, true);
+                        DrawCrystalSpire(w * 0.26, 0, w * 0.29, h * 0.26, 22, true);
+                        DrawCrystalSpire(w * 0.72, 0, w * 0.68, h * 0.24, 24, false);
+                    });
+                    break;
             }
         }
 
@@ -3229,6 +4024,349 @@ namespace StudyHub.Controls
 
             foreach (var r in _rainDrops)
                 dc.DrawLine(PickLut(RainDropPenLut, r.Alpha), new Point(r.X, r.Y), new Point(r.X - r.Len * 0.15, r.Y + r.Len));
+        }
+
+        // =========================== 18. BIOLUMINESCENT GROTTO ===========================
+        private void RenderBioluminescentGrotto(DrawingContext dc, double w, double h)
+        {
+            if (_staticBgBitmap != null)
+                dc.DrawImage(_staticBgBitmap, new Rect(0, 0, _staticBgBitmap.Width, _staticBgBitmap.Height));
+
+            double pulse0 = 0.78 + Math.Sin(_t * 1.4) * 0.22;
+            dc.DrawImage(GrottoOrbCyan, new Rect(w * 0.17 - 70 * pulse0, h * 0.66 - 50 * pulse0, 140 * pulse0, 100 * pulse0));
+            dc.DrawImage(GrottoOrbViolet, new Rect(w * 0.81 - 75 * pulse0, h * 0.65 - 55 * pulse0, 150 * pulse0, 110 * pulse0));
+
+            foreach (var pd in _puddles)
+            {
+                double a = (1.0 - pd.RippleR / pd.MaxR) * 0.55;
+                if (a > 0.02)
+                    dc.DrawEllipse(null, PickLut(GrottoRipplePenLut, a), new Point(pd.X, pd.Y), pd.RippleR, pd.RippleR * 0.28);
+            }
+
+            for (int idx = 0; idx < _fireflies.Count; idx++)
+            {
+                var f = _fireflies[idx];
+                double g = Math.Pow(Math.Sin(f.Phase) * 0.5 + 0.5, 1.4);
+                int kind = idx % 3;
+                var lut = kind == 0 ? CyanPlanktonLut : kind == 1 ? TealBioLut : VioletBioLut;
+                dc.DrawEllipse(PickLut(lut, g * 0.24), null, new Point(f.X, f.Y), f.R * 3.8, f.R * 3.8);
+                dc.DrawEllipse(PickLut(lut, g * 0.92), null, new Point(f.X, f.Y), f.R, f.R);
+            }
+
+            foreach (var p in _planktons)
+            {
+                double a = 0.35 + 0.55 * Math.Sin(p.Phase);
+                dc.DrawEllipse(PickLut(AzureBioLut, a), null, new Point(p.X, p.Y), p.R, p.R * 0.65);
+            }
+        }
+
+        // =========================== 19-21. HIGH-ALTITUDE OBSERVATORY ===========================
+        private void RenderObservatory(DrawingContext dc, double w, double h, string mode)
+        {
+            if (_staticBgBitmap != null)
+                dc.DrawImage(_staticBgBitmap, new Rect(0, 0, _staticBgBitmap.Width, _staticBgBitmap.Height));
+
+            if (mode == "night")
+            {
+                foreach (var st in _stars)
+                {
+                    double a = 0.35 + 0.65 * Math.Sin(st.Phase);
+                    dc.DrawEllipse(PickLut(st.HueLut, a), null, new Point(st.X, st.Y), st.R, st.R);
+                }
+                if (_shootingStar != null && _shootingStar.Timer <= 0)
+                {
+                    dc.PushTransform(new TranslateTransform(_shootingStar.X, _shootingStar.Y));
+                    dc.DrawLine(ShootingStarPen, new Point(0, 0), new Point(-_shootingStar.Vx * 11, -_shootingStar.Vy * 11));
+                    dc.Pop();
+                }
+            }
+            else if (mode == "morning")
+            {
+                double sx = w * 0.22;
+                double sy = h * 0.34;
+                dc.DrawImage(ObsSunGlow, new Rect(sx - 95, sy - 95, 190, 190));
+            }
+            else
+            {
+                double sx = w * 0.26;
+                double sy = h * 0.42;
+                dc.DrawImage(ObsSunsetGlow, new Rect(sx - 110, sy - 110, 220, 220));
+                foreach (var st in _stars)
+                {
+                    if (st.Y < h * 0.35)
+                    {
+                        double a = (0.2 + 0.3 * Math.Sin(st.Phase)) * (1.0 - st.Y / (h * 0.35));
+                        dc.DrawEllipse(PickLut(WhiteStarLut, a), null, new Point(st.X, st.Y), st.R * 0.85, st.R * 0.85);
+                    }
+                }
+            }
+
+            // Animated telescope barrel protruding from dome slit
+            double ox = w * 0.76;
+            double oy = h * 0.64;
+            double domeR = Math.Min(w, h) * 0.085;
+            double sweep = -2.25 + Math.Sin(_t * 0.28) * 0.22;
+            var scopePivot = new Point(ox - domeR * 0.15, oy - domeR * 0.95);
+            var scopeTip = new Point(scopePivot.X + Math.Cos(sweep) * domeR * 1.15, scopePivot.Y + Math.Sin(sweep) * domeR * 1.15);
+            var scopePen = mode == "morning" ? ObsTelescopeBarrelPen : mode == "sunset" ? ObsSunsetTelescopePen : ObsNightTelescopePen;
+            dc.DrawLine(scopePen, scopePivot, scopeTip);
+            dc.DrawEllipse(ObsTelescopeMetalBrush, null, scopeTip, 3.2, 3.2);
+
+            if (mode != "night")
+            {
+                var cloudSprite = mode == "morning" ? ObsCloudMorning : ObsCloudSunset;
+                foreach (var cl in _clouds)
+                    dc.DrawImage(cloudSprite, new Rect(cl.X - cl.W * 0.5, cl.Y - cl.H * 0.5, cl.W, cl.H));
+                var birdPen = mode == "morning" ? ObsMorningBirdPen : SunsetBirdPen;
+                foreach (var bd in _birds)
+                {
+                    double flap = Math.Sin(bd.WingPhase) * bd.Size * 0.5;
+                    var wingGeo = BuildQuadBezier(new Point(bd.X - bd.Size, bd.Y + flap), new Point(bd.X, bd.Y - flap * 0.6), new Point(bd.X + bd.Size, bd.Y + flap));
+                    dc.DrawGeometry(null, birdPen, wingGeo);
+                }
+            }
+        }
+
+        // =========================== 22. ZEN BAMBOO GARDEN ===========================
+        private void RenderBambooGarden(DrawingContext dc, double w, double h)
+        {
+            if (_staticBgBitmap != null)
+                dc.DrawImage(_staticBgBitmap, new Rect(0, 0, _staticBgBitmap.Width, _staticBgBitmap.Height));
+
+            double lx = w * 0.21;
+            double ly = h * 0.77 - 66;
+            double flicker = 0.85 + Math.Sin(_t * 3.1) * 0.15;
+            dc.DrawImage(LanternGlowSprite, new Rect(lx - 70 * flicker, ly - 70 * flicker, 140 * flicker, 140 * flicker));
+
+            foreach (var pd in _puddles)
+            {
+                double a = (1.0 - pd.RippleR / pd.MaxR) * 0.45;
+                if (a > 0.02)
+                    dc.DrawEllipse(null, PickLut(PuddleRipplePenLut, a), new Point(pd.X, pd.Y), pd.RippleR, pd.RippleR * 0.26);
+            }
+
+            // Swaying layered bamboo stalks
+            for (int i = 0; i < 16; i++)
+            {
+                double bx = w * (0.04 + (i / 15.0) * 0.92);
+                double sway = Math.Sin(_t * 0.85 + i * 0.7) * (12 + (i % 3) * 6);
+                var pen = i % 3 == 0 ? BambooStalkBackPen : i % 3 == 1 ? BambooStalkMidPen : BambooStalkFrontPen;
+                var top = new Point(bx + sway, -10);
+                var ctrl = new Point(bx + sway * 0.35, h * 0.42);
+                var bot = new Point(bx, h * 0.82);
+                dc.DrawGeometry(null, pen, BuildQuadBezier(bot, ctrl, top));
+
+                for (int seg = 1; seg <= 4; seg++)
+                {
+                    double tSeg = seg * 0.20;
+                    double sy = bot.Y + (top.Y - bot.Y) * tSeg;
+                    double sx = bot.X + sway * (tSeg * tSeg);
+                    dc.DrawLine(BambooNodePen, new Point(sx - 8, sy), new Point(sx + 8, sy));
+                    if (seg >= 2 && (i + seg) % 2 == 0)
+                        dc.DrawEllipse(BambooLeafClusterBrush, null, new Point(sx + (i % 2 == 0 ? 18 : -18), sy - 6), 16, 4.5);
+                }
+            }
+
+            foreach (var cl in _clouds)
+                dc.DrawImage(BambooMistSprite, new Rect(cl.X - cl.W * 0.5, cl.Y - cl.H * 0.5, cl.W, cl.H));
+
+            foreach (var lf in _leafSpores)
+            {
+                dc.PushTransform(new TranslateTransform(lf.X, lf.Y));
+                dc.PushTransform(new RotateTransform(lf.RotDeg));
+                dc.DrawEllipse(lf.ColBrush, null, new Point(0, 0), lf.R, lf.R * 0.34);
+                dc.Pop();
+                dc.Pop();
+            }
+        }
+
+        // =========================== 23. VOLCANIC CALDERA ===========================
+        private void RenderVolcanicCaldera(DrawingContext dc, double w, double h)
+        {
+            if (_staticBgBitmap != null)
+                dc.DrawImage(_staticBgBitmap, new Rect(0, 0, _staticBgBitmap.Width, _staticBgBitmap.Height));
+
+            double pulse = 0.75 + Math.Sin(_t * 1.9) * 0.25;
+            dc.DrawImage(VolcanoLavaGlowSprite, new Rect(w * 0.5 - w * 0.32, h * 0.55, w * 0.64, h * 0.32));
+
+            // Glowing magma fissures across caldera lake
+            for (int c = 0; c < 6; c++)
+            {
+                double y = h * (0.74 + c * 0.036);
+                double wave = Math.Sin(_t * 1.4 + c) * 18;
+                dc.DrawLine(PickLut(VolcanoCracksPenLut, pulse),
+                    new Point(w * (0.28 + c * 0.03) + wave, y),
+                    new Point(w * (0.72 - c * 0.03) - wave, y + 4));
+            }
+
+            foreach (var cl in _clouds)
+                dc.DrawImage(VolcanoSmokeSprite, new Rect(cl.X - cl.W * 0.5, cl.Y - cl.H * 0.5, cl.W, cl.H));
+
+            for (int idx = 0; idx < _fireflies.Count; idx++)
+            {
+                var f = _fireflies[idx];
+                double g = 0.45 + 0.55 * Math.Sin(f.Phase);
+                var lut = idx % 2 == 0 ? VolcanoEmberLut : VolcanoCoreLut;
+                dc.DrawEllipse(PickLut(lut, g * 0.30), null, new Point(f.X, f.Y), f.R * 2.8, f.R * 2.8);
+                dc.DrawEllipse(PickLut(lut, g), null, new Point(f.X, f.Y), f.R, f.R);
+            }
+        }
+
+        // =========================== 24. ANCIENT TEMPLE ===========================
+        private void RenderAncientTemple(DrawingContext dc, double w, double h)
+        {
+            if (_staticBgBitmap != null)
+                dc.DrawImage(_staticBgBitmap, new Rect(0, 0, _staticBgBitmap.Width, _staticBgBitmap.Height));
+
+            foreach (var st in _stars)
+            {
+                if (st.Y < h * 0.44)
+                    dc.DrawEllipse(PickLut(WhiteStarLut, 0.25 + 0.35 * Math.Sin(st.Phase)), null, new Point(st.X, st.Y), st.R * 0.8, st.R * 0.8);
+            }
+
+            // Flickering ceremonial braziers on left and right terraces
+            double f1 = 0.82 + Math.Sin(_t * 6.5) * 0.14;
+            double f2 = 0.82 + Math.Cos(_t * 5.8) * 0.14;
+            dc.DrawImage(TempleFlameSprite, new Rect(w * 0.33 - 42 * f1, h * 0.60 - 46 * f1, 84 * f1, 84 * f1));
+            dc.DrawImage(TempleFlameSprite, new Rect(w * 0.67 - 42 * f2, h * 0.60 - 46 * f2, 84 * f2, 84 * f2));
+
+            foreach (var cl in _clouds)
+                dc.DrawImage(TempleMistSprite, new Rect(cl.X - cl.W * 0.5, cl.Y - cl.H * 0.5, cl.W, cl.H));
+
+            foreach (var f in _fireflies)
+            {
+                double a = 0.35 + 0.65 * Math.Sin(f.Phase);
+                dc.DrawEllipse(PickLut(TempleIncenseLut, a * 0.28), null, new Point(f.X, f.Y), f.R * 2.6, f.R * 2.6);
+                dc.DrawEllipse(PickLut(TempleIncenseLut, a), null, new Point(f.X, f.Y), f.R, f.R);
+            }
+        }
+
+        // =========================== 25. FIREPLACE ===========================
+        private void RenderFireplace(DrawingContext dc, double w, double h)
+        {
+            if (_staticBgBitmap != null)
+                dc.DrawImage(_staticBgBitmap, new Rect(0, 0, _staticBgBitmap.Width, _staticBgBitmap.Height));
+
+            double cx = w * 0.5;
+            double baseY = h * 0.79;
+            double glowScale = 0.94 + Math.Sin(_t * 5.2) * 0.06 + Math.Sin(_t * 11.7) * 0.03;
+            dc.DrawImage(HearthAmbientSprite, new Rect(cx - 210 * glowScale, baseY - 220 * glowScale, 420 * glowScale, 320 * glowScale));
+
+            // Glowing coal bed
+            dc.DrawEllipse(EmberGlowBrush, null, new Point(cx, h * 0.83), w * 0.12, 16);
+
+            // Procedural multi-tongue dancing flames
+            for (int tIdx = -2; tIdx <= 2; tIdx++)
+            {
+                double tx = cx + tIdx * 24 + Math.Sin(_t * 7.2 + tIdx) * 6;
+                double fH = (115 - Math.Abs(tIdx) * 18) * (0.85 + Math.Sin(_t * 8.4 + tIdx * 1.7) * 0.18);
+                double fW = 36 - Math.Abs(tIdx) * 4;
+                var outerGeo = BuildPolyline(true,
+                    new Point(tx - fW * 0.6, baseY),
+                    new Point(tx - fW * 0.45, baseY - fH * 0.55),
+                    new Point(tx + Math.Sin(_t * 9 + tIdx) * 10, baseY - fH),
+                    new Point(tx + fW * 0.45, baseY - fH * 0.55),
+                    new Point(tx + fW * 0.6, baseY));
+                dc.DrawGeometry(FlameOuterBrush, null, outerGeo);
+            }
+            for (int tIdx = -1; tIdx <= 1; tIdx++)
+            {
+                double tx = cx + tIdx * 18 + Math.Cos(_t * 8.1 + tIdx) * 4;
+                double fH = (82 - Math.Abs(tIdx) * 14) * (0.88 + Math.Cos(_t * 10.2 + tIdx) * 0.15);
+                var midGeo = BuildTriangle(new Point(tx - 18, baseY), new Point(tx + 18, baseY), new Point(tx + Math.Sin(_t * 11 + tIdx) * 6, baseY - fH));
+                dc.DrawGeometry(FlameMidBrush, null, midGeo);
+            }
+            dc.DrawEllipse(FlameCoreBrush, null, new Point(cx + Math.Sin(_t * 12) * 3, baseY - 26), 22, 34);
+
+            foreach (var f in _fireflies)
+            {
+                double a = 0.4 + 0.6 * Math.Sin(f.Phase);
+                dc.DrawEllipse(PickLut(SparkEmberLut, a), null, new Point(f.X, f.Y), f.R, f.R);
+            }
+        }
+
+        // =========================== 26. OCEAN SHORE ===========================
+        private void RenderOceanShore(DrawingContext dc, double w, double h)
+        {
+            if (_staticBgBitmap != null)
+                dc.DrawImage(_staticBgBitmap, new Rect(0, 0, _staticBgBitmap.Width, _staticBgBitmap.Height));
+
+            foreach (var cl in _clouds)
+                dc.DrawImage(ShoreCloudSprite, new Rect(cl.X - cl.W * 0.5, cl.Y - cl.H * 0.5, cl.W, cl.H));
+
+            foreach (var p in _planktons)
+                dc.DrawEllipse(PickLut(WhiteStarLut, 0.35 + 0.65 * Math.Sin(p.Phase)), null, new Point(p.X, p.Y), p.R, p.R * 0.5);
+
+            // Rolling tidal surf & wet sand sheen
+            double wash = (Math.Sin(_t * 0.78) + 1.0) * 0.5;
+            double surfY = h * (0.69 + wash * 0.08);
+            dc.DrawRectangle(ShoreWetSandBrush, null, new Rect(0, h * 0.69, w, h * 0.10));
+            dc.DrawGeometry(ShoreWaveAquaBrush, null, BuildPolyline(true,
+                new Point(0, h * 0.68), new Point(w, h * 0.68),
+                new Point(w, surfY + Math.Cos(_t * 1.4) * 6),
+                new Point(w * 0.66, surfY - 8 + Math.Sin(_t * 1.1) * 5),
+                new Point(w * 0.33, surfY + 6 + Math.Cos(_t * 1.3) * 5),
+                new Point(0, surfY)));
+            dc.DrawGeometry(null, ShoreWaveCrestPen, BuildQuadBezier(
+                new Point(0, surfY),
+                new Point(w * 0.5, surfY + Math.Sin(_t * 1.2) * 10),
+                new Point(w, surfY + Math.Cos(_t * 1.4) * 6)));
+            for (int fm = 0; fm < 5; fm++)
+            {
+                double fx = w * (0.12 + fm * 0.19) + Math.Sin(_t * 0.7 + fm) * 14;
+                double fy = surfY + Math.Sin(_t * 1.3 + fm) * 4;
+                dc.DrawEllipse(ShoreSeaFoamBrush, null, new Point(fx, fy), 24, 3.8);
+            }
+
+            double secondWaveY = h * (0.61 + ((Math.Sin(_t * 0.78 + 2.1) + 1.0) * 0.5) * 0.04);
+            dc.DrawGeometry(null, ShoreWaveCrestPen, BuildQuadBezier(
+                new Point(0, secondWaveY), new Point(w * 0.5, secondWaveY - 6), new Point(w, secondWaveY)));
+
+            foreach (var bd in _birds)
+            {
+                double flap = Math.Sin(bd.WingPhase) * bd.Size * 0.5;
+                dc.DrawGeometry(null, ObsMorningBirdPen, BuildQuadBezier(
+                    new Point(bd.X - bd.Size, bd.Y + flap), new Point(bd.X, bd.Y - flap * 0.5), new Point(bd.X + bd.Size, bd.Y + flap)));
+            }
+        }
+
+        // =========================== 27. CRYSTAL CAVE ===========================
+        private void RenderCrystalCave(DrawingContext dc, double w, double h)
+        {
+            if (_staticBgBitmap != null)
+                dc.DrawImage(_staticBgBitmap, new Rect(0, 0, _staticBgBitmap.Width, _staticBgBitmap.Height));
+
+            double shimmer = 0.75 + Math.Sin(_t * 1.6) * 0.25;
+            dc.DrawImage(CrystalGlowAmethyst, new Rect(w * 0.18 - 80 * shimmer, h * 0.56 - 80 * shimmer, 160 * shimmer, 160 * shimmer));
+            dc.DrawImage(CrystalGlowCyan, new Rect(w * 0.78 - 75 * shimmer, h * 0.60 - 75 * shimmer, 150 * shimmer, 150 * shimmer));
+
+            foreach (var pd in _puddles)
+            {
+                double a = (1.0 - pd.RippleR / pd.MaxR) * 0.45;
+                if (a > 0.02)
+                    dc.DrawEllipse(null, PickLut(GrottoRipplePenLut, a), new Point(pd.X, pd.Y), pd.RippleR, pd.RippleR * 0.24);
+            }
+
+            for (int idx = 0; idx < _fireflies.Count; idx++)
+            {
+                var f = _fireflies[idx];
+                double a = 0.35 + 0.65 * Math.Sin(f.Phase);
+                int kind = idx % 3;
+                var lut = kind == 0 ? CrystalAmethystLut : kind == 1 ? CrystalCyanLut : CrystalPinkLut;
+                dc.DrawEllipse(PickLut(lut, a * 0.28), null, new Point(f.X, f.Y), f.R * 2.8, f.R * 2.8);
+                dc.DrawEllipse(PickLut(lut, a), null, new Point(f.X, f.Y), f.R, f.R);
+            }
+
+            foreach (var p in _planktons)
+            {
+                double glint = Math.Pow(Math.Max(0, Math.Sin(p.Phase)), 4);
+                if (glint > 0.08)
+                {
+                    var brush = PickLut(WhiteStarLut, glint);
+                    dc.DrawEllipse(brush, null, new Point(p.X, p.Y), p.R * glint * 1.5, 1.0);
+                    dc.DrawEllipse(brush, null, new Point(p.X, p.Y), 1.0, p.R * glint * 1.5);
+                }
+            }
         }
 
         // =========================== LUT & SPRITE BUILDERS ===========================

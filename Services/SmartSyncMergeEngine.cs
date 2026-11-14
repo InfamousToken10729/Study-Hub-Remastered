@@ -98,7 +98,8 @@ namespace StudyHub.Services
                 Links = state.Links?.Count ?? 0,
                 CalendarEvents = state.CalendarEvents?.Count ?? 0,
                 CustomSounds = state.CustomSounds?.Count ?? 0,
-                SoundPresets = state.SavedSoundPresets?.Count ?? 0
+                SoundPresets = state.SavedSoundPresets?.Count ?? 0,
+                CustomZenMedia = state.CustomZenMedia?.Count ?? 0
             };
         }
 
@@ -257,9 +258,20 @@ namespace StudyHub.Services
             IReadOnlyDictionary<string, RemoteBinaryFileMeta>? remoteFiles,
             IReadOnlyDictionary<string, LocalBinaryFileMeta>? localSounds,
             IReadOnlyDictionary<string, RemoteBinaryFileMeta>? remoteSounds,
-            bool mismatchAcknowledged = false)
+            bool mismatchAcknowledged = false,
+            IReadOnlyDictionary<string, LocalBinaryFileMeta>? localZenMedia = null,
+            IReadOnlyDictionary<string, RemoteBinaryFileMeta>? remoteZenMedia = null)
         {
             var local = CloneState(localRaw ?? new AppStateData());
+            var ls = local.Settings ?? new UserSettings();
+            bool syncCourses = ls.SyncCoursesAndNotes;
+            bool syncLinks = ls.SyncLinksAndDeadlines;
+            bool syncCal = ls.SyncCalendar;
+            bool syncPdfs = ls.SyncPdfs;
+            bool syncVideos = ls.SyncVideosAndRecordings;
+            bool syncZen = ls.SyncExtraZenScenes;
+            bool syncAudio = ls.SyncExtraAudio;
+            bool syncPrefs = ls.SyncPreferences;
             string nowUtc = DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture);
 
             if (remoteRaw == null)
@@ -267,17 +279,26 @@ namespace StudyHub.Services
                 local.SyncMeta.LastMergedAtUtc = nowUtc;
                 local.SyncMeta.LastMergedByDeviceId = deviceId ?? "";
                 local.SyncMeta.LastSyncSummary = "Initial cloud upload";
+                var initialRemote = BuildInitialRemoteForEnabledCategories(local);
                 var initialOutcome = new SyncMergeOutcome
                 {
                     MergedState = local,
+                    RemoteMergedState = initialRemote,
                     StatusSummary = "Ready to initialize Google Drive cloud backup."
                 };
-                ComputeFileTransfers(initialOutcome, localFiles, remoteFiles, localSounds, remoteSounds, uploadsAllowed: true, downloadsAllowed: false);
+                ComputeFileTransfers(
+                    initialOutcome, localFiles, remoteFiles, localSounds, remoteSounds, localZenMedia, remoteZenMedia,
+                    uploadsAllowed: true, downloadsAllowed: false,
+                    syncPdfs: syncPdfs, syncVideos: syncVideos, syncAudio: syncAudio, syncZen: syncZen);
                 return initialOutcome;
             }
 
             var remote = CloneState(remoteRaw);
             var baseState = baseRaw != null ? CloneState(baseRaw) : null;
+            if (baseState != null)
+            {
+                SanitizeBaseForPreviouslyDisabledCategories(baseState, ls);
+            }
 
             var localCounts = ComputeCounts(local);
             var remoteCounts = ComputeCounts(remote);
@@ -293,10 +314,14 @@ namespace StudyHub.Services
                 var pullOutcome = new SyncMergeOutcome
                 {
                     MergedState = pulled,
+                    RemoteMergedState = CloneState(remote),
                     CloudChangesAppliedCount = remoteCounts.TotalItems,
                     StatusSummary = $"Restored {remoteCounts.Subjects} course(s) and {remoteCounts.TotalItems} item(s) from Google Drive."
                 };
-                ComputeFileTransfers(pullOutcome, localFiles, remoteFiles, localSounds, remoteSounds, uploadsAllowed: false, downloadsAllowed: true);
+                ComputeFileTransfers(
+                    pullOutcome, localFiles, remoteFiles, localSounds, remoteSounds, localZenMedia, remoteZenMedia,
+                    uploadsAllowed: false, downloadsAllowed: true,
+                    syncPdfs: true, syncVideos: true, syncAudio: true, syncZen: true);
                 return pullOutcome;
             }
 
@@ -310,10 +335,14 @@ namespace StudyHub.Services
                 var pushOutcome = new SyncMergeOutcome
                 {
                     MergedState = pushed,
+                    RemoteMergedState = CloneState(pushed),
                     LocalChangesCount = localCounts.TotalItems,
                     StatusSummary = $"Uploaded {localCounts.Subjects} course(s) and {localCounts.TotalItems} item(s) to Google Drive."
                 };
-                ComputeFileTransfers(pushOutcome, localFiles, remoteFiles, localSounds, remoteSounds, uploadsAllowed: true, downloadsAllowed: false);
+                ComputeFileTransfers(
+                    pushOutcome, localFiles, remoteFiles, localSounds, remoteSounds, localZenMedia, remoteZenMedia,
+                    uploadsAllowed: true, downloadsAllowed: false,
+                    syncPdfs: true, syncVideos: true, syncAudio: true, syncZen: true);
                 return pushOutcome;
             }
 
@@ -341,155 +370,232 @@ namespace StudyHub.Services
 
             var merged = new AppStateData
             {
-                Theme = !HasRealUserContent(local) && HasRealUserContent(remote) ? remote.Theme : local.Theme,
+                Theme = syncPrefs && !HasRealUserContent(local) && HasRealUserContent(remote) ? remote.Theme : local.Theme,
                 TimerDock = local.TimerDock,
-                PomodorosCompleted = Math.Max(local.PomodorosCompleted, remote.PomodorosCompleted)
+                PomodorosCompleted = syncCourses ? Math.Max(local.PomodorosCompleted, remote.PomodorosCompleted) : local.PomodorosCompleted
             };
 
-            merged.Subjects = MergeCollection(
-                "subject",
-                local.Subjects,
-                remote.Subjects,
-                baseState?.Subjects,
-                x => x.Id,
-                x => x.UpdatedAtUtc,
-                HashSubject,
-                ignoreDeletions,
-                localTombstones,
-                remoteTombstones,
-                decisionMap,
-                conflicts,
-                out var subStats,
-                (SubjectItem loc, SubjectItem rem, SubjectItem? bas, out SubjectItem mergedItem, out SyncConflictItem? cf) => MergeSubject(loc, rem, bas, out mergedItem, out cf),
-                (loc, rem, resolved) => ApplySubjectConflict(loc, rem, resolved),
-                onDeletedLocal: s => { if (IsSubjectPopulated(s.Id, local)) removedPopulatedSubjects.Add(s.Name); },
-                onDeletedRemote: s => { if (IsSubjectPopulated(s.Id, remote)) removedPopulatedSubjects.Add(s.Name); });
-            removedFromLocal += subStats.RemovedLocal;
-            removedFromRemote += subStats.RemovedRemote;
-            localChangesCount += subStats.LocalWins;
-            cloudChangesApplied += subStats.RemoteWins;
+            if (syncCourses)
+            {
+                merged.Subjects = MergeCollection(
+                    "subject",
+                    local.Subjects,
+                    remote.Subjects,
+                    baseState?.Subjects,
+                    x => x.Id,
+                    x => x.UpdatedAtUtc,
+                    HashSubject,
+                    ignoreDeletions,
+                    localTombstones,
+                    remoteTombstones,
+                    decisionMap,
+                    conflicts,
+                    out var subStats,
+                    (SubjectItem loc, SubjectItem rem, SubjectItem? bas, out SubjectItem mergedItem, out SyncConflictItem? cf) => MergeSubject(loc, rem, bas, out mergedItem, out cf),
+                    (loc, rem, resolved) => ApplySubjectConflict(loc, rem, resolved),
+                    onDeletedLocal: s => { if (IsSubjectPopulated(s.Id, local)) removedPopulatedSubjects.Add(s.Name); },
+                    onDeletedRemote: s => { if (IsSubjectPopulated(s.Id, remote)) removedPopulatedSubjects.Add(s.Name); });
+                removedFromLocal += subStats.RemovedLocal;
+                removedFromRemote += subStats.RemovedRemote;
+                localChangesCount += subStats.LocalWins;
+                cloudChangesApplied += subStats.RemoteWins;
+            }
+            else
+            {
+                merged.Subjects = CloneState(local).Subjects;
+            }
 
-            merged.Pdfs = MergeSimpleCollection("pdf", local.Pdfs, remote.Pdfs, baseState?.Pdfs,
-                x => x.Id, x => x.UpdatedAtUtc, HashStudyFile, ignoreDeletions, localTombstones, remoteTombstones,
-                out var pdfStats, MergeStudyFileMetadata);
-            removedFromLocal += pdfStats.RemovedLocal;
-            removedFromRemote += pdfStats.RemovedRemote;
-            localChangesCount += pdfStats.LocalWins;
-            cloudChangesApplied += pdfStats.RemoteWins;
+            if (syncPdfs)
+            {
+                merged.Pdfs = MergeSimpleCollection("pdf", local.Pdfs, remote.Pdfs, baseState?.Pdfs,
+                    x => x.Id, x => x.UpdatedAtUtc, HashStudyFile, ignoreDeletions, localTombstones, remoteTombstones,
+                    out var pdfStats, MergeStudyFileMetadata);
+                removedFromLocal += pdfStats.RemovedLocal;
+                removedFromRemote += pdfStats.RemovedRemote;
+                localChangesCount += pdfStats.LocalWins;
+                cloudChangesApplied += pdfStats.RemoteWins;
+            }
+            else
+            {
+                merged.Pdfs = CloneState(local).Pdfs;
+            }
 
-            merged.Videos = MergeSimpleCollection("video", local.Videos, remote.Videos, baseState?.Videos,
-                x => x.Id, x => x.UpdatedAtUtc, HashMedia, ignoreDeletions, localTombstones, remoteTombstones,
-                out var vidStats, MergeMediaMetadata);
-            removedFromLocal += vidStats.RemovedLocal;
-            removedFromRemote += vidStats.RemovedRemote;
-            localChangesCount += vidStats.LocalWins;
-            cloudChangesApplied += vidStats.RemoteWins;
+            if (syncVideos)
+            {
+                merged.Videos = MergeSimpleCollection("video", local.Videos, remote.Videos, baseState?.Videos,
+                    x => x.Id, x => x.UpdatedAtUtc, HashMedia, ignoreDeletions, localTombstones, remoteTombstones,
+                    out var vidStats, MergeMediaMetadata);
+                removedFromLocal += vidStats.RemovedLocal;
+                removedFromRemote += vidStats.RemovedRemote;
+                localChangesCount += vidStats.LocalWins;
+                cloudChangesApplied += vidStats.RemoteWins;
 
-            merged.Recordings = MergeSimpleCollection("recording", local.Recordings, remote.Recordings, baseState?.Recordings,
-                x => x.Id, x => x.UpdatedAtUtc, HashMedia, ignoreDeletions, localTombstones, remoteTombstones,
-                out var recStats, MergeMediaMetadata);
-            removedFromLocal += recStats.RemovedLocal;
-            removedFromRemote += recStats.RemovedRemote;
-            localChangesCount += recStats.LocalWins;
-            cloudChangesApplied += recStats.RemoteWins;
+                merged.Recordings = MergeSimpleCollection("recording", local.Recordings, remote.Recordings, baseState?.Recordings,
+                    x => x.Id, x => x.UpdatedAtUtc, HashMedia, ignoreDeletions, localTombstones, remoteTombstones,
+                    out var recStats, MergeMediaMetadata);
+                removedFromLocal += recStats.RemovedLocal;
+                removedFromRemote += recStats.RemovedRemote;
+                localChangesCount += recStats.LocalWins;
+                cloudChangesApplied += recStats.RemoteWins;
+            }
+            else
+            {
+                var locCopy = CloneState(local);
+                merged.Videos = locCopy.Videos;
+                merged.Recordings = locCopy.Recordings;
+            }
 
-            merged.Notes = MergeCollection("note", local.Notes, remote.Notes, baseState?.Notes,
-                x => x.Id, x => x.UpdatedAtUtc, HashNote, ignoreDeletions, localTombstones, remoteTombstones,
-                decisionMap, conflicts, out var noteStats,
-                (NoteItem loc, NoteItem rem, NoteItem? bas, out NoteItem mergedItem, out SyncConflictItem? cf) => MergeNote(loc, rem, bas, local, remote, out mergedItem, out cf),
-                ApplyNoteConflict);
-            removedFromLocal += noteStats.RemovedLocal;
-            removedFromRemote += noteStats.RemovedRemote;
-            localChangesCount += noteStats.LocalWins;
-            cloudChangesApplied += noteStats.RemoteWins;
+            if (syncCourses)
+            {
+                merged.Notes = MergeCollection("note", local.Notes, remote.Notes, baseState?.Notes,
+                    x => x.Id, x => x.UpdatedAtUtc, HashNote, ignoreDeletions, localTombstones, remoteTombstones,
+                    decisionMap, conflicts, out var noteStats,
+                    (NoteItem loc, NoteItem rem, NoteItem? bas, out NoteItem mergedItem, out SyncConflictItem? cf) => MergeNote(loc, rem, bas, local, remote, out mergedItem, out cf),
+                    ApplyNoteConflict);
+                removedFromLocal += noteStats.RemovedLocal;
+                removedFromRemote += noteStats.RemovedRemote;
+                localChangesCount += noteStats.LocalWins;
+                cloudChangesApplied += noteStats.RemoteWins;
 
-            merged.Tasks = MergeCollection("task", local.Tasks, remote.Tasks, baseState?.Tasks,
-                x => x.Id, x => x.UpdatedAtUtc, HashTask, ignoreDeletions, localTombstones, remoteTombstones,
-                decisionMap, conflicts, out var taskStats,
-                (TaskItem loc, TaskItem rem, TaskItem? bas, out TaskItem mergedItem, out SyncConflictItem? cf) => MergeTask(loc, rem, bas, local, remote, out mergedItem, out cf),
-                ApplyTaskConflict);
-            removedFromLocal += taskStats.RemovedLocal;
-            removedFromRemote += taskStats.RemovedRemote;
-            localChangesCount += taskStats.LocalWins;
-            cloudChangesApplied += taskStats.RemoteWins;
+                merged.Tasks = MergeCollection("task", local.Tasks, remote.Tasks, baseState?.Tasks,
+                    x => x.Id, x => x.UpdatedAtUtc, HashTask, ignoreDeletions, localTombstones, remoteTombstones,
+                    decisionMap, conflicts, out var taskStats,
+                    (TaskItem loc, TaskItem rem, TaskItem? bas, out TaskItem mergedItem, out SyncConflictItem? cf) => MergeTask(loc, rem, bas, local, remote, out mergedItem, out cf),
+                    ApplyTaskConflict);
+                removedFromLocal += taskStats.RemovedLocal;
+                removedFromRemote += taskStats.RemovedRemote;
+                localChangesCount += taskStats.LocalWins;
+                cloudChangesApplied += taskStats.RemoteWins;
 
-            merged.Flashcards = MergeCollection("flashcard", local.Flashcards, remote.Flashcards, baseState?.Flashcards,
-                x => x.Id, x => x.UpdatedAtUtc, HashFlashcard, ignoreDeletions, localTombstones, remoteTombstones,
-                decisionMap, conflicts, out var fcStats,
-                (FlashcardItem loc, FlashcardItem rem, FlashcardItem? bas, out FlashcardItem mergedItem, out SyncConflictItem? cf) => MergeFlashcard(loc, rem, bas, local, remote, out mergedItem, out cf),
-                ApplyFlashcardConflict);
-            removedFromLocal += fcStats.RemovedLocal;
-            removedFromRemote += fcStats.RemovedRemote;
-            localChangesCount += fcStats.LocalWins;
-            cloudChangesApplied += fcStats.RemoteWins;
+                merged.Flashcards = MergeCollection("flashcard", local.Flashcards, remote.Flashcards, baseState?.Flashcards,
+                    x => x.Id, x => x.UpdatedAtUtc, HashFlashcard, ignoreDeletions, localTombstones, remoteTombstones,
+                    decisionMap, conflicts, out var fcStats,
+                    (FlashcardItem loc, FlashcardItem rem, FlashcardItem? bas, out FlashcardItem mergedItem, out SyncConflictItem? cf) => MergeFlashcard(loc, rem, bas, local, remote, out mergedItem, out cf),
+                    ApplyFlashcardConflict);
+                removedFromLocal += fcStats.RemovedLocal;
+                removedFromRemote += fcStats.RemovedRemote;
+                localChangesCount += fcStats.LocalWins;
+                cloudChangesApplied += fcStats.RemoteWins;
 
-            merged.Whiteboards = MergeSimpleCollection("whiteboard", local.Whiteboards, remote.Whiteboards, baseState?.Whiteboards,
-                x => x.Id, x => x.UpdatedAtUtc, HashWhiteboard, ignoreDeletions, localTombstones, remoteTombstones,
-                out var wbStats, MergeWhiteboardLatestOrUnion);
-            removedFromLocal += wbStats.RemovedLocal;
-            removedFromRemote += wbStats.RemovedRemote;
-            localChangesCount += wbStats.LocalWins;
-            cloudChangesApplied += wbStats.RemoteWins;
+                merged.Whiteboards = MergeSimpleCollection("whiteboard", local.Whiteboards, remote.Whiteboards, baseState?.Whiteboards,
+                    x => x.Id, x => x.UpdatedAtUtc, HashWhiteboard, ignoreDeletions, localTombstones, remoteTombstones,
+                    out var wbStats, MergeWhiteboardLatestOrUnion);
+                removedFromLocal += wbStats.RemovedLocal;
+                removedFromRemote += wbStats.RemovedRemote;
+                localChangesCount += wbStats.LocalWins;
+                cloudChangesApplied += wbStats.RemoteWins;
+            }
+            else
+            {
+                var locCopy = CloneState(local);
+                merged.Notes = locCopy.Notes;
+                merged.Tasks = locCopy.Tasks;
+                merged.Flashcards = locCopy.Flashcards;
+                merged.Whiteboards = locCopy.Whiteboards;
+            }
 
-            merged.Deadlines = MergeCollection("deadline", local.Deadlines, remote.Deadlines, baseState?.Deadlines,
-                x => x.Id, x => x.UpdatedAtUtc, HashDeadline, ignoreDeletions, localTombstones, remoteTombstones,
-                decisionMap, conflicts, out var dlStats,
-                (DeadlineItem loc, DeadlineItem rem, DeadlineItem? bas, out DeadlineItem mergedItem, out SyncConflictItem? cf) => MergeDeadline(loc, rem, bas, local, remote, out mergedItem, out cf),
-                ApplyDeadlineConflict);
-            removedFromLocal += dlStats.RemovedLocal;
-            removedFromRemote += dlStats.RemovedRemote;
-            localChangesCount += dlStats.LocalWins;
-            cloudChangesApplied += dlStats.RemoteWins;
+            if (syncLinks)
+            {
+                merged.Deadlines = MergeCollection("deadline", local.Deadlines, remote.Deadlines, baseState?.Deadlines,
+                    x => x.Id, x => x.UpdatedAtUtc, HashDeadline, ignoreDeletions, localTombstones, remoteTombstones,
+                    decisionMap, conflicts, out var dlStats,
+                    (DeadlineItem loc, DeadlineItem rem, DeadlineItem? bas, out DeadlineItem mergedItem, out SyncConflictItem? cf) => MergeDeadline(loc, rem, bas, local, remote, out mergedItem, out cf),
+                    ApplyDeadlineConflict);
+                removedFromLocal += dlStats.RemovedLocal;
+                removedFromRemote += dlStats.RemovedRemote;
+                localChangesCount += dlStats.LocalWins;
+                cloudChangesApplied += dlStats.RemoteWins;
 
-            merged.Links = MergeCollection("link", local.Links, remote.Links, baseState?.Links,
-                x => x.Id, x => x.UpdatedAtUtc, HashLink, ignoreDeletions, localTombstones, remoteTombstones,
-                decisionMap, conflicts, out var linkStats,
-                (LinkItem loc, LinkItem rem, LinkItem? bas, out LinkItem mergedItem, out SyncConflictItem? cf) => MergeLink(loc, rem, bas, local, remote, out mergedItem, out cf),
-                ApplyLinkConflict);
-            removedFromLocal += linkStats.RemovedLocal;
-            removedFromRemote += linkStats.RemovedRemote;
-            localChangesCount += linkStats.LocalWins;
-            cloudChangesApplied += linkStats.RemoteWins;
+                merged.Links = MergeCollection("link", local.Links, remote.Links, baseState?.Links,
+                    x => x.Id, x => x.UpdatedAtUtc, HashLink, ignoreDeletions, localTombstones, remoteTombstones,
+                    decisionMap, conflicts, out var linkStats,
+                    (LinkItem loc, LinkItem rem, LinkItem? bas, out LinkItem mergedItem, out SyncConflictItem? cf) => MergeLink(loc, rem, bas, local, remote, out mergedItem, out cf),
+                    ApplyLinkConflict);
+                removedFromLocal += linkStats.RemovedLocal;
+                removedFromRemote += linkStats.RemovedRemote;
+                localChangesCount += linkStats.LocalWins;
+                cloudChangesApplied += linkStats.RemoteWins;
+            }
+            else
+            {
+                var locCopy = CloneState(local);
+                merged.Deadlines = locCopy.Deadlines;
+                merged.Links = locCopy.Links;
+            }
 
-            merged.CalendarEvents = MergeCollection("calendar_event", local.CalendarEvents, remote.CalendarEvents, baseState?.CalendarEvents,
-                x => x.Id, x => x.UpdatedAtUtc, HashCalendarEvent, ignoreDeletions, localTombstones, remoteTombstones,
-                decisionMap, conflicts, out var calStats,
-                (CalendarEventItem loc, CalendarEventItem rem, CalendarEventItem? bas, out CalendarEventItem mergedItem, out SyncConflictItem? cf) => MergeCalendarEvent(loc, rem, bas, local, remote, out mergedItem, out cf),
-                ApplyCalendarEventConflict);
-            removedFromLocal += calStats.RemovedLocal;
-            removedFromRemote += calStats.RemovedRemote;
-            localChangesCount += calStats.LocalWins;
-            cloudChangesApplied += calStats.RemoteWins;
+            if (syncCal)
+            {
+                merged.CalendarEvents = MergeCollection("calendar_event", local.CalendarEvents, remote.CalendarEvents, baseState?.CalendarEvents,
+                    x => x.Id, x => x.UpdatedAtUtc, HashCalendarEvent, ignoreDeletions, localTombstones, remoteTombstones,
+                    decisionMap, conflicts, out var calStats,
+                    (CalendarEventItem loc, CalendarEventItem rem, CalendarEventItem? bas, out CalendarEventItem mergedItem, out SyncConflictItem? cf) => MergeCalendarEvent(loc, rem, bas, local, remote, out mergedItem, out cf),
+                    ApplyCalendarEventConflict);
+                removedFromLocal += calStats.RemovedLocal;
+                removedFromRemote += calStats.RemovedRemote;
+                localChangesCount += calStats.LocalWins;
+                cloudChangesApplied += calStats.RemoteWins;
+            }
+            else
+            {
+                merged.CalendarEvents = CloneState(local).CalendarEvents;
+            }
 
-            merged.CustomSounds = MergeSimpleCollection("custom_sound", local.CustomSounds, remote.CustomSounds, baseState?.CustomSounds,
-                x => x.Id, x => x.UpdatedAtUtc, HashCustomSound, ignoreDeletions, localTombstones, remoteTombstones,
-                out var csStats, (loc, rem) => ParseUtcOrMin(rem.UpdatedAtUtc) > ParseUtcOrMin(loc.UpdatedAtUtc) ? rem : loc);
-            removedFromLocal += csStats.RemovedLocal;
-            removedFromRemote += csStats.RemovedRemote;
-            localChangesCount += csStats.LocalWins;
-            cloudChangesApplied += csStats.RemoteWins;
+            if (syncAudio)
+            {
+                merged.CustomSounds = MergeSimpleCollection("custom_sound", local.CustomSounds, remote.CustomSounds, baseState?.CustomSounds,
+                    x => x.Id, x => x.UpdatedAtUtc, HashCustomSound, ignoreDeletions, localTombstones, remoteTombstones,
+                    out var csStats, (loc, rem) => ParseUtcOrMin(rem.UpdatedAtUtc) > ParseUtcOrMin(loc.UpdatedAtUtc) ? rem : loc);
+                removedFromLocal += csStats.RemovedLocal;
+                removedFromRemote += csStats.RemovedRemote;
+                localChangesCount += csStats.LocalWins;
+                cloudChangesApplied += csStats.RemoteWins;
 
-            merged.SavedSoundPresets = MergeSimpleCollection("sound_preset", local.SavedSoundPresets, remote.SavedSoundPresets, baseState?.SavedSoundPresets,
-                x => x.Id, x => x.UpdatedAtUtc, HashSoundPreset, ignoreDeletions, localTombstones, remoteTombstones,
-                out var spStats, (loc, rem) => ParseUtcOrMin(rem.UpdatedAtUtc) > ParseUtcOrMin(loc.UpdatedAtUtc) ? rem : loc);
-            removedFromLocal += spStats.RemovedLocal;
-            removedFromRemote += spStats.RemovedRemote;
-            localChangesCount += spStats.LocalWins;
-            cloudChangesApplied += spStats.RemoteWins;
+                merged.SavedSoundPresets = MergeSimpleCollection("sound_preset", local.SavedSoundPresets, remote.SavedSoundPresets, baseState?.SavedSoundPresets,
+                    x => x.Id, x => x.UpdatedAtUtc, HashSoundPreset, ignoreDeletions, localTombstones, remoteTombstones,
+                    out var spStats, (loc, rem) => ParseUtcOrMin(rem.UpdatedAtUtc) > ParseUtcOrMin(loc.UpdatedAtUtc) ? rem : loc);
+                removedFromLocal += spStats.RemovedLocal;
+                removedFromRemote += spStats.RemovedRemote;
+                localChangesCount += spStats.LocalWins;
+                cloudChangesApplied += spStats.RemoteWins;
+            }
+            else
+            {
+                var locCopy = CloneState(local);
+                merged.CustomSounds = locCopy.CustomSounds;
+                merged.SavedSoundPresets = locCopy.SavedSoundPresets;
+            }
 
-            // Merge monotonic dictionaries and sets
-            merged.Activity = MergeIntMaxDict(local.Activity, remote.Activity);
-            merged.PomodoroDays = MergeIntMaxDict(local.PomodoroDays, remote.PomodoroDays);
-            merged.SubjectTimes = MergeDoubleMaxDict(local.SubjectTimes, remote.SubjectTimes);
-            merged.PdfProgress = MergeIntMaxDict(local.PdfProgress, remote.PdfProgress);
-            merged.FiredNotificationKeys = local.FiredNotificationKeys
-                .Concat(remote.FiredNotificationKeys)
+            if (syncZen)
+            {
+                merged.CustomZenMedia = MergeSimpleCollection("custom_zen", local.CustomZenMedia, remote.CustomZenMedia, baseState?.CustomZenMedia,
+                    x => x.Id, x => x.UpdatedAtUtc, HashCustomZenMedia, ignoreDeletions, localTombstones, remoteTombstones,
+                    out var zenStats, MergeCustomZenMetadata);
+                removedFromLocal += zenStats.RemovedLocal;
+                removedFromRemote += zenStats.RemovedRemote;
+                localChangesCount += zenStats.LocalWins;
+                cloudChangesApplied += zenStats.RemoteWins;
+            }
+            else
+            {
+                merged.CustomZenMedia = CloneState(local).CustomZenMedia;
+            }
+
+            // Merge monotonic dictionaries and sets respecting granular categories
+            merged.Activity = syncCourses ? MergeIntMaxDict(local.Activity, remote.Activity) : new Dictionary<string, int>(local.Activity, StringComparer.Ordinal);
+            merged.PomodoroDays = syncCourses ? MergeIntMaxDict(local.PomodoroDays, remote.PomodoroDays) : new Dictionary<string, int>(local.PomodoroDays, StringComparer.Ordinal);
+            merged.SubjectTimes = syncCourses ? MergeDoubleMaxDict(local.SubjectTimes, remote.SubjectTimes) : new Dictionary<string, double>(local.SubjectTimes, StringComparer.Ordinal);
+            merged.PdfProgress = syncPdfs ? MergeIntMaxDict(local.PdfProgress, remote.PdfProgress) : new Dictionary<string, int>(local.PdfProgress, StringComparer.Ordinal);
+            merged.FiredNotificationKeys = (syncCal ? local.FiredNotificationKeys.Concat(remote.FiredNotificationKeys) : local.FiredNotificationKeys)
                 .Where(k => !string.IsNullOrWhiteSpace(k))
                 .Distinct(StringComparer.Ordinal)
                 .ToList();
 
-            // Merge Tombstones (unless recovering deleted items, in which case purge tombstones of recovered items)
-            var mergedTombstones = MergeTombstones(local.SyncMeta.Tombstones, remote.SyncMeta.Tombstones);
+            // Merge Tombstones only for enabled entity types; keep local tombstones for disabled entity types
+            var localEnabledTombs = local.SyncMeta.Tombstones.Where(t => IsEntityTypeEnabled(t.EntityType, ls)).ToList();
+            var remoteEnabledTombs = remote.SyncMeta.Tombstones.Where(t => IsEntityTypeEnabled(t.EntityType, ls)).ToList();
+            var mergedTombstones = MergeTombstones(localEnabledTombs, remoteEnabledTombs);
+            mergedTombstones.AddRange(local.SyncMeta.Tombstones.Where(t => !IsEntityTypeEnabled(t.EntityType, ls)));
+            mergedTombstones = BuildTombstoneMap(mergedTombstones).Values.ToList();
             if (ignoreDeletions)
             {
                 var presentKeys = new HashSet<string>(StringComparer.Ordinal);
@@ -517,6 +623,7 @@ namespace StudyHub.Services
                 : null;
             merged.Normalize();
 
+            var remoteMerged = BuildRemoteStatePreservingDisabledCategories(merged, remote, ls);
             var mismatch = BuildMismatchReport(
                 local, remote, baseState, mode, mismatchAcknowledged,
                 localCounts, remoteCounts, removedFromLocal, removedFromRemote, removedPopulatedSubjects);
@@ -524,6 +631,7 @@ namespace StudyHub.Services
             var outcome = new SyncMergeOutcome
             {
                 MergedState = merged,
+                RemoteMergedState = remoteMerged,
                 MismatchReport = mismatch,
                 Conflicts = conflicts,
                 LocalChangesCount = localChangesCount,
@@ -535,7 +643,10 @@ namespace StudyHub.Services
                         : $"Smart Merge complete (+{cloudChangesApplied} cloud, +{localChangesCount} local).")
             };
 
-            ComputeFileTransfers(outcome, localFiles, remoteFiles, localSounds, remoteSounds, uploadsAllowed: true, downloadsAllowed: true);
+            ComputeFileTransfers(
+                outcome, localFiles, remoteFiles, localSounds, remoteSounds, localZenMedia, remoteZenMedia,
+                uploadsAllowed: true, downloadsAllowed: true,
+                syncPdfs: syncPdfs, syncVideos: syncVideos, syncAudio: syncAudio, syncZen: syncZen);
             return outcome;
         }
 
@@ -929,8 +1040,8 @@ namespace StudyHub.Services
                 Title = $"Note in {subjName}",
                 LocalSummary = TruncatePreview(loc.Text, 80),
                 CloudSummary = TruncatePreview(rem.Text, 80),
-                LocalText = loc.Text,
-                CloudText = rem.Text,
+                LocalText = loc.Text ?? "",
+                CloudText = rem.Text ?? "",
                 LocalUpdatedAtUtc = loc.UpdatedAtUtc,
                 CloudUpdatedAtUtc = rem.UpdatedAtUtc,
                 SupportsCombine = true
@@ -1237,6 +1348,181 @@ namespace StudyHub.Services
             };
         }
 
+        private static CustomZenMediaItem MergeCustomZenMetadata(CustomZenMediaItem loc, CustomZenMediaItem rem)
+        {
+            var newer = ParseUtcOrMin(rem.UpdatedAtUtc) > ParseUtcOrMin(loc.UpdatedAtUtc) ? rem : loc;
+            var older = ReferenceEquals(newer, rem) ? loc : rem;
+            return new CustomZenMediaItem
+            {
+                Id = newer.Id,
+                Title = string.IsNullOrWhiteSpace(newer.Title) ? older.Title : newer.Title,
+                Filename = string.IsNullOrWhiteSpace(newer.Filename) ? older.Filename : newer.Filename,
+                MediaType = string.IsNullOrWhiteSpace(newer.MediaType) ? older.MediaType : newer.MediaType,
+                Sha256 = string.IsNullOrWhiteSpace(newer.Sha256) ? older.Sha256 : newer.Sha256,
+                FileSizeBytes = newer.FileSizeBytes > 0 ? newer.FileSizeBytes : older.FileSizeBytes,
+                UpdatedAtUtc = MaxUtc(loc.UpdatedAtUtc, rem.UpdatedAtUtc)
+            };
+        }
+
+        private static bool IsEntityTypeEnabled(string entityType, UserSettings ls) => entityType switch
+        {
+            "subject" or "note" or "task" or "flashcard" or "whiteboard" => ls.SyncCoursesAndNotes,
+            "deadline" or "link" => ls.SyncLinksAndDeadlines,
+            "calendar_event" => ls.SyncCalendar,
+            "pdf" => ls.SyncPdfs,
+            "video" or "recording" => ls.SyncVideosAndRecordings,
+            "custom_zen" => ls.SyncExtraZenScenes,
+            "custom_sound" or "sound_preset" => ls.SyncExtraAudio,
+            _ => true
+        };
+
+        private static void SanitizeBaseForPreviouslyDisabledCategories(AppStateData baseState, UserSettings currentLocal)
+        {
+            var bs = baseState.Settings ?? new UserSettings();
+            if (!bs.SyncCoursesAndNotes && currentLocal.SyncCoursesAndNotes)
+            {
+                baseState.Subjects.Clear();
+                baseState.Notes.Clear();
+                baseState.Tasks.Clear();
+                baseState.Flashcards.Clear();
+                baseState.Whiteboards.Clear();
+            }
+            if (!bs.SyncLinksAndDeadlines && currentLocal.SyncLinksAndDeadlines)
+            {
+                baseState.Deadlines.Clear();
+                baseState.Links.Clear();
+            }
+            if (!bs.SyncCalendar && currentLocal.SyncCalendar)
+            {
+                baseState.CalendarEvents.Clear();
+            }
+            if (!bs.SyncPdfs && currentLocal.SyncPdfs)
+            {
+                baseState.Pdfs.Clear();
+            }
+            if (!bs.SyncVideosAndRecordings && currentLocal.SyncVideosAndRecordings)
+            {
+                baseState.Videos.Clear();
+                baseState.Recordings.Clear();
+            }
+            if (!bs.SyncExtraZenScenes && currentLocal.SyncExtraZenScenes)
+            {
+                baseState.CustomZenMedia.Clear();
+            }
+            if (!bs.SyncExtraAudio && currentLocal.SyncExtraAudio)
+            {
+                baseState.CustomSounds.Clear();
+                baseState.SavedSoundPresets.Clear();
+            }
+        }
+
+        private static AppStateData BuildInitialRemoteForEnabledCategories(AppStateData local)
+        {
+            var ls = local.Settings ?? new UserSettings();
+            var remote = CloneState(local);
+            if (!ls.SyncCoursesAndNotes)
+            {
+                remote.Subjects.Clear();
+                remote.Notes.Clear();
+                remote.Tasks.Clear();
+                remote.Flashcards.Clear();
+                remote.Whiteboards.Clear();
+                remote.Activity.Clear();
+                remote.PomodoroDays.Clear();
+                remote.SubjectTimes.Clear();
+                remote.PomodorosCompleted = 0;
+            }
+            if (!ls.SyncLinksAndDeadlines) { remote.Deadlines.Clear(); remote.Links.Clear(); }
+            if (!ls.SyncCalendar) { remote.CalendarEvents.Clear(); remote.FiredNotificationKeys.Clear(); }
+            if (!ls.SyncPdfs) { remote.Pdfs.Clear(); remote.PdfProgress.Clear(); }
+            if (!ls.SyncVideosAndRecordings) { remote.Videos.Clear(); remote.Recordings.Clear(); }
+            if (!ls.SyncExtraZenScenes) { remote.CustomZenMedia.Clear(); }
+            if (!ls.SyncExtraAudio) { remote.CustomSounds.Clear(); remote.SavedSoundPresets.Clear(); }
+            remote.SyncMeta.Tombstones = remote.SyncMeta.Tombstones.Where(t => IsEntityTypeEnabled(t.EntityType, ls)).ToList();
+            return remote;
+        }
+
+        private static AppStateData BuildRemoteStatePreservingDisabledCategories(AppStateData mergedLocal, AppStateData originalRemote, UserSettings ls)
+        {
+            var remCopy = CloneState(originalRemote);
+            var remoteOut = CloneState(mergedLocal);
+
+            if (!ls.SyncCoursesAndNotes)
+            {
+                remoteOut.Subjects = remCopy.Subjects;
+                remoteOut.Notes = remCopy.Notes;
+                remoteOut.Tasks = remCopy.Tasks;
+                remoteOut.Flashcards = remCopy.Flashcards;
+                remoteOut.Whiteboards = remCopy.Whiteboards;
+                remoteOut.Activity = remCopy.Activity;
+                remoteOut.PomodoroDays = remCopy.PomodoroDays;
+                remoteOut.SubjectTimes = remCopy.SubjectTimes;
+                remoteOut.PomodorosCompleted = remCopy.PomodorosCompleted;
+            }
+            if (!ls.SyncLinksAndDeadlines)
+            {
+                remoteOut.Deadlines = remCopy.Deadlines;
+                remoteOut.Links = remCopy.Links;
+            }
+            if (!ls.SyncCalendar)
+            {
+                remoteOut.CalendarEvents = remCopy.CalendarEvents;
+                remoteOut.FiredNotificationKeys = remCopy.FiredNotificationKeys;
+                remoteOut.Settings.CalendarNotifsEnabled = remCopy.Settings.CalendarNotifsEnabled;
+                remoteOut.Settings.CalendarNotifPresets = remCopy.Settings.CalendarNotifPresets;
+                remoteOut.Settings.CalendarNotifStartHour = remCopy.Settings.CalendarNotifStartHour;
+                remoteOut.Settings.CalendarNotifCustomHours = remCopy.Settings.CalendarNotifCustomHours;
+            }
+            if (!ls.SyncPdfs)
+            {
+                remoteOut.Pdfs = remCopy.Pdfs;
+                remoteOut.PdfProgress = remCopy.PdfProgress;
+            }
+            if (!ls.SyncVideosAndRecordings)
+            {
+                remoteOut.Videos = remCopy.Videos;
+                remoteOut.Recordings = remCopy.Recordings;
+            }
+            if (!ls.SyncExtraZenScenes)
+            {
+                remoteOut.CustomZenMedia = remCopy.CustomZenMedia;
+                remoteOut.Settings.ZenScene = remCopy.Settings.ZenScene;
+            }
+            if (!ls.SyncExtraAudio)
+            {
+                remoteOut.CustomSounds = remCopy.CustomSounds;
+                remoteOut.SavedSoundPresets = remCopy.SavedSoundPresets;
+                remoteOut.Settings.MixerMaster = remCopy.Settings.MixerMaster;
+                remoteOut.Settings.MixerMuted = remCopy.Settings.MixerMuted;
+                remoteOut.Settings.MixerLevels = remCopy.Settings.MixerLevels;
+            }
+            if (!ls.SyncPreferences)
+            {
+                remoteOut.Theme = remCopy.Theme;
+                remoteOut.Settings.BgTheme = remCopy.Settings.BgTheme;
+                remoteOut.Settings.ParticleEffect = remCopy.Settings.ParticleEffect;
+                remoteOut.Settings.ClockStyle = remCopy.Settings.ClockStyle;
+                remoteOut.Settings.TimeFormat = remCopy.Settings.TimeFormat;
+                remoteOut.Settings.FontScale = remCopy.Settings.FontScale;
+                remoteOut.Settings.Notifications = remCopy.Settings.Notifications;
+                remoteOut.Settings.PdfOpenMode = remCopy.Settings.PdfOpenMode;
+                remoteOut.Settings.PdfDarkMode = remCopy.Settings.PdfDarkMode;
+                remoteOut.Settings.PerfThrottle = remCopy.Settings.PerfThrottle;
+                remoteOut.Settings.PomoWork = remCopy.Settings.PomoWork;
+                remoteOut.Settings.PomoBreak = remCopy.Settings.PomoBreak;
+                remoteOut.Settings.GithubRepoUrl = remCopy.Settings.GithubRepoUrl;
+                remoteOut.Settings.AutoCheckUpdates = remCopy.Settings.AutoCheckUpdates;
+            }
+
+            // Remote tombstones: keep enabled tombstones from mergedLocal + disabled tombstones from originalRemote
+            var combinedTombs = remoteOut.SyncMeta.Tombstones
+                .Where(t => IsEntityTypeEnabled(t.EntityType, ls))
+                .Concat(remCopy.SyncMeta.Tombstones.Where(t => !IsEntityTypeEnabled(t.EntityType, ls)))
+                .ToList();
+            remoteOut.SyncMeta.Tombstones = BuildTombstoneMap(combinedTombs).Values.ToList();
+            return remoteOut;
+        }
+
         private static WhiteboardItem MergeWhiteboardLatestOrUnion(WhiteboardItem loc, WhiteboardItem rem)
         {
             return ParseUtcOrMin(rem.UpdatedAtUtc) > ParseUtcOrMin(loc.UpdatedAtUtc) ? rem : loc;
@@ -1279,31 +1565,39 @@ namespace StudyHub.Services
                 LastUpdateCheck = ls.LastUpdateCheck,
                 LastSyncStatusText = ls.LastSyncStatusText,
 
-                // Portable cross-device settings
-                ZenScene = portableSrc.ZenScene,
-                BgTheme = portableSrc.BgTheme,
-                ParticleEffect = portableSrc.ParticleEffect,
-                ClockStyle = portableSrc.ClockStyle,
-                TimeFormat = portableSrc.TimeFormat,
-                FontScale = portableSrc.FontScale,
-                Notifications = portableSrc.Notifications,
-                CalendarNotifsEnabled = portableSrc.CalendarNotifsEnabled,
-                CalendarNotifPresets = (portableSrc.CalendarNotifPresets ?? new()).ToList(),
-                CalendarNotifStartHour = portableSrc.CalendarNotifStartHour,
-                CalendarNotifCustomHours = portableSrc.CalendarNotifCustomHours,
-                PdfOpenMode = portableSrc.PdfOpenMode,
-                PdfDarkMode = portableSrc.PdfDarkMode,
-                PerfThrottle = portableSrc.PerfThrottle,
-                PomoWork = portableSrc.PomoWork,
-                PomoBreak = portableSrc.PomoBreak,
-                MixerMaster = portableSrc.MixerMaster,
-                MixerMuted = portableSrc.MixerMuted,
-                MixerLevels = new Dictionary<string, int>(portableSrc.MixerLevels ?? new()),
-                GithubRepoUrl = portableSrc.GithubRepoUrl,
-                AutoCheckUpdates = portableSrc.AutoCheckUpdates,
+                // Portable cross-device settings (gated by granular category toggles)
+                ZenScene = ls.SyncExtraZenScenes ? portableSrc.ZenScene : ls.ZenScene,
+                BgTheme = ls.SyncPreferences ? portableSrc.BgTheme : ls.BgTheme,
+                ParticleEffect = ls.SyncPreferences ? portableSrc.ParticleEffect : ls.ParticleEffect,
+                ClockStyle = ls.SyncPreferences ? portableSrc.ClockStyle : ls.ClockStyle,
+                TimeFormat = ls.SyncPreferences ? portableSrc.TimeFormat : ls.TimeFormat,
+                FontScale = ls.SyncPreferences ? portableSrc.FontScale : ls.FontScale,
+                Notifications = ls.SyncPreferences ? portableSrc.Notifications : ls.Notifications,
+                CalendarNotifsEnabled = ls.SyncCalendar ? portableSrc.CalendarNotifsEnabled : ls.CalendarNotifsEnabled,
+                CalendarNotifPresets = ((ls.SyncCalendar ? portableSrc.CalendarNotifPresets : ls.CalendarNotifPresets) ?? new()).ToList(),
+                CalendarNotifStartHour = ls.SyncCalendar ? portableSrc.CalendarNotifStartHour : ls.CalendarNotifStartHour,
+                CalendarNotifCustomHours = ls.SyncCalendar ? portableSrc.CalendarNotifCustomHours : ls.CalendarNotifCustomHours,
+                PdfOpenMode = ls.SyncPreferences ? portableSrc.PdfOpenMode : ls.PdfOpenMode,
+                PdfDarkMode = ls.SyncPreferences ? portableSrc.PdfDarkMode : ls.PdfDarkMode,
+                PerfThrottle = ls.SyncPreferences ? portableSrc.PerfThrottle : ls.PerfThrottle,
+                PomoWork = ls.SyncPreferences ? portableSrc.PomoWork : ls.PomoWork,
+                PomoBreak = ls.SyncPreferences ? portableSrc.PomoBreak : ls.PomoBreak,
+                MixerMaster = ls.SyncExtraAudio ? portableSrc.MixerMaster : ls.MixerMaster,
+                MixerMuted = ls.SyncExtraAudio ? portableSrc.MixerMuted : ls.MixerMuted,
+                MixerLevels = new Dictionary<string, int>((ls.SyncExtraAudio ? portableSrc.MixerLevels : ls.MixerLevels) ?? new()),
+                GithubRepoUrl = ls.SyncPreferences ? portableSrc.GithubRepoUrl : ls.GithubRepoUrl,
+                AutoCheckUpdates = ls.SyncPreferences ? portableSrc.AutoCheckUpdates : ls.AutoCheckUpdates,
                 AutoSyncEnabled = ls.AutoSyncEnabled,
                 SyncFilesEnabled = ls.SyncFilesEnabled,
                 WifiOnlyFileSync = ls.WifiOnlyFileSync,
+                SyncCoursesAndNotes = ls.SyncCoursesAndNotes,
+                SyncLinksAndDeadlines = ls.SyncLinksAndDeadlines,
+                SyncCalendar = ls.SyncCalendar,
+                SyncPdfs = ls.SyncPdfs,
+                SyncVideosAndRecordings = ls.SyncVideosAndRecordings,
+                SyncExtraZenScenes = ls.SyncExtraZenScenes,
+                SyncExtraAudio = ls.SyncExtraAudio,
+                SyncPreferences = ls.SyncPreferences,
                 SettingsUpdatedAtUtc = MaxUtc(ls.SettingsUpdatedAtUtc, rs.SettingsUpdatedAtUtc)
             };
             mergedSettings.Normalize();
@@ -1324,6 +1618,14 @@ namespace StudyHub.Services
             target.Settings.AutoSyncEnabled = ls.AutoSyncEnabled;
             target.Settings.SyncFilesEnabled = ls.SyncFilesEnabled;
             target.Settings.WifiOnlyFileSync = ls.WifiOnlyFileSync;
+            target.Settings.SyncCoursesAndNotes = ls.SyncCoursesAndNotes;
+            target.Settings.SyncLinksAndDeadlines = ls.SyncLinksAndDeadlines;
+            target.Settings.SyncCalendar = ls.SyncCalendar;
+            target.Settings.SyncPdfs = ls.SyncPdfs;
+            target.Settings.SyncVideosAndRecordings = ls.SyncVideosAndRecordings;
+            target.Settings.SyncExtraZenScenes = ls.SyncExtraZenScenes;
+            target.Settings.SyncExtraAudio = ls.SyncExtraAudio;
+            target.Settings.SyncPreferences = ls.SyncPreferences;
             target.CurrentSubjectId = !string.IsNullOrWhiteSpace(local.CurrentSubjectId) && target.Subjects.Any(s => s.Id == local.CurrentSubjectId && !s.Archived)
                 ? local.CurrentSubjectId
                 : null;
@@ -1336,13 +1638,21 @@ namespace StudyHub.Services
             IReadOnlyDictionary<string, RemoteBinaryFileMeta>? remoteFiles,
             IReadOnlyDictionary<string, LocalBinaryFileMeta>? localSounds,
             IReadOnlyDictionary<string, RemoteBinaryFileMeta>? remoteSounds,
+            IReadOnlyDictionary<string, LocalBinaryFileMeta>? localZenMedia,
+            IReadOnlyDictionary<string, RemoteBinaryFileMeta>? remoteZenMedia,
             bool uploadsAllowed,
-            bool downloadsAllowed)
+            bool downloadsAllowed,
+            bool syncPdfs = true,
+            bool syncVideos = true,
+            bool syncAudio = true,
+            bool syncZen = true)
         {
             var lf = localFiles ?? new Dictionary<string, LocalBinaryFileMeta>(StringComparer.OrdinalIgnoreCase);
             var rf = remoteFiles ?? new Dictionary<string, RemoteBinaryFileMeta>(StringComparer.OrdinalIgnoreCase);
             var ls = localSounds ?? new Dictionary<string, LocalBinaryFileMeta>(StringComparer.OrdinalIgnoreCase);
             var rs = remoteSounds ?? new Dictionary<string, RemoteBinaryFileMeta>(StringComparer.OrdinalIgnoreCase);
+            var lz = localZenMedia ?? new Dictionary<string, LocalBinaryFileMeta>(StringComparer.OrdinalIgnoreCase);
+            var rz = remoteZenMedia ?? new Dictionary<string, RemoteBinaryFileMeta>(StringComparer.OrdinalIgnoreCase);
 
             var seenFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
@@ -1378,39 +1688,83 @@ namespace StudyHub.Services
                 }
             }
 
-            foreach (var p in outcome.MergedState.Pdfs) ProcessFileOp("pdf", p.Id, p.SubjectId, p.Filename, p.OriginalName, p.Sha256, p.FileSizeBytes);
-            foreach (var v in outcome.MergedState.Videos) ProcessFileOp("video", v.Id, v.SubjectId, v.Filename, v.Title, v.Sha256, v.FileSizeBytes);
-            foreach (var r in outcome.MergedState.Recordings) ProcessFileOp("recording", r.Id, r.SubjectId, r.Filename, r.Title, r.Sha256, r.FileSizeBytes);
-
-            var seenSounds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-            foreach (var s in outcome.MergedState.CustomSounds)
+            if (syncPdfs)
             {
-                if (string.IsNullOrWhiteSpace(s.Filename) || !seenSounds.Add(s.Filename)) continue;
-                bool hasLocal = ls.TryGetValue(s.Filename, out var locMeta);
-                bool hasRemote = rs.TryGetValue(s.Filename, out var remMeta);
+                foreach (var p in outcome.MergedState.Pdfs) ProcessFileOp("pdf", p.Id, p.SubjectId, p.Filename, p.OriginalName, p.Sha256, p.FileSizeBytes);
+            }
+            if (syncVideos)
+            {
+                foreach (var v in outcome.MergedState.Videos) ProcessFileOp("video", v.Id, v.SubjectId, v.Filename, v.Title, v.Sha256, v.FileSizeBytes);
+                foreach (var r in outcome.MergedState.Recordings) ProcessFileOp("recording", r.Id, r.SubjectId, r.Filename, r.Title, r.Sha256, r.FileSizeBytes);
+            }
 
-                if (uploadsAllowed && hasLocal && locMeta != null)
+            if (syncAudio)
+            {
+                var seenSounds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                foreach (var s in outcome.MergedState.CustomSounds)
                 {
-                    bool remoteNeeds = !hasRemote || (remMeta != null && locMeta.SizeBytes > 0 && remMeta.SizeBytes != locMeta.SizeBytes);
-                    if (remoteNeeds)
+                    if (string.IsNullOrWhiteSpace(s.Filename) || !seenSounds.Add(s.Filename)) continue;
+                    bool hasLocal = ls.TryGetValue(s.Filename, out var locMeta);
+                    bool hasRemote = rs.TryGetValue(s.Filename, out var remMeta);
+
+                    if (uploadsAllowed && hasLocal && locMeta != null)
                     {
-                        outcome.SoundsToUpload.Add(new SyncFileTransferOp
+                        bool remoteNeeds = !hasRemote || (remMeta != null && locMeta.SizeBytes > 0 && remMeta.SizeBytes != locMeta.SizeBytes);
+                        if (remoteNeeds)
+                        {
+                            outcome.SoundsToUpload.Add(new SyncFileTransferOp
+                            {
+                                Category = "sound", EntityId = s.Id, SubjectId = "",
+                                FileName = s.Filename, DisplayTitle = s.Name,
+                                Sha256 = locMeta.Sha256, SizeBytes = locMeta.SizeBytes, IsUpload = true
+                            });
+                        }
+                    }
+
+                    if (downloadsAllowed && !hasLocal && hasRemote && remMeta != null)
+                    {
+                        outcome.SoundsToDownload.Add(new SyncFileTransferOp
                         {
                             Category = "sound", EntityId = s.Id, SubjectId = "",
                             FileName = s.Filename, DisplayTitle = s.Name,
-                            Sha256 = locMeta.Sha256, SizeBytes = locMeta.SizeBytes, IsUpload = true
+                            Sha256 = s.Sha256, SizeBytes = remMeta.SizeBytes > 0 ? remMeta.SizeBytes : s.FileSizeBytes, IsUpload = false
                         });
                     }
                 }
+            }
 
-                if (downloadsAllowed && !hasLocal && hasRemote && remMeta != null)
+            if (syncZen)
+            {
+                var seenZen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                foreach (var z in outcome.MergedState.CustomZenMedia)
                 {
-                    outcome.SoundsToDownload.Add(new SyncFileTransferOp
+                    if (string.IsNullOrWhiteSpace(z.Filename) || !seenZen.Add(z.Filename)) continue;
+                    bool hasLocal = lz.TryGetValue(z.Filename, out var locMeta);
+                    bool hasRemote = rz.TryGetValue(z.Filename, out var remMeta);
+
+                    if (uploadsAllowed && hasLocal && locMeta != null)
                     {
-                        Category = "sound", EntityId = s.Id, SubjectId = "",
-                        FileName = s.Filename, DisplayTitle = s.Name,
-                        Sha256 = s.Sha256, SizeBytes = remMeta.SizeBytes > 0 ? remMeta.SizeBytes : s.FileSizeBytes, IsUpload = false
-                    });
+                        bool remoteNeeds = !hasRemote || (remMeta != null && locMeta.SizeBytes > 0 && remMeta.SizeBytes != locMeta.SizeBytes);
+                        if (remoteNeeds)
+                        {
+                            outcome.ZenMediaToUpload.Add(new SyncFileTransferOp
+                            {
+                                Category = "zen", EntityId = z.Id, SubjectId = "",
+                                FileName = z.Filename, DisplayTitle = z.Title,
+                                Sha256 = locMeta.Sha256, SizeBytes = locMeta.SizeBytes, IsUpload = true
+                            });
+                        }
+                    }
+
+                    if (downloadsAllowed && !hasLocal && hasRemote && remMeta != null)
+                    {
+                        outcome.ZenMediaToDownload.Add(new SyncFileTransferOp
+                        {
+                            Category = "zen", EntityId = z.Id, SubjectId = "",
+                            FileName = z.Filename, DisplayTitle = z.Title,
+                            Sha256 = z.Sha256, SizeBytes = remMeta.SizeBytes > 0 ? remMeta.SizeBytes : z.FileSizeBytes, IsUpload = false
+                        });
+                    }
                 }
             }
         }
@@ -1550,6 +1904,7 @@ namespace StudyHub.Services
         private static string HashCalendarEvent(CalendarEventItem c) => ComputeStringSha256(
             $"{c.Title}|{c.Note}|{c.Date}|{c.EventTime}|{c.SubjectId}|{c.Notify3DaysBefore}|{c.Notify24HoursBefore}|{c.NotifyMorningOf}|{c.NotifyCustom}|{c.CustomOffsetMinutes}|{c.CustomTriggerIso}|{c.Completed}");
         private static string HashCustomSound(CustomSoundItem s) => ComputeStringSha256($"{s.Name}|{s.Filename}|{s.OriginalName}|{s.Url}|{s.Sha256}|{s.FileSizeBytes}");
+        private static string HashCustomZenMedia(CustomZenMediaItem z) => ComputeStringSha256($"{z.Title}|{z.Filename}|{z.MediaType}|{z.Sha256}|{z.FileSizeBytes}");
         private static string HashSoundPreset(SoundPresetItem p)
         {
             var levelsStr = string.Join(",", (p.Levels ?? new()).OrderBy(kv => kv.Key).Select(kv => $"{kv.Key}={kv.Value}"));
@@ -1579,6 +1934,7 @@ namespace StudyHub.Services
             cb.Call("calendar_event", s.CalendarEvents, x => x.Id, x => x.SubjectId, x => x.UpdatedAtUtc, (x, v) => x.UpdatedAtUtc = v, HashCalendarEvent);
             cb.Call("custom_sound", s.CustomSounds, x => x.Id, _ => "", x => x.UpdatedAtUtc, (x, v) => x.UpdatedAtUtc = v, HashCustomSound);
             cb.Call("sound_preset", s.SavedSoundPresets, x => x.Id, _ => "", x => x.UpdatedAtUtc, (x, v) => x.UpdatedAtUtc = v, HashSoundPreset);
+            cb.Call("custom_zen", s.CustomZenMedia, x => x.Id, _ => "", x => x.UpdatedAtUtc, (x, v) => x.UpdatedAtUtc = v, HashCustomZenMedia);
         }
 
         private sealed class DynamicRegisterHelper

@@ -120,7 +120,8 @@ namespace StudyHub.Models
         public int CalendarEvents { get; set; }
         public int CustomSounds { get; set; }
         public int SoundPresets { get; set; }
-        public int TotalItems => Subjects + Pdfs + Videos + Recordings + Notes + Tasks + Flashcards + Whiteboards + Deadlines + Links + CalendarEvents + CustomSounds + SoundPresets;
+        public int CustomZenMedia { get; set; }
+        public int TotalItems => Subjects + Pdfs + Videos + Recordings + Notes + Tasks + Flashcards + Whiteboards + Deadlines + Links + CalendarEvents + CustomSounds + SoundPresets + CustomZenMedia;
     }
 
     public class SyncMismatchReport
@@ -152,12 +153,15 @@ namespace StudyHub.Models
     public class SyncMergeOutcome
     {
         public AppStateData MergedState { get; set; } = new();
+        public AppStateData? RemoteMergedState { get; set; }
         public SyncMismatchReport MismatchReport { get; set; } = new();
         public List<SyncConflictItem> Conflicts { get; set; } = new();
         public List<SyncFileTransferOp> FilesToUpload { get; set; } = new();
         public List<SyncFileTransferOp> FilesToDownload { get; set; } = new();
         public List<SyncFileTransferOp> SoundsToUpload { get; set; } = new();
         public List<SyncFileTransferOp> SoundsToDownload { get; set; } = new();
+        public List<SyncFileTransferOp> ZenMediaToUpload { get; set; } = new();
+        public List<SyncFileTransferOp> ZenMediaToDownload { get; set; } = new();
         public int LocalChangesCount { get; set; }
         public int CloudChangesAppliedCount { get; set; }
         public string StatusSummary { get; set; } = "";
@@ -212,6 +216,9 @@ namespace StudyHub.Models
         [JsonPropertyName("driveSoundsFolderId")]
         public string DriveSoundsFolderId { get; set; } = "";
 
+        [JsonPropertyName("driveZenFolderId")]
+        public string DriveZenFolderId { get; set; } = "";
+
         [JsonPropertyName("driveSnapshotsFolderId")]
         public string DriveSnapshotsFolderId { get; set; } = "";
 
@@ -249,6 +256,7 @@ namespace StudyHub.Models
             DriveRootFolderId ??= "";
             DriveFilesFolderId ??= "";
             DriveSoundsFolderId ??= "";
+            DriveZenFolderId ??= "";
             DriveSnapshotsFolderId ??= "";
             RemoteStateFileId ??= "";
             LastSyncedRemoteMd5 ??= "";

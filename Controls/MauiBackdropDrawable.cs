@@ -23,11 +23,30 @@ public sealed class MauiBackdropDrawable : IDrawable
     private sealed class ParticleNode
     {
         public float X, Y, Vx, Vy, R, Phase, Speed;
+        public int Seed;
         public Color Col = Colors.Cyan;
     }
 
     private readonly List<ParticleNode> _particles = new();
     private string _seededEffect = "";
+    private float _seedW = 0, _seedH = 0;
+
+    private static readonly string[] MatrixGlyphs =
+    {
+        "0", "1", "7", "9", "A", "Z", "X", "Ω", "λ", "Σ", "Δ", "π",
+        "ｱ", "ｲ", "ｳ", "ｴ", "ｵ", "ｶ", "ｷ", "ｸ", "ｹ", "ｺ", "ｻ", "ｼ", "ｽ", "ｾ", "ｿ"
+    };
+
+    private static string NormalizeParticleKey(string? raw)
+    {
+        string eff = (raw ?? "network").Trim().ToLowerInvariant();
+        return eff switch
+        {
+            "" => "network",
+            "off" or "none" or "disable" => "disable",
+            _ => eff
+        };
+    }
 
     public void Step(double dt)
     {
@@ -36,13 +55,14 @@ public sealed class MauiBackdropDrawable : IDrawable
 
         if (_lastW <= 10 || _lastH <= 10) return;
 
-        if (_seededEffect != ParticleEffect || _particles.Count == 0)
+        string eff = NormalizeParticleKey(ParticleEffect);
+        if (_seededEffect != eff || _particles.Count == 0 ||
+            Math.Abs(_lastW - _seedW) > 16f || Math.Abs(_lastH - _seedH) > 16f)
         {
             SeedParticles(_lastW, _lastH);
         }
 
-        string eff = (ParticleEffect ?? "network").ToLowerInvariant();
-        if (eff == "none") return;
+        if (eff == "disable") return;
 
         float dtScale = (float)(dt * 60.0);
         for (int i = 0; i < _particles.Count; i++)
@@ -52,18 +72,59 @@ public sealed class MauiBackdropDrawable : IDrawable
             p.X += p.Vx * dtScale;
             p.Y += p.Vy * dtScale;
 
-            if (eff is "snow" or "matrix" or "sakura")
+            if (eff is "snow" or "sakura")
             {
-                if (eff is "snow" or "sakura")
-                    p.X += (float)Math.Sin(p.Phase) * 0.45f * dtScale;
+                p.X += (float)Math.Sin(p.Phase) * 0.45f * dtScale;
                 if (p.Y > _lastH + 20) { p.Y = -12; p.X = (float)(_rng.NextDouble() * _lastW); }
                 if (p.X < -20) p.X = _lastW + 10;
                 if (p.X > _lastW + 20) p.X = -10;
             }
+            else if (eff == "matrix")
+            {
+                float trailPx = Math.Max(80f, p.R * 9f);
+                if (p.Y - trailPx > _lastH)
+                {
+                    p.Y = -(float)(_rng.NextDouble() * 90.0);
+                    p.X = (float)(_rng.NextDouble() * Math.Max(40f, _lastW - 12f) + 6f);
+                }
+            }
+            else if (eff == "meteor")
+            {
+                if (p.X < -80 || p.Y > _lastH + 80)
+                {
+                    p.X = (float)(_lastW * (0.25 + _rng.NextDouble() * 0.95));
+                    p.Y = -(float)(_rng.NextDouble() * (_lastH * 0.35) + 20f);
+                }
+            }
+            else if (eff == "water_ripple")
+            {
+                p.R += p.Speed * 14f * dtScale;
+                if (p.R > p.Vx)
+                {
+                    p.R = 2f;
+                    p.X = (float)(_rng.NextDouble() * _lastW);
+                    p.Y = (float)(_rng.NextDouble() * _lastH);
+                }
+            }
+            else if (eff == "fading_stars")
+            {
+                float fade = 0.5f + 0.5f * (float)Math.Sin(p.Phase);
+                if (fade < 0.03f && _rng.NextDouble() < 0.15)
+                {
+                    p.X = (float)(_rng.NextDouble() * _lastW);
+                    p.Y = (float)(_rng.NextDouble() * _lastH);
+                }
+                if (p.X < 0) p.X += _lastW;
+                if (p.X > _lastW) p.X -= _lastW;
+                if (p.Y < 0) p.Y += _lastH;
+                if (p.Y > _lastH) p.Y -= _lastH;
+            }
             else if (eff is "embers" or "bubbles")
             {
                 p.X += (float)Math.Sin(p.Phase) * 0.4f * dtScale;
-                if (p.Y < -20) { p.Y = _lastH + 12; p.X = (float)(_rng.NextDouble() * _lastW); }
+                if (p.Y < -24) { p.Y = _lastH + 14; p.X = (float)(_rng.NextDouble() * _lastW); }
+                if (p.X < -20) p.X = _lastW + 10;
+                if (p.X > _lastW + 20) p.X = -10;
             }
             else
             {
@@ -77,22 +138,29 @@ public sealed class MauiBackdropDrawable : IDrawable
 
     private void SeedParticles(float w, float h)
     {
-        _seededEffect = ParticleEffect;
+        string eff = NormalizeParticleKey(ParticleEffect);
+        _seededEffect = eff;
+        _seedW = w;
+        _seedH = h;
         _particles.Clear();
-        string eff = (ParticleEffect ?? "network").ToLowerInvariant();
-        if (eff == "none") return;
+        if (eff == "disable") return;
 
         int count = eff switch
         {
-            "network" => 36,
-            "fading_stars" => 65,
-            "snow" => 55,
-            "matrix" => 42,
-            "fireflies" => 38,
+            "network" => 46,
+            "fading_stars" => 70,
+            "snow" => 58,
+            "matrix" => Math.Clamp((int)(w / 18f), 18, 36),
+            "fireflies" => 42,
             "sakura" => 36,
-            "embers" => 44,
-            "bubbles" => 30,
-            _ => 36
+            "embers" => 46,
+            "bubbles" => 32,
+            "cosmic" => 65,
+            "orbs" => 16,
+            "lava_lamp" => 12,
+            "meteor" => 16,
+            "water_ripple" => 16,
+            _ => 42
         };
 
         for (int i = 0; i < count; i++)
@@ -102,58 +170,117 @@ public sealed class MauiBackdropDrawable : IDrawable
                 X = (float)(_rng.NextDouble() * w),
                 Y = (float)(_rng.NextDouble() * h),
                 Phase = (float)(_rng.NextDouble() * Math.PI * 2),
-                Speed = 0.02f + (float)(_rng.NextDouble() * 0.04f)
+                Speed = 0.025f + (float)(_rng.NextDouble() * 0.045f),
+                Seed = _rng.Next(0, 1000)
             };
 
             switch (eff)
             {
                 case "network":
-                    n.Vx = (float)(_rng.NextDouble() - 0.5) * 0.65f;
-                    n.Vy = (float)(_rng.NextDouble() - 0.5) * 0.65f;
-                    n.R = 2.2f + (float)_rng.NextDouble() * 1.4f;
-                    n.Col = Color.FromRgba(34, 211, 238, 200);
+                    n.Vx = ((float)_rng.NextDouble() - 0.5f) * 1.45f;
+                    n.Vy = ((float)_rng.NextDouble() - 0.5f) * 1.45f;
+                    if (Math.Abs(n.Vx) < 0.15f) n.Vx = (i % 2 == 0 ? 0.35f : -0.35f);
+                    if (Math.Abs(n.Vy) < 0.15f) n.Vy = (i % 3 == 0 ? 0.35f : -0.35f);
+                    n.R = 2.4f + (float)_rng.NextDouble() * 1.8f;
+                    n.Col = (i % 3 == 0) ? Color.FromRgba(129, 140, 248, 225) : Color.FromRgba(34, 211, 238, 230);
                     break;
                 case "fading_stars":
-                    n.Vx = (float)(_rng.NextDouble() - 0.5) * 0.12f;
-                    n.Vy = (float)(_rng.NextDouble() - 0.5) * 0.12f;
-                    n.R = 1.2f + (float)_rng.NextDouble() * 2.0f;
-                    n.Col = (i % 3 == 0) ? Color.FromRgba(253, 224, 71, 220) : Color.FromRgba(224, 242, 254, 220);
+                    n.Vx = (float)(_rng.NextDouble() - 0.5) * 0.10f;
+                    n.Vy = (float)(_rng.NextDouble() - 0.5) * 0.10f;
+                    n.R = 1.3f + (float)_rng.NextDouble() * 2.2f;
+                    n.Speed = 0.02f + (float)_rng.NextDouble() * 0.045f;
+                    n.Col = (i % 3 == 0) ? Color.FromRgba(253, 224, 71, 235) : Color.FromRgba(224, 242, 254, 235);
                     break;
                 case "snow":
-                    n.Vx = (float)(_rng.NextDouble() - 0.5) * 0.35f;
-                    n.Vy = 0.8f + (float)_rng.NextDouble() * 1.4f;
-                    n.R = 1.8f + (float)_rng.NextDouble() * 2.4f;
-                    n.Col = Color.FromRgba(241, 245, 249, 210);
+                    n.Vx = (float)(_rng.NextDouble() - 0.5) * 0.4f;
+                    n.Vy = 0.85f + (float)_rng.NextDouble() * 1.45f;
+                    n.R = 1.8f + (float)_rng.NextDouble() * 2.5f;
+                    n.Col = Color.FromRgba(241, 245, 249, 220);
                     break;
                 case "matrix":
+                    float colW = Math.Max(14f, w / count);
+                    n.X = i * colW + colW * 0.5f;
+                    n.Y = (float)(_rng.NextDouble() * (h + 180f)) - 120f;
                     n.Vx = 0;
-                    n.Vy = 1.8f + (float)_rng.NextDouble() * 2.5f;
-                    n.R = 11f;
-                    n.Col = Color.FromRgba(16, 185, 129, 210);
+                    n.Vy = 2.6f + (float)_rng.NextDouble() * 3.4f;
+                    n.R = 12f + (i % 3) * 1.5f; // glyph size; trail count = 9..13
+                    n.Speed = 0.08f + (float)_rng.NextDouble() * 0.06f;
+                    n.Col = Color.FromRgba(16, 185, 129, 235);
                     break;
                 case "fireflies":
-                    n.Vx = (float)(_rng.NextDouble() - 0.5) * 0.5f;
-                    n.Vy = (float)(_rng.NextDouble() - 0.5) * 0.5f;
-                    n.R = 2.5f + (float)_rng.NextDouble() * 2.5f;
-                    n.Col = Color.FromRgba(250, 204, 21, 220);
+                    n.Vx = (float)(_rng.NextDouble() - 0.5) * 0.65f;
+                    n.Vy = (float)(_rng.NextDouble() - 0.5) * 0.65f;
+                    n.R = 2.5f + (float)_rng.NextDouble() * 2.6f;
+                    n.Col = Color.FromRgba(250, 204, 21, 225);
                     break;
                 case "sakura":
-                    n.Vx = 0.3f + (float)_rng.NextDouble() * 0.5f;
-                    n.Vy = 0.7f + (float)_rng.NextDouble() * 1.1f;
-                    n.R = 3.2f + (float)_rng.NextDouble() * 2.2f;
-                    n.Col = Color.FromRgba(244, 114, 182, 200);
+                    n.Vx = 0.35f + (float)_rng.NextDouble() * 0.55f;
+                    n.Vy = 0.75f + (float)_rng.NextDouble() * 1.15f;
+                    n.R = 3.2f + (float)_rng.NextDouble() * 2.4f;
+                    n.Col = Color.FromRgba(244, 114, 182, 210);
                     break;
                 case "embers":
-                    n.Vx = (float)(_rng.NextDouble() - 0.5) * 0.4f;
-                    n.Vy = -(0.9f + (float)_rng.NextDouble() * 1.6f);
-                    n.R = 1.8f + (float)_rng.NextDouble() * 2.2f;
-                    n.Col = (i % 2 == 0) ? Color.FromRgba(249, 115, 22, 220) : Color.FromRgba(251, 191, 36, 220);
+                    n.Vx = (float)(_rng.NextDouble() - 0.5) * 0.45f;
+                    n.Vy = -(0.95f + (float)_rng.NextDouble() * 1.65f);
+                    n.R = 1.8f + (float)_rng.NextDouble() * 2.3f;
+                    n.Col = (i % 2 == 0) ? Color.FromRgba(249, 115, 22, 230) : Color.FromRgba(251, 191, 36, 230);
                     break;
                 case "bubbles":
+                    n.Vx = (float)(_rng.NextDouble() - 0.5) * 0.3f;
+                    n.Vy = -(0.55f + (float)_rng.NextDouble() * 1.05f);
+                    n.R = 4.2f + (float)_rng.NextDouble() * 6.5f;
+                    n.Col = Color.FromRgba(56, 189, 248, 125);
+                    break;
+                case "cosmic":
+                    n.Vx = (float)(_rng.NextDouble() - 0.5) * 0.35f;
+                    n.Vy = (float)(_rng.NextDouble() - 0.5) * 0.35f;
+                    n.R = 1.4f + (float)_rng.NextDouble() * 2.5f;
+                    n.Col = (i % 4) switch
+                    {
+                        0 => Color.FromRgba(168, 85, 247, 230),
+                        1 => Color.FromRgba(56, 189, 248, 230),
+                        2 => Color.FromRgba(244, 114, 182, 220),
+                        _ => Color.FromRgba(253, 224, 71, 225)
+                    };
+                    break;
+                case "orbs":
+                    n.Vx = (float)(_rng.NextDouble() - 0.5) * 0.55f;
+                    n.Vy = (float)(_rng.NextDouble() - 0.5) * 0.55f;
+                    n.R = 26f + (float)_rng.NextDouble() * 34f;
+                    n.Speed = 0.015f + (float)_rng.NextDouble() * 0.02f;
+                    n.Col = (i % 3) switch
+                    {
+                        0 => Color.FromRgba(56, 189, 248, 110),
+                        1 => Color.FromRgba(168, 85, 247, 105),
+                        _ => Color.FromRgba(45, 212, 191, 105)
+                    };
+                    break;
+                case "lava_lamp":
                     n.Vx = (float)(_rng.NextDouble() - 0.5) * 0.25f;
-                    n.Vy = -(0.5f + (float)_rng.NextDouble() * 1.0f);
-                    n.R = 4.0f + (float)_rng.NextDouble() * 6.0f;
-                    n.Col = Color.FromRgba(56, 189, 248, 95);
+                    n.Vy = (i % 2 == 0 ? -1 : 1) * (0.28f + (float)_rng.NextDouble() * 0.42f);
+                    n.R = 32f + (float)_rng.NextDouble() * 38f;
+                    n.Speed = 0.018f + (float)_rng.NextDouble() * 0.02f;
+                    n.Col = (i % 3) switch
+                    {
+                        0 => Color.FromRgba(244, 63, 94, 130),
+                        1 => Color.FromRgba(249, 115, 22, 125),
+                        _ => Color.FromRgba(192, 132, 252, 120)
+                    };
+                    break;
+                case "meteor":
+                    n.X = (float)(_rng.NextDouble() * w * 1.2);
+                    n.Y = (float)(_rng.NextDouble() * h * 0.6);
+                    n.Vx = -(4.8f + (float)_rng.NextDouble() * 4.5f);
+                    n.Vy = 2.8f + (float)_rng.NextDouble() * 2.8f;
+                    n.R = 1.6f + (float)_rng.NextDouble() * 1.4f;
+                    n.Col = (i % 2 == 0) ? Color.FromRgba(125, 211, 252, 235) : Color.FromRgba(254, 240, 138, 235);
+                    break;
+                case "water_ripple":
+                    n.Vx = 28f + (float)_rng.NextDouble() * 48f; // max radius stored in Vx
+                    n.Vy = 0;
+                    n.R = (float)(_rng.NextDouble() * n.Vx);
+                    n.Speed = 0.028f + (float)_rng.NextDouble() * 0.03f;
+                    n.Col = Color.FromRgba(56, 189, 248, 200);
                     break;
             }
             _particles.Add(n);
@@ -174,49 +301,58 @@ public sealed class MauiBackdropDrawable : IDrawable
             return;
         }
 
+        string eff = NormalizeParticleKey(ParticleEffect);
+        if (eff != "disable" && (_seededEffect != eff || _particles.Count == 0 ||
+            Math.Abs(_lastW - _seedW) > 16f || Math.Abs(_lastH - _seedH) > 16f))
+        {
+            SeedParticles(w, h);
+        }
+
         if (!IsDarkMode)
         {
             canvas.FillColor = Color.FromRgb(244, 246, 251);
             canvas.FillRectangle(0, 0, w, h);
-            return;
-        }
-
-        // 1. Surface Backdrop Theme
-        string theme = (BgTheme ?? "aurora").ToLowerInvariant();
-        if (theme == "obsidian")
-        {
-            canvas.FillColor = Color.FromRgb(3, 4, 8);
-            canvas.FillRectangle(0, 0, w, h);
-        }
-        else if (theme == "nebula")
-        {
-            canvas.FillColor = Color.FromRgb(4, 3, 10);
-            canvas.FillRectangle(0, 0, w, h);
-            DrawGlowOrb(canvas, w * 0.18f, h * 0.22f, Math.Min(w, h) * 0.45f, Color.FromRgba(124, 58, 237, 55));
-            DrawGlowOrb(canvas, w * 0.82f, h * 0.30f, Math.Min(w, h) * 0.40f, Color.FromRgba(219, 39, 119, 45));
-            DrawGlowOrb(canvas, w * 0.52f, h * 0.78f, Math.Min(w, h) * 0.48f, Color.FromRgba(14, 165, 233, 42));
-        }
-        else if (theme == "acrylic")
-        {
-            FillVerticalGradient(canvas, new RectF(0, 0, w, h),
-                Color.FromRgb(10, 18, 36), Color.FromRgb(13, 27, 46), Color.FromRgb(8, 24, 38));
-            DrawGlowOrb(canvas, w * 0.75f, h * 0.72f, Math.Min(w, h) * 0.42f, Color.FromRgba(20, 184, 166, 38));
         }
         else
         {
-            FillVerticalGradient(canvas, new RectF(0, 0, w, h),
-                Color.FromRgb(9, 11, 26), Color.FromRgb(13, 16, 37), Color.FromRgb(8, 10, 22));
+            // 1. Surface Backdrop Theme
+            string theme = (BgTheme ?? "aurora").ToLowerInvariant();
+            if (theme == "obsidian")
+            {
+                canvas.FillColor = Color.FromRgb(3, 4, 8);
+                canvas.FillRectangle(0, 0, w, h);
+            }
+            else if (theme == "nebula")
+            {
+                canvas.FillColor = Color.FromRgb(4, 3, 10);
+                canvas.FillRectangle(0, 0, w, h);
+                DrawGlowOrb(canvas, w * 0.18f, h * 0.22f, Math.Min(w, h) * 0.45f, Color.FromRgba(124, 58, 237, 55));
+                DrawGlowOrb(canvas, w * 0.82f, h * 0.30f, Math.Min(w, h) * 0.40f, Color.FromRgba(219, 39, 119, 45));
+                DrawGlowOrb(canvas, w * 0.52f, h * 0.78f, Math.Min(w, h) * 0.48f, Color.FromRgba(14, 165, 233, 42));
+            }
+            else if (theme == "acrylic")
+            {
+                FillVerticalGradient(canvas, new RectF(0, 0, w, h),
+                    Color.FromRgb(10, 18, 36), Color.FromRgb(13, 27, 46), Color.FromRgb(8, 24, 38));
+                DrawGlowOrb(canvas, w * 0.75f, h * 0.72f, Math.Min(w, h) * 0.42f, Color.FromRgba(20, 184, 166, 38));
+            }
+            else
+            {
+                FillVerticalGradient(canvas, new RectF(0, 0, w, h),
+                    Color.FromRgb(9, 11, 26), Color.FromRgb(13, 16, 37), Color.FromRgb(8, 10, 22));
+            }
         }
 
         // 2. Ambient Particle Engine
-        string eff = (ParticleEffect ?? "network").ToLowerInvariant();
-        if (eff == "none" || _particles.Count == 0) return;
+        if (eff == "disable" || _particles.Count == 0) return;
+
+        float lightMul = IsDarkMode ? 1.0f : 0.65f;
 
         if (eff == "network")
         {
-            float maxDist = 135f;
+            float maxDist = Math.Clamp(Math.Min(w, h) * 0.36f, 120f, 195f);
             float maxDistSq = maxDist * maxDist;
-            canvas.StrokeSize = 1f;
+            canvas.StrokeSize = 1.35f;
             for (int i = 0; i < _particles.Count; i++)
             {
                 var a = _particles[i];
@@ -228,8 +364,10 @@ public sealed class MauiBackdropDrawable : IDrawable
                     float d2 = dx * dx + dy * dy;
                     if (d2 < maxDistSq)
                     {
-                        float alpha = (1f - (float)Math.Sqrt(d2) / maxDist) * 0.25f;
-                        canvas.StrokeColor = Color.FromRgba(34, 211, 238, (int)(alpha * 255));
+                        float alpha = (1f - (float)Math.Sqrt(d2) / maxDist) * 0.55f * lightMul;
+                        canvas.StrokeColor = IsDarkMode
+                            ? Color.FromRgba(56, 189, 248, (int)(alpha * 255))
+                            : Color.FromRgba(79, 70, 229, (int)(alpha * 255));
                         canvas.DrawLine(a.X, a.Y, b.X, b.Y);
                     }
                 }
@@ -240,20 +378,81 @@ public sealed class MauiBackdropDrawable : IDrawable
         {
             var p = _particles[i];
             float pulse = 0.55f + 0.45f * (float)Math.Sin(p.Phase);
-            if (eff == "bubbles")
+
+            if (eff == "network")
             {
-                canvas.StrokeColor = Color.FromRgba(125, 211, 252, 130);
-                canvas.StrokeSize = 1.2f;
+                var col = IsDarkMode ? p.Col : Color.FromRgba(79, 70, 229, 200);
+                canvas.FillColor = col.WithAlpha(0.22f * pulse * lightMul);
+                canvas.FillCircle(p.X, p.Y, p.R * 2.4f);
+                canvas.FillColor = col.WithAlpha(0.92f * lightMul);
+                canvas.FillCircle(p.X, p.Y, p.R);
+            }
+            else if (eff == "bubbles")
+            {
+                canvas.StrokeColor = Color.FromRgba(125, 211, 252, (int)(160 * lightMul));
+                canvas.StrokeSize = 1.35f;
                 canvas.DrawCircle(p.X, p.Y, p.R);
             }
             else if (eff == "matrix")
             {
-                canvas.FillColor = Color.FromRgba(16, 185, 129, (int)(190 * pulse));
-                canvas.FillRectangle(p.X, p.Y, 3f, 11f);
+                int trail = 10 + (p.Seed % 4);
+                float cellH = p.R + 2f;
+                canvas.FontSize = p.R;
+                for (int g = 0; g < trail; g++)
+                {
+                    float gy = p.Y - g * cellH;
+                    if (gy < -cellH || gy > h + cellH) continue;
+                    int glyphIdx = Math.Abs(p.Seed + g * 7 + (int)(_t * 4.5)) % MatrixGlyphs.Length;
+                    if (g == 0)
+                    {
+                        canvas.FontColor = IsDarkMode
+                            ? Color.FromRgba(209, 250, 229, 245)
+                            : Color.FromRgba(6, 95, 70, 235);
+                    }
+                    else
+                    {
+                        float tAlpha = (1f - (float)g / trail) * 0.85f * lightMul;
+                        canvas.FontColor = IsDarkMode
+                            ? Color.FromRgba(16, 185, 129, (int)(tAlpha * 240))
+                            : Color.FromRgba(5, 150, 105, (int)(tAlpha * 210));
+                    }
+                    canvas.DrawString(MatrixGlyphs[glyphIdx], p.X, gy, HorizontalAlignment.Center);
+                }
+            }
+            else if (eff is "orbs" or "lava_lamp")
+            {
+                float rPulse = p.R * (0.90f + 0.14f * (float)Math.Sin(p.Phase));
+                DrawGlowOrb(canvas, p.X, p.Y, rPulse, p.Col.WithAlpha(p.Col.Alpha * lightMul));
+            }
+            else if (eff == "meteor")
+            {
+                float tailMul = 5.5f;
+                canvas.StrokeSize = p.R * 1.4f;
+                canvas.StrokeColor = p.Col.WithAlpha(0.75f * lightMul);
+                canvas.DrawLine(p.X, p.Y, p.X - p.Vx * tailMul, p.Y - p.Vy * tailMul);
+                canvas.FillColor = Colors.White.WithAlpha(0.95f * lightMul);
+                canvas.FillCircle(p.X, p.Y, p.R * 1.15f);
+            }
+            else if (eff == "water_ripple")
+            {
+                float a = Math.Clamp(1f - p.R / p.Vx, 0f, 1f) * 0.65f * lightMul;
+                if (a > 0.03f)
+                {
+                    canvas.StrokeSize = 1.4f;
+                    canvas.StrokeColor = Color.FromRgba(56, 189, 248, (int)(a * 255));
+                    canvas.DrawCircle(p.X, p.Y, p.R);
+                }
+            }
+            else if (eff == "fading_stars")
+            {
+                float fade = 0.5f + 0.5f * (float)Math.Sin(p.Phase);
+                float a = fade * fade * 0.92f * lightMul;
+                canvas.FillColor = (IsDarkMode ? p.Col : Color.FromRgb(99, 102, 241)).WithAlpha(a);
+                canvas.FillCircle(p.X, p.Y, p.R);
             }
             else
             {
-                canvas.FillColor = p.Col.WithAlpha(pulse * 0.85f);
+                canvas.FillColor = p.Col.WithAlpha(pulse * 0.88f * lightMul);
                 canvas.FillCircle(p.X, p.Y, p.R);
             }
         }
@@ -371,6 +570,36 @@ public sealed class MauiBackdropDrawable : IDrawable
                 break;
             case "rainy_forest":
                 DrawRainyForest(canvas, w, h);
+                break;
+            case "bioluminescent_grotto":
+                DrawBioluminescentGrotto(canvas, w, h);
+                break;
+            case "observatory_morning":
+                DrawObservatory(canvas, w, h, "morning");
+                break;
+            case "observatory_night":
+                DrawObservatory(canvas, w, h, "night");
+                break;
+            case "observatory_sunset":
+                DrawObservatory(canvas, w, h, "sunset");
+                break;
+            case "bamboo_garden":
+                DrawBambooGarden(canvas, w, h);
+                break;
+            case "volcanic_caldera":
+                DrawVolcanicCaldera(canvas, w, h);
+                break;
+            case "ancient_temple":
+                DrawAncientTemple(canvas, w, h);
+                break;
+            case "fireplace":
+                DrawFireplace(canvas, w, h);
+                break;
+            case "ocean_shore":
+                DrawOceanShore(canvas, w, h);
+                break;
+            case "crystal_cave":
+                DrawCrystalCave(canvas, w, h);
                 break;
             default:
                 DrawNorthPole(canvas, w, h);
@@ -1418,6 +1647,349 @@ public sealed class MauiBackdropDrawable : IDrawable
             float ry = (float)(((r * 59 + _t * spd) % (h + 40))) - 20f;
             float rx = (float)(((r * 97 - _t * spd * 0.15f) % w + w) % w);
             canvas.DrawLine(rx, ry, rx - 3.5f, ry + 18f);
+        }
+    }
+
+    private void DrawBioluminescentGrotto(ICanvas canvas, float w, float h)
+    {
+        FillVerticalGradient(canvas, new RectF(0, 0, w, h),
+            Color.FromRgb(4, 9, 24), Color.FromRgb(6, 22, 42), Color.FromRgb(4, 15, 32));
+        DrawGlowOrb(canvas, w * 0.5f, h * 0.42f, Math.Min(w, h) * 0.42f, Color.FromRgba(20, 184, 166, 48));
+
+        // Underground lagoon
+        FillVerticalGradient(canvas, new RectF(0, h * 0.68f, w, h * 0.32f),
+            Color.FromRgb(7, 36, 58), Color.FromRgb(2, 8, 20));
+
+        // Framing basalt walls & stalactites
+        canvas.FillColor = Color.FromRgb(7, 13, 24);
+        var leftWall = new PathF();
+        leftWall.MoveTo(0, 0); leftWall.LineTo(w * 0.34f, 0); leftWall.LineTo(w * 0.16f, h * 0.40f);
+        leftWall.LineTo(w * 0.21f, h * 0.69f); leftWall.LineTo(0, h); leftWall.Close();
+        canvas.FillPath(leftWall);
+
+        var rightWall = new PathF();
+        rightWall.MoveTo(w, 0); rightWall.LineTo(w * 0.66f, 0); rightWall.LineTo(w * 0.84f, h * 0.40f);
+        rightWall.LineTo(w * 0.79f, h * 0.69f); rightWall.LineTo(w, h); rightWall.Close();
+        canvas.FillPath(rightWall);
+
+        // Glowing stalactite tips
+        for (int i = 0; i < 5; i++)
+        {
+            float sx = w * (0.22f + i * 0.14f);
+            float sh = h * (0.14f + (i % 3) * 0.05f);
+            var st = new PathF();
+            st.MoveTo(sx - 12, 0); st.LineTo(sx + 12, 0); st.LineTo(sx, sh); st.Close();
+            canvas.FillColor = Color.FromRgb(10, 20, 36);
+            canvas.FillPath(st);
+            DrawGlowOrb(canvas, sx, sh, 12f, i % 2 == 0 ? Color.FromRgba(34, 211, 238, 120) : Color.FromRgba(167, 139, 250, 120));
+        }
+
+        // Ripples & floating bio spores
+        for (int r = 0; r < 4; r++)
+        {
+            float rx = w * (0.22f + r * 0.18f);
+            float ry = h * (0.76f + (r % 2) * 0.08f);
+            float rad = (float)(((r * 14 + _t * 16) % 36));
+            canvas.StrokeColor = Color.FromRgba(45, 212, 191, (int)((1f - rad / 36f) * 140));
+            canvas.StrokeSize = 1.2f;
+            canvas.DrawEllipse(rx - rad, ry - rad * 0.3f, rad * 2f, rad * 0.6f);
+        }
+
+        for (int i = 0; i < 34; i++)
+        {
+            float bx = (float)(((i * 97 + _t * 8f * ((i % 3) - 1)) % w + w) % w);
+            float by = (float)(((i * 53 - _t * (10 + (i % 4) * 4)) % (h * 0.70f) + (h * 0.70f)) % (h * 0.70f) + h * 0.10f);
+            float pulse = 0.35f + 0.65f * (float)Math.Sin(_t * 1.8 + i);
+            Color col = (i % 3 == 0) ? Color.FromRgba(34, 211, 238, (int)(pulse * 220))
+                      : (i % 3 == 1) ? Color.FromRgba(45, 212, 191, (int)(pulse * 220))
+                      : Color.FromRgba(192, 132, 252, (int)(pulse * 210));
+            canvas.FillColor = col.WithAlpha(pulse * 0.28f);
+            canvas.FillCircle(bx, by, 7f);
+            canvas.FillColor = col;
+            canvas.FillCircle(bx, by, 2.2f);
+        }
+    }
+
+    private void DrawObservatory(ICanvas canvas, float w, float h, string mode)
+    {
+        bool isMorning = mode == "morning";
+        bool isSunset = mode == "sunset";
+
+        if (isMorning)
+            FillVerticalGradient(canvas, new RectF(0, 0, w, h),
+                Color.FromRgb(30, 64, 130), Color.FromRgb(96, 165, 250), Color.FromRgb(253, 186, 116));
+        else if (isSunset)
+            FillVerticalGradient(canvas, new RectF(0, 0, w, h),
+                Color.FromRgb(24, 14, 52), Color.FromRgb(107, 33, 98), Color.FromRgb(251, 146, 60));
+        else
+            FillVerticalGradient(canvas, new RectF(0, 0, w, h),
+                Color.FromRgb(2, 6, 20), Color.FromRgb(7, 17, 46), Color.FromRgb(15, 32, 68));
+
+        if (!isMorning && !isSunset)
+        {
+            DrawStarfield(canvas, w, h * 0.68f, 95, 0.9f);
+        }
+        else if (isMorning)
+        {
+            DrawGlowOrb(canvas, w * 0.22f, h * 0.32f, 52f, Color.FromRgba(254, 240, 138, 195));
+        }
+        else
+        {
+            DrawStarfield(canvas, w, h * 0.32f, 45, 0.45f);
+            DrawGlowOrb(canvas, w * 0.25f, h * 0.40f, 64f, Color.FromRgba(253, 186, 116, 175));
+        }
+
+        // Far + Mid Alpine Peaks
+        canvas.FillColor = isMorning ? Color.FromRgb(125, 152, 196) : isSunset ? Color.FromRgb(88, 36, 74) : Color.FromRgb(14, 24, 48);
+        var farP = new PathF();
+        farP.MoveTo(0, h); farP.LineTo(0, h * 0.60f); farP.LineTo(w * 0.20f, h * 0.46f);
+        farP.LineTo(w * 0.46f, h * 0.56f); farP.LineTo(w * 0.72f, h * 0.42f); farP.LineTo(w, h * 0.58f); farP.LineTo(w, h); farP.Close();
+        canvas.FillPath(farP);
+
+        canvas.FillColor = isMorning ? Color.FromRgb(26, 36, 56) : isSunset ? Color.FromRgb(24, 10, 28) : Color.FromRgb(5, 9, 20);
+        var fgP = new PathF();
+        fgP.MoveTo(0, h); fgP.LineTo(0, h * 0.80f); fgP.LineTo(w * 0.35f, h * 0.72f);
+        fgP.LineTo(w * 0.64f, h * 0.66f); fgP.LineTo(w * 0.88f, h * 0.66f); fgP.LineTo(w, h * 0.74f); fgP.LineTo(w, h); fgP.Close();
+        canvas.FillPath(fgP);
+
+        // Observatory Dome + Rotating Telescope Barrel
+        float ox = w * 0.75f;
+        float oy = h * 0.66f;
+        float dr = Math.Min(w, h) * 0.085f;
+        Color domeCol = isMorning ? Color.FromRgb(226, 232, 240) : isSunset ? Color.FromRgb(64, 34, 58) : Color.FromRgb(30, 41, 59);
+        canvas.FillColor = domeCol;
+        canvas.FillRectangle(ox - dr * 0.9f, oy - dr * 0.75f, dr * 1.8f, dr * 0.80f);
+        canvas.FillCircle(ox, oy - dr * 0.72f, dr);
+        canvas.FillColor = isMorning ? Color.FromRgb(254, 243, 199) : Color.FromRgb(251, 191, 36);
+        canvas.FillRectangle(ox - dr * 0.16f, oy - dr * 0.45f, dr * 0.32f, dr * 0.22f);
+
+        float sweep = -2.25f + (float)Math.Sin(_t * 0.28) * 0.22f;
+        float px = ox - dr * 0.12f, py = oy - dr * 0.92f;
+        float tx = px + (float)Math.Cos(sweep) * dr * 1.15f;
+        float ty = py + (float)Math.Sin(sweep) * dr * 1.15f;
+        canvas.StrokeSize = 4.5f;
+        canvas.StrokeColor = isMorning ? Color.FromRgb(203, 213, 225) : Color.FromRgb(100, 116, 139);
+        canvas.DrawLine(px, py, tx, ty);
+
+        if (isMorning || isSunset)
+        {
+            for (int c = 0; c < 4; c++)
+            {
+                float cx = (float)(((c * 140 + _t * (14 + c * 4)) % (w + 140)) - 70);
+                float cy = h * (0.28f + c * 0.08f);
+                canvas.FillColor = isMorning ? Color.FromRgba(255, 250, 240, 70) : Color.FromRgba(251, 146, 60, 60);
+                canvas.FillEllipse(cx - 55, cy - 12, 110, 24);
+            }
+        }
+    }
+
+    private void DrawBambooGarden(ICanvas canvas, float w, float h)
+    {
+        FillVerticalGradient(canvas, new RectF(0, 0, w, h),
+            Color.FromRgb(6, 40, 32), Color.FromRgb(16, 78, 56), Color.FromRgb(6, 30, 24));
+
+        // Quiet garden pond
+        FillVerticalGradient(canvas, new RectF(0, h * 0.80f, w, h * 0.20f),
+            Color.FromRgb(9, 46, 42), Color.FromRgb(5, 25, 25));
+
+        // Stone Lantern + Warm Amber Pulse
+        float lx = w * 0.20f, ly = h * 0.78f;
+        canvas.FillColor = Color.FromRgb(42, 52, 54);
+        canvas.FillRectangle(lx - 7, ly - 38, 14, 38);
+        canvas.FillRectangle(lx - 11, ly - 58, 22, 20);
+        float glow = 0.85f + 0.15f * (float)Math.Sin(_t * 3.0);
+        DrawGlowOrb(canvas, lx, ly - 48, 36f * glow, Color.FromRgba(253, 224, 71, 150));
+
+        // Swaying bamboo stalks
+        for (int i = 0; i < 12; i++)
+        {
+            float bx = w * (0.06f + (i / 11f) * 0.88f);
+            float sway = (float)Math.Sin(_t * 0.85 + i * 0.7) * 14f;
+            canvas.StrokeSize = (i % 3 == 0) ? 5f : (i % 3 == 1) ? 7.5f : 9.5f;
+            canvas.StrokeColor = (i % 3 == 0) ? Color.FromRgb(22, 101, 52)
+                               : (i % 3 == 1) ? Color.FromRgb(34, 139, 74)
+                               : Color.FromRgb(74, 222, 128);
+            var p = new PathF();
+            p.MoveTo(bx, h * 0.82f);
+            p.QuadTo(bx + sway * 0.35f, h * 0.42f, bx + sway, -8f);
+            canvas.DrawPath(p);
+        }
+
+        // Drifting bamboo leaves
+        canvas.FillColor = Color.FromRgba(134, 239, 172, 185);
+        for (int l = 0; l < 18; l++)
+        {
+            float lyPos = (float)(((l * 59 + _t * 28f) % (h + 20)) - 10f);
+            float lxPos = (float)(((l * 91 + _t * 14f + Math.Sin(_t + l) * 16f) % w + w) % w);
+            canvas.FillEllipse(lxPos - 5, lyPos - 2, 10, 4);
+        }
+    }
+
+    private void DrawVolcanicCaldera(ICanvas canvas, float w, float h)
+    {
+        FillVerticalGradient(canvas, new RectF(0, 0, w, h * 0.72f),
+            Color.FromRgb(14, 10, 12), Color.FromRgb(48, 16, 14), Color.FromRgb(124, 34, 14));
+        FillVerticalGradient(canvas, new RectF(0, h * 0.70f, w, h * 0.30f),
+            Color.FromRgb(251, 146, 60), Color.FromRgb(220, 38, 38), Color.FromRgb(69, 10, 10));
+
+        float pulse = 0.8f + 0.2f * (float)Math.Sin(_t * 2.0);
+        DrawGlowOrb(canvas, w * 0.5f, h * 0.70f, w * 0.36f * pulse, Color.FromRgba(251, 146, 60, 125));
+
+        canvas.FillColor = Color.FromRgb(18, 10, 12);
+        var leftCone = new PathF();
+        leftCone.MoveTo(0, h); leftCone.LineTo(0, h * 0.38f); leftCone.LineTo(w * 0.26f, h * 0.64f);
+        leftCone.LineTo(w * 0.36f, h * 0.80f); leftCone.LineTo(0, h * 0.90f); leftCone.Close();
+        canvas.FillPath(leftCone);
+
+        var rightCone = new PathF();
+        rightCone.MoveTo(w, h); rightCone.LineTo(w, h * 0.36f); rightCone.LineTo(w * 0.74f, h * 0.62f);
+        rightCone.LineTo(w * 0.64f, h * 0.80f); rightCone.LineTo(w, h * 0.90f); rightCone.Close();
+        canvas.FillPath(rightCone);
+
+        for (int e = 0; e < 36; e++)
+        {
+            float ex = (float)(((e * 83 + Math.Sin(_t * 1.4 + e) * 18) % (w * 0.76) + w * 0.12));
+            float ey = (float)(((h * 0.82f - ((e * 41 + _t * (38 + (e % 5) * 9)) % (h * 0.85f)))));
+            canvas.FillColor = (e % 2 == 0) ? Color.FromRgba(251, 146, 60, 220) : Color.FromRgba(254, 240, 138, 225);
+            canvas.FillCircle(ex, ey, 2.0f + (e % 2));
+        }
+    }
+
+    private void DrawAncientTemple(ICanvas canvas, float w, float h)
+    {
+        FillVerticalGradient(canvas, new RectF(0, 0, w, h * 0.74f),
+            Color.FromRgb(15, 23, 42), Color.FromRgb(55, 48, 86), Color.FromRgb(146, 94, 72));
+        FillVerticalGradient(canvas, new RectF(0, h * 0.74f, w, h * 0.26f),
+            Color.FromRgb(42, 34, 52), Color.FromRgb(15, 17, 29));
+        DrawStarfield(canvas, w, h * 0.42f, 45, 0.5f);
+
+        float cx = w * 0.5f;
+        canvas.FillColor = Color.FromRgb(44, 42, 54);
+        canvas.FillRectangle(cx - w * 0.22f, h * 0.62f, w * 0.44f, h * 0.12f);
+        canvas.FillRectangle(cx - w * 0.16f, h * 0.51f, w * 0.32f, h * 0.11f);
+        canvas.FillRectangle(cx - w * 0.11f, h * 0.41f, w * 0.22f, h * 0.10f);
+        var roof = new PathF();
+        roof.MoveTo(cx - w * 0.14f, h * 0.41f); roof.LineTo(cx + w * 0.14f, h * 0.41f); roof.LineTo(cx, h * 0.29f); roof.Close();
+        canvas.FillPath(roof);
+
+        float fl = 0.85f + 0.15f * (float)Math.Sin(_t * 6.0);
+        DrawGlowOrb(canvas, w * 0.32f, h * 0.60f, 26f * fl, Color.FromRgba(254, 240, 138, 185));
+        DrawGlowOrb(canvas, w * 0.68f, h * 0.60f, 26f * fl, Color.FromRgba(254, 240, 138, 185));
+
+        for (int i = 0; i < 24; i++)
+        {
+            float mx = w * 0.24f + ((i * 59) % (int)Math.Max(40, w * 0.52f));
+            float my = (float)(h * 0.76f - ((i * 31 + _t * 22) % (h * 0.50f)));
+            canvas.FillColor = Color.FromRgba(253, 230, 138, 180);
+            canvas.FillCircle(mx, my, 1.8f);
+        }
+    }
+
+    private void DrawFireplace(ICanvas canvas, float w, float h)
+    {
+        FillVerticalGradient(canvas, new RectF(0, 0, w, h),
+            Color.FromRgb(18, 10, 8), Color.FromRgb(28, 16, 12));
+
+        float hx = w * 0.18f, hw = w * 0.64f, hy = h * 0.24f, hh = h * 0.66f;
+        canvas.FillColor = Color.FromRgb(58, 28, 22);
+        canvas.FillRectangle(hx, hy, hw, hh);
+        canvas.FillColor = Color.FromRgb(46, 26, 16);
+        canvas.FillRectangle(hx - 14, hy - 14, hw + 28, 18);
+        canvas.FillColor = Color.FromRgb(15, 9, 8);
+        canvas.FillRectangle(hx + hw * 0.12f, hy + 34, hw * 0.76f, hh - 34);
+
+        float cx = w * 0.5f, baseY = h * 0.80f;
+        float glow = 0.92f + 0.08f * (float)Math.Sin(_t * 5.2);
+        DrawGlowOrb(canvas, cx, baseY - 60, hw * 0.55f * glow, Color.FromRgba(251, 146, 60, 120));
+
+        // Logs + animated flames
+        canvas.FillColor = Color.FromRgb(42, 24, 14);
+        canvas.FillRoundedRectangle(cx - 58, baseY, 116, 18, 8);
+        for (int t = -2; t <= 2; t++)
+        {
+            float tx = cx + t * 18 + (float)Math.Sin(_t * 7.0 + t) * 4f;
+            float fh = (88f - Math.Abs(t) * 14f) * (0.85f + 0.16f * (float)Math.Sin(_t * 8.5 + t));
+            var fl = new PathF();
+            fl.MoveTo(tx - 16, baseY); fl.LineTo(tx + (float)Math.Sin(_t * 9 + t) * 7f, baseY - fh); fl.LineTo(tx + 16, baseY); fl.Close();
+            canvas.FillColor = t == 0 ? Color.FromRgba(254, 240, 138, 225) : Color.FromRgba(249, 115, 22, 210);
+            canvas.FillPath(fl);
+        }
+
+        for (int s = 0; s < 22; s++)
+        {
+            float sx = cx + (float)Math.Sin(_t * 2.1 + s) * 34f;
+            float sy = (float)(baseY - ((s * 23 + _t * 52) % (h * 0.52f)));
+            canvas.FillColor = Color.FromRgba(254, 215, 170, 210);
+            canvas.FillCircle(sx, sy, 1.6f);
+        }
+    }
+
+    private void DrawOceanShore(ICanvas canvas, float w, float h)
+    {
+        FillVerticalGradient(canvas, new RectF(0, 0, w, h * 0.50f),
+            Color.FromRgb(14, 116, 144), Color.FromRgb(56, 189, 248), Color.FromRgb(254, 243, 199));
+        FillVerticalGradient(canvas, new RectF(0, h * 0.50f, w, h * 0.22f),
+            Color.FromRgb(12, 74, 110), Color.FromRgb(14, 116, 144));
+        FillVerticalGradient(canvas, new RectF(0, h * 0.70f, w, h * 0.30f),
+            Color.FromRgb(217, 179, 130), Color.FromRgb(161, 118, 72));
+
+        float wash = ((float)Math.Sin(_t * 0.85) + 1f) * 0.5f;
+        float surfY = h * (0.69f + wash * 0.08f);
+        canvas.FillColor = Color.FromRgba(14, 116, 144, 75);
+        canvas.FillRectangle(0, h * 0.69f, w, h * 0.10f);
+        canvas.FillColor = Color.FromRgba(6, 182, 212, 165);
+        canvas.FillRectangle(0, h * 0.67f, w, surfY - h * 0.67f);
+        canvas.StrokeSize = 2.6f;
+        canvas.StrokeColor = Color.FromRgba(240, 253, 250, 215);
+        canvas.DrawLine(0, surfY, w, surfY + (float)Math.Sin(_t * 1.4) * 5f);
+
+        for (int s = 0; s < 24; s++)
+        {
+            float sx = ((s * 73) % Math.Max(40, (int)w));
+            float sy = h * 0.52f + ((s * 37) % Math.Max(20, (int)(h * 0.16f)));
+            canvas.FillColor = Color.FromRgba(255, 255, 255, (int)((0.35f + 0.65f * Math.Sin(_t * 3.0 + s)) * 200));
+            canvas.FillCircle(sx, sy, 1.5f);
+        }
+    }
+
+    private void DrawCrystalCave(ICanvas canvas, float w, float h)
+    {
+        FillVerticalGradient(canvas, new RectF(0, 0, w, h),
+            Color.FromRgb(12, 6, 30), Color.FromRgb(28, 12, 58), Color.FromRgb(10, 8, 28));
+        FillVerticalGradient(canvas, new RectF(0, h * 0.74f, w, h * 0.26f),
+            Color.FromRgb(24, 15, 48), Color.FromRgb(7, 5, 18));
+
+        float shim = 0.78f + 0.22f * (float)Math.Sin(_t * 1.6);
+        DrawGlowOrb(canvas, w * 0.18f, h * 0.58f, 62f * shim, Color.FromRgba(192, 132, 252, 115));
+        DrawGlowOrb(canvas, w * 0.80f, h * 0.60f, 58f * shim, Color.FromRgba(103, 232, 249, 115));
+
+        void Spire(float bx, float by, float tx, float ty, float hw, bool cyan)
+        {
+            var left = new PathF();
+            left.MoveTo(bx - hw, by); left.LineTo(bx, by); left.LineTo(tx, ty); left.Close();
+            canvas.FillColor = cyan ? Color.FromRgba(103, 232, 249, 200) : Color.FromRgba(168, 85, 247, 200);
+            canvas.FillPath(left);
+            var right = new PathF();
+            right.MoveTo(bx, by); right.LineTo(bx + hw, by); right.LineTo(tx, ty); right.Close();
+            canvas.FillColor = cyan ? Color.FromRgba(14, 116, 144, 185) : Color.FromRgba(107, 33, 168, 185);
+            canvas.FillPath(right);
+        }
+
+        Spire(w * 0.16f, h * 0.78f, w * 0.21f, h * 0.45f, 24f, false);
+        Spire(w * 0.27f, h * 0.80f, w * 0.31f, h * 0.56f, 18f, true);
+        Spire(w * 0.84f, h * 0.78f, w * 0.78f, h * 0.43f, 26f, false);
+        Spire(w * 0.73f, h * 0.80f, w * 0.69f, h * 0.57f, 18f, true);
+
+        for (int i = 0; i < 28; i++)
+        {
+            float sx = ((i * 79) % Math.Max(40, (int)w));
+            float sy = h * 0.12f + ((i * 53) % Math.Max(40, (int)(h * 0.62f)));
+            float g = (float)Math.Pow(Math.Max(0, Math.Sin(_t * 2.5 + i)), 3);
+            if (g > 0.1f)
+            {
+                canvas.FillColor = Color.FromRgba(255, 255, 255, (int)(g * 230));
+                canvas.FillCircle(sx, sy, 2.0f);
+            }
         }
     }
 }

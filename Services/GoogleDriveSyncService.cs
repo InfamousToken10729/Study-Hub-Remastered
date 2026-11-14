@@ -42,6 +42,7 @@ namespace StudyHub.Services
         private const string RootFolderName = "StudyHub_Sync";
         private const string FilesFolderName = "Files";
         private const string SoundsFolderName = "Sounds";
+        private const string ZenMediaFolderName = "ZenMedia";
         private const string SnapshotsFolderName = "Snapshots";
         private const string RemoteStateFileName = "study_hub_sync_state.json";
 
@@ -492,6 +493,12 @@ namespace StudyHub.Services
             return true;
         }
 
+        private Task<bool> RefreshAccessTokenAsync(CancellationToken ct = default)
+        {
+            _config.AccessToken = "";
+            return EnsureValidAccessTokenAsync(ct);
+        }
+
         public async Task<CloudSyncExecutionResult> SyncNowAsync(
             AppStateData currentLocalState,
             SyncResolutionMode mode = SyncResolutionMode.SmartMerge,
@@ -536,20 +543,38 @@ namespace StudyHub.Services
 
                     var localFiles = _storage.GetLocalBinaryFilesInventory(currentLocalState);
                     var localSounds = _storage.GetLocalBinarySoundsInventory(currentLocalState);
+                    var localZen = _storage.GetLocalBinaryZenMediaInventory(currentLocalState);
 
-                    bool shouldSyncFiles = (currentLocalState.Settings.SyncFilesEnabled || allowBinaryFileSyncOverride) &&
-                                           (allowBinaryFileSyncOverride || CanTransferBinaryFiles(currentLocalState.Settings));
+                    var ls = currentLocalState.Settings;
+                    bool needStudyFiles = ls.SyncPdfs || ls.SyncVideosAndRecordings || mode == SyncResolutionMode.ForcePullCloud || mode == SyncResolutionMode.ForcePushLocal;
+                    bool needSounds = ls.SyncExtraAudio || mode == SyncResolutionMode.ForcePullCloud || mode == SyncResolutionMode.ForcePushLocal;
+                    bool needZen = ls.SyncExtraZenScenes || mode == SyncResolutionMode.ForcePullCloud || mode == SyncResolutionMode.ForcePushLocal;
+                    bool anyFileCat = needStudyFiles || needSounds || needZen;
+
+                    bool fileSyncOptIn = ls.SyncFilesEnabled || allowBinaryFileSyncOverride;
+                    bool canTransferNetwork = allowBinaryFileSyncOverride || CanTransferBinaryFiles(ls);
+                    bool shouldSyncFiles = fileSyncOptIn && anyFileCat && canTransferNetwork;
+                    string skippedFilesReason = !anyFileCat
+                        ? ""
+                        : (!fileSyncOptIn
+                            ? "binary files disabled in Sync Settings"
+                            : (!canTransferNetwork ? "files skipped (Wi-Fi Only mode active)" : ""));
 
                     Dictionary<string, RemoteBinaryFileMeta> remoteFiles = new(StringComparer.OrdinalIgnoreCase);
                     Dictionary<string, RemoteBinaryFileMeta> remoteSounds = new(StringComparer.OrdinalIgnoreCase);
+                    Dictionary<string, RemoteBinaryFileMeta> remoteZen = new(StringComparer.OrdinalIgnoreCase);
 
-                    if (shouldSyncFiles && !string.IsNullOrWhiteSpace(_config.DriveFilesFolderId))
+                    if (shouldSyncFiles && needStudyFiles && !string.IsNullOrWhiteSpace(_config.DriveFilesFolderId))
                     {
                         remoteFiles = await ListFolderFilesAsync(_config.DriveFilesFolderId, ct);
                     }
-                    if (shouldSyncFiles && !string.IsNullOrWhiteSpace(_config.DriveSoundsFolderId))
+                    if (shouldSyncFiles && needSounds && !string.IsNullOrWhiteSpace(_config.DriveSoundsFolderId))
                     {
                         remoteSounds = await ListFolderFilesAsync(_config.DriveSoundsFolderId, ct);
+                    }
+                    if (shouldSyncFiles && needZen && !string.IsNullOrWhiteSpace(_config.DriveZenFolderId))
+                    {
+                        remoteZen = await ListFolderFilesAsync(_config.DriveZenFolderId, ct);
                     }
 
                     var outcome = SmartSyncMergeEngine.EvaluateAndMerge(
@@ -563,7 +588,9 @@ namespace StudyHub.Services
                         remoteFiles,
                         localSounds,
                         remoteSounds,
-                        mismatchAcknowledged);
+                        mismatchAcknowledged,
+                        localZen,
+                        remoteZen);
 
                     if (outcome.RequiresUserAction)
                     {
@@ -604,56 +631,79 @@ namespace StudyHub.Services
 
                     // Execute binary file downloads/uploads if allowed
                     int binaryTransferred = 0;
+                    int binaryFailed = 0;
+                    string firstTransferError = "";
+
                     if (shouldSyncFiles)
                     {
-                        foreach (var dl in outcome.FilesToDownload)
+                        async Task DownloadOpsAsync(
+                            List<SyncFileTransferOp> ops,
+                            IReadOnlyDictionary<string, RemoteBinaryFileMeta> remMap,
+                            string targetDir,
+                            string statusLabel,
+                            Action<AppStateData, string, string> hashUpdater)
                         {
-                            if (remoteFiles.TryGetValue(dl.FileName, out var rf))
+                            foreach (var dl in ops)
                             {
-                                PublishStatus(SyncStatusLevel.Syncing, "Downloading Study Files...", dl.DisplayTitle);
-                                string dest = Path.Combine(_storage.FilesDir, Path.GetFileName(dl.FileName));
-                                if (await DownloadDriveFileAtomicAsync(rf.DriveFileId, dest, ct))
+                                string baseFile = Path.GetFileName((dl.FileName ?? "").Replace('\\', '/'));
+                                if (!remMap.TryGetValue(dl.FileName, out var rf) &&
+                                    (string.IsNullOrWhiteSpace(baseFile) || !remMap.TryGetValue(baseFile, out rf)))
+                                {
+                                    continue;
+                                }
+                                PublishStatus(SyncStatusLevel.Syncing, statusLabel, dl.DisplayTitle);
+                                string dest = Path.Combine(targetDir, string.IsNullOrWhiteSpace(baseFile) ? dl.FileName : baseFile);
+                                var (okDl, errDl) = await DownloadDriveFileAtomicAsync(rf.DriveFileId, dest, ct);
+                                if (okDl)
                                 {
                                     binaryTransferred++;
-                                    UpdateMergedFileHash(outcome.MergedState, dl.FileName, dest);
+                                    hashUpdater(outcome.MergedState, dl.FileName, dest);
+                                    if (outcome.RemoteMergedState != null)
+                                        hashUpdater(outcome.RemoteMergedState, dl.FileName, dest);
+                                }
+                                else
+                                {
+                                    binaryFailed++;
+                                    if (string.IsNullOrEmpty(firstTransferError)) firstTransferError = errDl;
                                 }
                             }
                         }
-                        foreach (var dl in outcome.SoundsToDownload)
+
+                        async Task UploadOpsAsync(
+                            List<SyncFileTransferOp> ops,
+                            IReadOnlyDictionary<string, RemoteBinaryFileMeta> remMap,
+                            string driveFolderId,
+                            string statusLabel,
+                            Func<string, string> resolvePath)
                         {
-                            if (remoteSounds.TryGetValue(dl.FileName, out var rs))
+                            foreach (var ul in ops)
                             {
-                                PublishStatus(SyncStatusLevel.Syncing, "Downloading Custom Sounds...", dl.DisplayTitle);
-                                string dest = Path.Combine(_storage.SoundsDir, Path.GetFileName(dl.FileName));
-                                if (await DownloadDriveFileAtomicAsync(rs.DriveFileId, dest, ct))
+                                string src = resolvePath(ul.FileName);
+                                if (!File.Exists(src)) continue;
+                                PublishStatus(SyncStatusLevel.Syncing, statusLabel, ul.DisplayTitle);
+                                string baseFile = Path.GetFileName((ul.FileName ?? "").Replace('\\', '/'));
+                                if (!remMap.TryGetValue(ul.FileName, out var rf) && !string.IsNullOrWhiteSpace(baseFile))
+                                    remMap.TryGetValue(baseFile, out rf);
+                                try
                                 {
+                                    await UploadBinaryFileAsync(driveFolderId, string.IsNullOrWhiteSpace(baseFile) ? Path.GetFileName(src) : baseFile, src, rf?.DriveFileId, ct);
                                     binaryTransferred++;
-                                    UpdateMergedSoundHash(outcome.MergedState, dl.FileName, dest);
+                                }
+                                catch (Exception uex)
+                                {
+                                    binaryFailed++;
+                                    if (string.IsNullOrEmpty(firstTransferError)) firstTransferError = uex.Message;
                                 }
                             }
                         }
-                        foreach (var ul in outcome.FilesToUpload)
-                        {
-                            string src = _storage.GetStudyFilePath(ul.FileName);
-                            if (File.Exists(src))
-                            {
-                                PublishStatus(SyncStatusLevel.Syncing, "Uploading Study Files...", ul.DisplayTitle);
-                                string? existingDriveId = remoteFiles.TryGetValue(ul.FileName, out var rf) ? rf.DriveFileId : null;
-                                await UploadBinaryFileAsync(_config.DriveFilesFolderId, Path.GetFileName(ul.FileName), src, existingDriveId, ct);
-                                binaryTransferred++;
-                            }
-                        }
-                        foreach (var ul in outcome.SoundsToUpload)
-                        {
-                            string src = _storage.GetSoundFilePath(ul.FileName);
-                            if (File.Exists(src))
-                            {
-                                PublishStatus(SyncStatusLevel.Syncing, "Uploading Custom Sounds...", ul.DisplayTitle);
-                                string? existingDriveId = remoteSounds.TryGetValue(ul.FileName, out var rs) ? rs.DriveFileId : null;
-                                await UploadBinaryFileAsync(_config.DriveSoundsFolderId, Path.GetFileName(ul.FileName), src, existingDriveId, ct);
-                                binaryTransferred++;
-                            }
-                        }
+
+                        await DownloadOpsAsync(outcome.FilesToDownload, remoteFiles, _storage.FilesDir, "Downloading Study Files...", UpdateMergedFileHash);
+                        await DownloadOpsAsync(outcome.SoundsToDownload, remoteSounds, _storage.SoundsDir, "Downloading Custom Sounds...", UpdateMergedSoundHash);
+                        await DownloadOpsAsync(outcome.ZenMediaToDownload, remoteZen, _storage.ZenMediaDir, "Downloading Custom Zen Media...", UpdateMergedZenHash);
+
+                        await UploadOpsAsync(outcome.FilesToUpload, remoteFiles, _config.DriveFilesFolderId, "Uploading Study Files...", _storage.GetStudyFilePath);
+                        await UploadOpsAsync(outcome.SoundsToUpload, remoteSounds, _config.DriveSoundsFolderId, "Uploading Custom Sounds...", _storage.GetSoundFilePath);
+                        await UploadOpsAsync(outcome.ZenMediaToUpload, remoteZen, _config.DriveZenFolderId, "Uploading Custom Zen Media...", _storage.GetZenMediaFilePath);
                     }
 
                     // Optimistic concurrency check: verify nobody else updated remoteState between pull and push
@@ -676,14 +726,17 @@ namespace StudyHub.Services
                     }
 
                     string nowUtc = DateTime.UtcNow.ToString("O");
-                    string finalDetail = binaryTransferred > 0
-                        ? $"{outcome.StatusSummary} ({binaryTransferred} file(s) transferred)"
-                        : outcome.StatusSummary;
+                    var detailParts = new List<string> { outcome.StatusSummary };
+                    if (binaryTransferred > 0) detailParts.Add($"{binaryTransferred} file(s) transferred");
+                    if (!string.IsNullOrWhiteSpace(skippedFilesReason)) detailParts.Add(skippedFilesReason);
+                    if (binaryFailed > 0) detailParts.Add($"⚠️ {binaryFailed} file(s) failed ({firstTransferError})");
+                    string finalDetail = string.Join(" • ", detailParts);
 
                     outcome.MergedState.Settings.LastSyncStatusText = $"Synced {DateTime.Now:t}";
                     await _storage.SaveMergedStateAsync(outcome.MergedState);
 
-                    string uploadedMd5 = await PushRemoteStateAsync(outcome.MergedState, remoteMeta?.DriveFileId, ct);
+                    var stateToPush = outcome.RemoteMergedState ?? outcome.MergedState;
+                    string uploadedMd5 = await PushRemoteStateAsync(stateToPush, remoteMeta?.DriveFileId, ct);
                     _storage.SaveBaseSnapshot(outcome.MergedState);
 
                     _config.LastSyncedRemoteMd5 = uploadedMd5;
@@ -691,7 +744,9 @@ namespace StudyHub.Services
                     _config.LastSyncResultMessage = finalDetail;
                     SaveConfig();
 
-                    PublishStatus(SyncStatusLevel.Synced, "Synced with Google Drive", finalDetail, nowUtc);
+                    var level = binaryFailed > 0 ? SyncStatusLevel.NeedsAttention : SyncStatusLevel.Synced;
+                    string headline = binaryFailed > 0 ? "Synced (Some Files Failed)" : "Synced with Google Drive";
+                    PublishStatus(level, headline, finalDetail, nowUtc);
                     try { SyncStateApplied?.Invoke(outcome.MergedState, outcome); } catch { }
 
                     return new CloudSyncExecutionResult
@@ -821,6 +876,7 @@ namespace StudyHub.Services
             _config.DriveRootFolderId = await EnsureFolderAsync(null, RootFolderName, _config.DriveRootFolderId, ct);
             _config.DriveFilesFolderId = await EnsureFolderAsync(_config.DriveRootFolderId, FilesFolderName, _config.DriveFilesFolderId, ct);
             _config.DriveSoundsFolderId = await EnsureFolderAsync(_config.DriveRootFolderId, SoundsFolderName, _config.DriveSoundsFolderId, ct);
+            _config.DriveZenFolderId = await EnsureFolderAsync(_config.DriveRootFolderId, ZenMediaFolderName, _config.DriveZenFolderId, ct);
             _config.DriveSnapshotsFolderId = await EnsureFolderAsync(_config.DriveRootFolderId, SnapshotsFolderName, _config.DriveSnapshotsFolderId, ct);
             SaveConfig();
         }
@@ -939,6 +995,7 @@ namespace StudyHub.Services
         {
             var result = new Dictionary<string, RemoteBinaryFileMeta>(StringComparer.OrdinalIgnoreCase);
             string pageToken = "";
+            bool retriedAuth = false;
             do
             {
                 string q = Uri.EscapeDataString($"'{folderId}' in parents and trashed=false");
@@ -948,7 +1005,16 @@ namespace StudyHub.Services
                 using var req = new HttpRequestMessage(HttpMethod.Get, url);
                 req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _config.AccessToken);
                 using var resp = await _apiHttp.SendAsync(req, ct);
-                if (!resp.IsSuccessStatusCode) break;
+                if (resp.StatusCode == HttpStatusCode.Unauthorized && !retriedAuth)
+                {
+                    retriedAuth = true;
+                    if (await RefreshAccessTokenAsync(ct)) continue;
+                }
+                if (!resp.IsSuccessStatusCode)
+                {
+                    string errBody = await resp.Content.ReadAsStringAsync(ct);
+                    throw new HttpRequestException($"Drive folder listing failed (HTTP {(int)resp.StatusCode}): {ExtractOAuthError(errBody)}");
+                }
 
                 string body = await resp.Content.ReadAsStringAsync(ct);
                 using var doc = JsonDocument.Parse(body);
@@ -1045,69 +1111,188 @@ namespace StudyHub.Services
 
         private async Task UploadBinaryFileAsync(string folderId, string fileName, string localPath, string? existingFileId, CancellationToken ct)
         {
-            if (!string.IsNullOrWhiteSpace(existingFileId))
+            long fileLen = new FileInfo(localPath).Length;
+            await EnsureValidAccessTokenAsync(ct);
+
+            // Use Google Drive Resumable Upload protocol for maximum reliability across any file size (PDFs, Videos, Audio)
+            for (int authAttempt = 0; authAttempt < 2; authAttempt++)
             {
+                string initUrl = !string.IsNullOrWhiteSpace(existingFileId)
+                    ? $"{DriveUploadBase}/files/{existingFileId}?uploadType=resumable&fields=id"
+                    : $"{DriveUploadBase}/files?uploadType=resumable&fields=id";
+                var initMethod = !string.IsNullOrWhiteSpace(existingFileId) ? HttpMethod.Patch : HttpMethod.Post;
+
+                object metaPayload = !string.IsNullOrWhiteSpace(existingFileId)
+                    ? new { name = fileName }
+                    : new { name = fileName, parents = new[] { folderId } };
+
+                using var initReq = new HttpRequestMessage(initMethod, initUrl);
+                initReq.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _config.AccessToken);
+                initReq.Headers.TryAddWithoutValidation("X-Upload-Content-Type", "application/octet-stream");
+                initReq.Headers.TryAddWithoutValidation("X-Upload-Content-Length", fileLen.ToString(CultureInfo.InvariantCulture));
+                initReq.Content = new StringContent(JsonSerializer.Serialize(metaPayload), Encoding.UTF8, "application/json");
+
+                using var initResp = await _apiHttp.SendAsync(initReq, ct);
+                if (initResp.StatusCode == HttpStatusCode.Unauthorized && authAttempt == 0 && await RefreshAccessTokenAsync(ct))
+                    continue;
+
+                if (!initResp.IsSuccessStatusCode)
+                {
+                    if (!string.IsNullOrWhiteSpace(existingFileId))
+                    {
+                        existingFileId = null;
+                        continue;
+                    }
+                    string err = await initResp.Content.ReadAsStringAsync(ct);
+                    throw new HttpRequestException($"Upload init failed (HTTP {(int)initResp.StatusCode}): {ExtractOAuthError(err)}");
+                }
+
+                Uri? sessionUri = initResp.Headers.Location;
+                if (sessionUri == null)
+                    throw new InvalidOperationException("Google Drive did not return a resumable upload session URI.");
+
                 using var fs = new FileStream(localPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-                using var patchReq = new HttpRequestMessage(HttpMethod.Patch, $"{DriveUploadBase}/files/{existingFileId}?uploadType=media&fields=id");
-                patchReq.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _config.AccessToken);
-                patchReq.Content = new StreamContent(fs);
-                patchReq.Content.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
-                using var patchResp = await _fileHttp.SendAsync(patchReq, ct);
-                if (patchResp.IsSuccessStatusCode) return;
+                using var putReq = new HttpRequestMessage(HttpMethod.Put, sessionUri);
+                putReq.Content = new StreamContent(fs);
+                putReq.Content.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
+                putReq.Content.Headers.ContentLength = fileLen;
+
+                using var putResp = await _fileHttp.SendAsync(putReq, ct);
+                if (!putResp.IsSuccessStatusCode)
+                {
+                    string putErr = await putResp.Content.ReadAsStringAsync(ct);
+                    throw new HttpRequestException($"Upload transfer failed (HTTP {(int)putResp.StatusCode}): {ExtractOAuthError(putErr)}");
+                }
+                return;
             }
-
-            string boundary = "StudyHubBin_" + Guid.NewGuid().ToString("N");
-            string metaJson = JsonSerializer.Serialize(new { name = fileName, parents = new[] { folderId } });
-
-            using var mp = new MultipartContent("related", boundary);
-            var jsonPart = new StringContent(metaJson, Encoding.UTF8, "application/json");
-            mp.Add(jsonPart);
-
-            using var fs2 = new FileStream(localPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-            var streamPart = new StreamContent(fs2);
-            streamPart.Headers.ContentType = new MediaTypeHeaderValue("application/octet-stream");
-            mp.Add(streamPart);
-
-            using var req = new HttpRequestMessage(HttpMethod.Post, $"{DriveUploadBase}/files?uploadType=multipart&fields=id");
-            req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _config.AccessToken);
-            req.Content = mp;
-
-            using var resp = await _fileHttp.SendAsync(req, ct);
-            resp.EnsureSuccessStatusCode();
         }
 
-        private async Task<bool> DownloadDriveFileAtomicAsync(string driveFileId, string destPath, CancellationToken ct)
+        private async Task<(bool Success, string Error)> DownloadDriveFileAtomicAsync(string driveFileId, string destPath, CancellationToken ct)
         {
+            string tempPath = "";
             try
             {
                 Directory.CreateDirectory(Path.GetDirectoryName(destPath)!);
                 Directory.CreateDirectory(_storage.SyncCacheDir);
-                string tempPath = Path.Combine(_storage.SyncCacheDir, $"{Guid.NewGuid():N}_{Path.GetFileName(destPath)}.part");
+                tempPath = Path.Combine(_storage.SyncCacheDir, $"{Guid.NewGuid():N}_{Path.GetFileName(destPath)}.part");
 
-                using var req = new HttpRequestMessage(HttpMethod.Get, $"{DriveApiBase}/files/{driveFileId}?alt=media");
-                req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _config.AccessToken);
-                using var resp = await _fileHttp.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, ct);
-                if (!resp.IsSuccessStatusCode) return false;
-
-                using (var srcStream = await resp.Content.ReadAsStreamAsync(ct))
-                using (var fs = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None))
+                for (int authAttempt = 0; authAttempt < 2; authAttempt++)
                 {
-                    await srcStream.CopyToAsync(fs, ct);
-                }
+                    using var req = new HttpRequestMessage(HttpMethod.Get, $"{DriveApiBase}/files/{driveFileId}?alt=media");
+                    req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _config.AccessToken);
+                    using var resp = await _fileHttp.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, ct);
+                    if (resp.StatusCode == HttpStatusCode.Unauthorized && authAttempt == 0 && await RefreshAccessTokenAsync(ct))
+                        continue;
 
-                if (!File.Exists(tempPath) || new FileInfo(tempPath).Length == 0)
-                {
-                    try { File.Delete(tempPath); } catch { }
-                    return false;
-                }
+                    if (!resp.IsSuccessStatusCode)
+                    {
+                        return (false, $"HTTP {(int)resp.StatusCode}");
+                    }
 
-                File.Move(tempPath, destPath, true);
-                return true;
+                    using (var srcStream = await resp.Content.ReadAsStreamAsync(ct))
+                    using (var fs = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None))
+                    {
+                        await srcStream.CopyToAsync(fs, ct);
+                    }
+
+                    if (!File.Exists(tempPath) || new FileInfo(tempPath).Length == 0)
+                    {
+                        try { if (File.Exists(tempPath)) File.Delete(tempPath); } catch { }
+                        return (false, "Empty file response from Drive");
+                    }
+
+                    File.Move(tempPath, destPath, true);
+                    return (true, "");
+                }
+                return (false, "Authorization expired");
             }
-            catch
+            catch (Exception ex)
             {
-                return false;
+                try { if (!string.IsNullOrEmpty(tempPath) && File.Exists(tempPath)) File.Delete(tempPath); } catch { }
+                return (false, ex.Message);
             }
+        }
+
+        public async Task<(bool Success, string LocalPath, string Error)> EnsureBinaryFileDownloadedAsync(
+            string fileName,
+            string categoryFolder = "files",
+            string? fallbackOriginalName = null,
+            CancellationToken ct = default)
+        {
+            string resolvedLocal = categoryFolder switch
+            {
+                "sounds" => _storage.GetSoundFilePath(fileName),
+                "zen" => _storage.GetZenMediaFilePath(fileName),
+                _ => _storage.GetStudyFilePath(fileName)
+            };
+            if (File.Exists(resolvedLocal))
+                return (true, resolvedLocal, "");
+
+            if (!_config.HasValidSession)
+                return (false, resolvedLocal, "Not signed in to Google Drive.");
+            if (!IsNetworkOnline())
+                return (false, resolvedLocal, "Device is offline.");
+
+            try
+            {
+                if (!await EnsureValidAccessTokenAsync(ct))
+                    return (false, resolvedLocal, "Google Drive session expired — please sign in again.");
+
+                await EnsureDriveFolderHierarchyAsync(ct);
+
+                string driveFolderId = categoryFolder switch
+                {
+                    "sounds" => _config.DriveSoundsFolderId,
+                    "zen" => _config.DriveZenFolderId,
+                    _ => _config.DriveFilesFolderId
+                };
+                if (string.IsNullOrWhiteSpace(driveFolderId))
+                    return (false, resolvedLocal, "Google Drive folder not initialized yet.");
+
+                var remoteMap = await ListFolderFilesAsync(driveFolderId, ct);
+                string baseName = Path.GetFileName((fileName ?? "").Replace('\\', '/'));
+
+                RemoteBinaryFileMeta? match = null;
+                if (!string.IsNullOrWhiteSpace(fileName) && remoteMap.TryGetValue(fileName, out var m1)) match = m1;
+                else if (!string.IsNullOrWhiteSpace(baseName) && remoteMap.TryGetValue(baseName, out var m2)) match = m2;
+                else if (!string.IsNullOrWhiteSpace(fallbackOriginalName))
+                {
+                    match = remoteMap.Values.FirstOrDefault(v =>
+                        string.Equals(v.FileName, fallbackOriginalName, StringComparison.OrdinalIgnoreCase) ||
+                        v.FileName.EndsWith("_" + fallbackOriginalName, StringComparison.OrdinalIgnoreCase));
+                }
+
+                if (match == null || string.IsNullOrWhiteSpace(match.DriveFileId))
+                {
+                    return (false, resolvedLocal,
+                        $"Not yet uploaded to Google Drive ({remoteMap.Count} file(s) found in Drive/{categoryFolder}). Open StudyHub on the source device with File Sync enabled and tap Sync Now.");
+                }
+
+                string targetDir = categoryFolder switch
+                {
+                    "sounds" => _storage.SoundsDir,
+                    "zen" => _storage.ZenMediaDir,
+                    _ => _storage.FilesDir
+                };
+                string destPath = Path.Combine(targetDir, string.IsNullOrWhiteSpace(baseName) ? match.FileName : baseName);
+                var (ok, dlErr) = await DownloadDriveFileAtomicAsync(match.DriveFileId, destPath, ct);
+                return ok ? (true, destPath, "") : (false, destPath, $"Download failed: {dlErr}");
+            }
+            catch (Exception ex)
+            {
+                return (false, resolvedLocal, ex.Message);
+            }
+        }
+
+        private static void UpdateMergedZenHash(AppStateData state, string fileName, string path)
+        {
+            try
+            {
+                long sz = new FileInfo(path).Length;
+                string sha = StorageService.ComputeFileSha256(path);
+                foreach (var z in state.CustomZenMedia.Where(x => string.Equals(x.Filename, fileName, StringComparison.OrdinalIgnoreCase))) { z.FileSizeBytes = sz; z.Sha256 = sha; }
+            }
+            catch { }
         }
 
         private static void UpdateMergedFileHash(AppStateData state, string fileName, string path)

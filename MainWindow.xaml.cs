@@ -2084,6 +2084,20 @@ namespace StudyHub
         private async void OpenStudyFile(StudyFileItem file)
         {
             string fullPath = _storage.GetStudyFilePath(file.Filename);
+            if (!File.Exists(fullPath) && _cloudSync.Config.HasValidSession)
+            {
+                ShowToast($"⬇️ Downloading {file.OriginalName} from Google Drive...");
+                var (ok, downloadedPath, err) = await _cloudSync.EnsureBinaryFileDownloadedAsync(file.Filename, "files", file.OriginalName);
+                if (ok && File.Exists(downloadedPath))
+                {
+                    fullPath = downloadedPath;
+                }
+                else
+                {
+                    ShowToast($"Could not download '{file.OriginalName}': {err}");
+                    return;
+                }
+            }
             if (!File.Exists(fullPath))
             {
                 ShowToast($"File not found on disk: {file.OriginalName}");
@@ -2446,14 +2460,30 @@ namespace StudyHub
                 });
                 btn.Content = sp;
 
-                btn.Click += (s, e) =>
+                btn.Click += async (s, e) =>
                 {
                     string path = _storage.GetStudyFilePath(vidItem.Filename);
+                    if (!File.Exists(path) && _cloudSync.Config.HasValidSession)
+                    {
+                        ShowToast($"⬇️ Downloading video '{vidItem.Title}' from Google Drive...");
+                        var (ok, downloadedPath, err) = await _cloudSync.EnsureBinaryFileDownloadedAsync(vidItem.Filename, "files", vidItem.Filename);
+                        if (ok && File.Exists(downloadedPath))
+                            path = downloadedPath;
+                        else
+                        {
+                            ShowToast($"Video not found on disk: {err}");
+                            return;
+                        }
+                    }
                     if (File.Exists(path))
                     {
                         StudioVideoPlayer.Source = new Uri(path, UriKind.Absolute);
                         StudioVideoPlayer.Play();
                         ShowToast($"Playing {vidItem.Title} ▶️");
+                    }
+                    else
+                    {
+                        ShowToast($"Video file not found on disk: {vidItem.Title}");
                     }
                 };
                 VideosListStackPanel.Children.Add(btn);
@@ -2537,13 +2567,29 @@ namespace StudyHub
                     Margin = new Thickness(0, 0, 0, 6)
                 };
                 btn.Content = $"🎙️ {recItem.Title} ({recItem.Date})";
-                btn.Click += (s, e) =>
+                btn.Click += async (s, e) =>
                 {
                     string path = _storage.GetStudyFilePath(recItem.Filename);
+                    if (!File.Exists(path) && _cloudSync.Config.HasValidSession)
+                    {
+                        ShowToast($"⬇️ Downloading recording '{recItem.Title}' from Google Drive...");
+                        var (ok, downloadedPath, err) = await _cloudSync.EnsureBinaryFileDownloadedAsync(recItem.Filename, "files", recItem.Filename);
+                        if (ok && File.Exists(downloadedPath))
+                            path = downloadedPath;
+                        else
+                        {
+                            ShowToast($"Recording not found on disk: {err}");
+                            return;
+                        }
+                    }
                     if (File.Exists(path))
                     {
                         Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
                         ShowToast($"Playing {recItem.Title} 🎵");
+                    }
+                    else
+                    {
+                        ShowToast($"Recording file not found on disk: {recItem.Title}");
                     }
                 };
                 RecordingsListStackPanel.Children.Add(btn);
@@ -3678,6 +3724,16 @@ namespace StudyHub
             new("city_shoreline", "City Shoreline", "Harbor Skyline & Water Reflections", "#06B6D4,#C026D3,#0F172A", "🌉"),
             new("sunset", "Sunset", "Horizon Glow, Mountains & Birds", "#F43F5E,#F97316,#FBBF24", "🌅"),
             new("rainy_forest", "Rainy Forest", "Misty Pine Woodland & Rainfall", "#0F766E,#065F46,#0F172A", "🌧️"),
+            new("bioluminescent_grotto", "Bioluminescent Grotto", "Glowing Cavern & Subterranean Lagoon", "#06B6D4,#8B5CF6,#0F172A", "🐚"),
+            new("observatory_morning", "Observatory (Morning)", "Alpine Dawn & Scanning Telescope Dome", "#60A5FA,#FDBA74,#1E3A8A", "🔭"),
+            new("observatory_night", "Observatory (Night)", "Starlit Peak, Milky Way & Observatory", "#38BDF8,#312E81,#020617", "🌌"),
+            new("observatory_sunset", "Observatory (Sunset)", "Alpenglow Summit Telescope Dome", "#FB923C,#E11D48,#3B0764", "🌇"),
+            new("bamboo_garden", "Zen Bamboo Garden", "Swaying Bamboo Grove & Stone Lantern", "#22C55E,#15803D,#052E16", "🎋"),
+            new("volcanic_caldera", "Volcanic Caldera", "Molten Magma Basin & Rising Embers", "#F97316,#DC2626,#1C1917", "🌋"),
+            new("ancient_temple", "Ancient Temple", "Twilight Stone Sanctuary & Braziers", "#A855F7,#F59E0B,#1E1B4B", "⛩️"),
+            new("fireplace", "Fireplace", "Crackling Hearth Flames & Warm Embers", "#FB923C,#B91C1C,#1C1917", "🔥"),
+            new("ocean_shore", "Ocean Shore", "Rolling Surf, Sea Breeze & Coastal Tide", "#06B6D4,#0EA5E9,#FDE68A", "🏖️"),
+            new("crystal_cave", "Crystal Cave", "Amethyst & Quartz Prism Reflections", "#C084FC,#22D3EE,#0F0728", "💎"),
             new("custom", "Custom Video", "Local Video / Animation Loop", "#7C3AED,#9333EA,#06B6D4", "🎬"),
             new("none", "None", "Static Focus Backdrop", "#334155,#0F172A", "🚫")
         };
@@ -3701,6 +3757,14 @@ namespace StudyHub
             "city_shoreline" => "M 2,15 L 5,15 L 5,5 L 7,5 L 7,15 L 17,15 L 17,5 L 19,5 L 19,15 L 22,15 L 22,17 L 2,17 Z M 7,7 C 9.5,12.5 14.5,12.5 17,7 L 17,9 C 14.5,14 9.5,14 7,9 Z M 3,19 L 21,19 L 21,21 L 3,21 Z",
             "sunset" => "M 6,13.5 A 6,6 0 0,1 18,13.5 Z M 2,15.5 L 22,15.5 L 22,17.5 L 2,17.5 Z M 5,19.5 L 19,19.5 L 19,21.5 L 5,21.5 Z",
             "rainy_forest" => "M 7,13 A 3.5,3.5 0 0,1 6.5,6.2 A 5,5 0 0,1 16,6.8 A 3.3,3.3 0 0,1 17.5,13 Z M 7,15.5 L 9,15.5 L 7.5,20.5 L 5.5,20.5 Z M 11.5,15.5 L 13.5,15.5 L 12,20.5 L 10,20.5 Z M 16,15.5 L 18,15.5 L 16.5,20.5 L 14.5,20.5 Z",
+            "bioluminescent_grotto" => "M 12,3 C 6,3 2,8 2,15 L 2,20 L 7,20 C 7,14 9,11 12,11 C 15,11 17,14 17,20 L 22,20 L 22,15 C 22,8 18,3 12,3 Z M 12,14 A 2.2,2.2 0 1,1 11.99,14 Z",
+            "observatory_morning" or "observatory_night" or "observatory_sunset" => "M 6,15 A 6,6 0 0,1 18,15 Z M 4,15 L 20,15 L 20,21 L 4,21 Z M 13,10 L 20,4 L 21.5,5.5 L 14.5,11.5 Z",
+            "bamboo_garden" => "M 7,3 L 9,3 L 9,21 L 7,21 Z M 14,5 L 16,5 L 16,21 L 14,21 Z M 6,9 L 10,9 M 6,15 L 10,15 M 13,12 L 17,12 M 16,7 L 21,5",
+            "volcanic_caldera" => "M 2,20 L 8,8 L 10.5,9.5 L 13.5,9.5 L 16,8 L 22,20 Z M 11,6 A 1.8,1.8 0 1,1 12.8,6 A 1.8,1.8 0 1,1 11,6 Z",
+            "ancient_temple" => "M 3,7 L 21,7 L 19,10 L 5,10 Z M 6,10 L 8,10 L 8,18 L 6,18 Z M 11,10 L 13,10 L 13,18 L 11,18 Z M 16,10 L 18,10 L 18,18 L 16,18 Z M 3,18 L 21,18 L 21,21 L 3,21 Z",
+            "fireplace" => "M 12,3 C 16,8 18,12 18,15 A 6,6 0 0,1 6,15 C 6,12 8,9 12,3 Z M 12,11 C 10,13.5 9.5,15.5 12,18 C 14.5,15.5 14,13.5 12,11 Z",
+            "ocean_shore" => "M 2,14 Q 6,10 10,14 T 18,14 T 22,14 L 22,17 Q 18,19 14,17 T 6,17 T 2,17 Z M 2,19 L 22,19 L 22,21 L 2,21 Z",
+            "crystal_cave" => "M 12,2 L 18,8 L 15,21 L 9,21 L 6,8 Z M 4,11 L 7,14 L 5,21 L 2,21 Z M 20,11 L 22,21 L 19,21 L 17,14 Z",
             "custom" => "M 2,7 A 2,2 0 0,1 4,5 L 14,5 A 2,2 0 0,1 16,7 L 16,17 A 2,2 0 0,1 14,19 L 4,19 A 2,2 0 0,1 2,17 Z M 17,9.5 L 22,6.5 L 22,17.5 L 17,14.5 Z",
             "none" => "M 12,2 A 10,10 0 1,1 11.99,2 Z M 12,4.6 A 7.4,7.4 0 1,0 12.01,4.6 Z M 5.8,16.6 L 16.6,5.8 L 18.2,7.4 L 7.4,18.2 Z",
             _ => "M 2,19 L 8.5,8 L 13,14 L 16.5,9.5 L 22,19 Z"
@@ -3959,12 +4023,207 @@ namespace StudyHub
                 };
                 SpZenDropdownItems.Children.Add(rowBd);
             }
+
+            if (_state?.CustomZenMedia != null && _state.CustomZenMedia.Count > 0)
+            {
+                SpZenDropdownItems.Children.Add(new TextBlock
+                {
+                    Text = "SYNCED CUSTOM SCENES",
+                    FontSize = 9.5,
+                    FontWeight = FontWeights.Bold,
+                    Foreground = inactiveSub,
+                    Margin = new Thickness(8, 8, 8, 4)
+                });
+
+                foreach (var cm in _state.CustomZenMedia)
+                {
+                    string targetId = $"custom_media:{cm.Id}";
+                    bool active = string.Equals(targetId, curZen, StringComparison.OrdinalIgnoreCase);
+
+                    var rowBd = new Border
+                    {
+                        Background = active ? activeBg : Brushes.Transparent,
+                        CornerRadius = new CornerRadius(11),
+                        Padding = new Thickness(10, 7, 10, 7),
+                        Margin = new Thickness(0, 1, 0, 2),
+                        Cursor = Cursors.Hand
+                    };
+                    if (!active)
+                    {
+                        rowBd.MouseEnter += (_, _) => rowBd.Background = hoverBg;
+                        rowBd.MouseLeave += (_, _) => rowBd.Background = Brushes.Transparent;
+                    }
+
+                    var rowGrid = new Grid();
+                    rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+                    rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                    rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+                    var tile = new Border
+                    {
+                        Width = 26,
+                        Height = 26,
+                        CornerRadius = new CornerRadius(8),
+                        Background = ParseTailwindPreviewBrush("#7C3AED,#06B6D4"),
+                        Margin = new Thickness(0, 0, 10, 0),
+                        VerticalAlignment = VerticalAlignment.Center
+                    };
+                    tile.Child = new System.Windows.Shapes.Path
+                    {
+                        Data = Geometry.Parse(GetZenSceneIconPathData("custom")),
+                        Fill = Brushes.White,
+                        Width = 12,
+                        Height = 12,
+                        Stretch = Stretch.Uniform,
+                        HorizontalAlignment = HorizontalAlignment.Center,
+                        VerticalAlignment = VerticalAlignment.Center
+                    };
+                    Grid.SetColumn(tile, 0);
+                    rowGrid.Children.Add(tile);
+
+                    var textCol = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+                    textCol.Children.Add(new TextBlock
+                    {
+                        Text = cm.Title,
+                        FontSize = 12,
+                        FontWeight = FontWeights.Bold,
+                        Foreground = active ? Brushes.White : inactiveTitle,
+                        TextTrimming = TextTrimming.CharacterEllipsis
+                    });
+                    textCol.Children.Add(new TextBlock
+                    {
+                        Text = $"Synced Custom {(string.Equals(cm.MediaType, "image", StringComparison.OrdinalIgnoreCase) ? "Image" : "Video")}",
+                        FontSize = 10,
+                        FontWeight = FontWeights.Medium,
+                        Foreground = active ? activeSub : inactiveSub
+                    });
+                    Grid.SetColumn(textCol, 1);
+                    rowGrid.Children.Add(textCol);
+
+                    var delBtn = new Button
+                    {
+                        Content = "✕",
+                        Background = Brushes.Transparent,
+                        BorderThickness = new Thickness(0),
+                        Foreground = active ? Brushes.White : inactiveSub,
+                        FontSize = 11,
+                        Padding = new Thickness(6, 2, 6, 2),
+                        Cursor = Cursors.Hand
+                    };
+                    var captureCm = cm;
+                    delBtn.Click += (_, args) =>
+                    {
+                        args.Handled = true;
+                        DeleteCustomZenMediaPc(captureCm);
+                    };
+                    Grid.SetColumn(delBtn, 2);
+                    rowGrid.Children.Add(delBtn);
+
+                    rowBd.Child = rowGrid;
+                    rowBd.MouseLeftButtonUp += (_, args) =>
+                    {
+                        args.Handled = true;
+                        ApplyZenScene(targetId);
+                        CloseZenSceneDropdown();
+                    };
+                    SpZenDropdownItems.Children.Add(rowBd);
+                }
+            }
+
+            var addRow = new Border
+            {
+                Background = new SolidColorBrush(Color.FromArgb(35, 139, 92, 246)),
+                BorderBrush = new SolidColorBrush(Color.FromArgb(110, 167, 139, 250)),
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(11),
+                Padding = new Thickness(10, 8, 10, 8),
+                Margin = new Thickness(0, 8, 0, 2),
+                Cursor = Cursors.Hand
+            };
+            addRow.Child = new TextBlock
+            {
+                Text = "➕ Add Custom Zen Video / Image (Synced)",
+                FontSize = 11.5,
+                FontWeight = FontWeights.Bold,
+                Foreground = new SolidColorBrush(Color.FromRgb(196, 181, 253)),
+                HorizontalAlignment = HorizontalAlignment.Center
+            };
+            addRow.MouseLeftButtonUp += (_, args) =>
+            {
+                args.Handled = true;
+                CloseZenSceneDropdown();
+                PromptAndAddCustomZenMedia();
+            };
+            SpZenDropdownItems.Children.Add(addRow);
+        }
+
+        private void PromptAndAddCustomZenMedia()
+        {
+            var dlg = new OpenFileDialog
+            {
+                Title = "Select Custom Zen Video or Wallpaper (Synced across devices)",
+                Filter = "Zen Videos & Images|*.mp4;*.webm;*.mov;*.mkv;*.m4v;*.gif;*.webp;*.png;*.jpg;*.jpeg|All Files (*.*)|*.*"
+            };
+            if (dlg.ShowDialog() != true) return;
+
+            string defaultTitle = Path.GetFileNameWithoutExtension(dlg.FileName);
+            string title = Microsoft.VisualBasic.Interaction.InputBox("Name for your synced custom Zen scene:", "Add Synced Zen Scene", defaultTitle);
+            if (string.IsNullOrWhiteSpace(title)) title = defaultTitle;
+
+            try
+            {
+                var item = _storage.ImportCustomZenMedia(dlg.FileName, title);
+                _state.CustomZenMedia.Add(item);
+                SaveState();
+                ApplyZenScene($"custom_media:{item.Id}");
+                ShowToast($"Added synced Zen scene: {item.Title} ✨");
+            }
+            catch (Exception ex)
+            {
+                ShowToast($"Could not import Zen scene: {ex.Message}");
+            }
+        }
+
+        private void DeleteCustomZenMediaPc(CustomZenMediaItem item)
+        {
+            _state.CustomZenMedia.RemoveAll(z => z.Id == item.Id);
+            _storage.DeleteZenMediaFile(item.Filename);
+            if (string.Equals(_currentZenScene, $"custom_media:{item.Id}", StringComparison.OrdinalIgnoreCase))
+            {
+                ApplyZenScene("north_pole");
+            }
+            else
+            {
+                SaveState();
+                RenderZenSceneDropdown();
+                RenderControlCenterZenCards();
+            }
+            ShowToast($"Removed custom Zen scene: {item.Title}");
+        }
+
+        private ZenSceneOption ResolveZenSceneOption(string? sceneId)
+        {
+            if (!string.IsNullOrWhiteSpace(sceneId) && sceneId.StartsWith("custom_media:", StringComparison.OrdinalIgnoreCase))
+            {
+                string id = sceneId.Substring("custom_media:".Length);
+                var cm = _state?.CustomZenMedia?.FirstOrDefault(z => z.Id == id);
+                if (cm != null)
+                {
+                    return new ZenSceneOption(
+                        sceneId,
+                        cm.Title,
+                        $"Synced Custom {(string.Equals(cm.MediaType, "image", StringComparison.OrdinalIgnoreCase) ? "Image" : "Video")}",
+                        "#7C3AED,#06B6D4",
+                        "✨");
+                }
+            }
+            return ZEN_SCENES_LIST.Find(z => string.Equals(z.Id, sceneId, StringComparison.OrdinalIgnoreCase)) ?? ZEN_SCENES_LIST[0];
         }
 
         private void ApplyZenScene(string sceneId, bool saveToDisk = true)
         {
             if (_state?.Settings == null) return;
-            var found = ZEN_SCENES_LIST.Find(z => string.Equals(z.Id, sceneId, StringComparison.OrdinalIgnoreCase)) ?? ZEN_SCENES_LIST[0];
+            var found = ResolveZenSceneOption(sceneId);
             _currentZenScene = found.Id;
             _state.Settings.ZenScene = found.Id;
             if (saveToDisk) SaveState();
@@ -3974,7 +4233,12 @@ namespace StudyHub
             if (TxtZenDropdownName != null) TxtZenDropdownName.Text = found.Name;
             if (ZenDropdownBtnIconPath != null)
             {
-                try { ZenDropdownBtnIconPath.Data = Geometry.Parse(GetZenSceneIconPathData(found.Id)); } catch { }
+                try
+                {
+                    string iconKey = found.Id.StartsWith("custom_media:", StringComparison.OrdinalIgnoreCase) ? "custom" : found.Id;
+                    ZenDropdownBtnIconPath.Data = Geometry.Parse(GetZenSceneIconPathData(iconKey));
+                }
+                catch { }
             }
 
             if (WpZenCards != null) RenderControlCenterZenCards();
@@ -4045,7 +4309,7 @@ namespace StudyHub
             if (ZenSceneRenderer != null)
             {
                 ZenSceneRenderer.Visibility = Visibility.Visible;
-                string renderId = (found.Id == "custom") ? "north_pole" : found.Id;
+                string renderId = (found.Id == "custom" || found.Id.StartsWith("custom_media:", StringComparison.OrdinalIgnoreCase)) ? "north_pole" : found.Id;
                 ZenSceneRenderer.SetScene(renderId);
             }
 
@@ -4074,9 +4338,39 @@ namespace StudyHub
             UpdateRenderLoopState();
         }
 
-        private void ApplyZenBackdropSource()
+        private async void ApplyZenBackdropSource()
         {
-            var found = ZEN_SCENES_LIST.Find(z => string.Equals(z.Id, _currentZenScene, StringComparison.OrdinalIgnoreCase)) ?? ZEN_SCENES_LIST[0];
+            var found = ResolveZenSceneOption(_currentZenScene);
+            if (found.Id.StartsWith("custom_media:", StringComparison.OrdinalIgnoreCase))
+            {
+                string id = found.Id.Substring("custom_media:".Length);
+                var cm = _state?.CustomZenMedia?.FirstOrDefault(z => z.Id == id);
+                if (cm == null)
+                {
+                    ActivateBuiltinZenFallback(ZEN_SCENES_LIST[0], "Scene removed");
+                    return;
+                }
+                string mediaPath = _storage.GetZenMediaFilePath(cm.Filename);
+                if (!File.Exists(mediaPath) && _cloudSync.Config.HasValidSession)
+                {
+                    if (TxtZenSceneLabel != null) TxtZenSceneLabel.Text = $"Downloading {cm.Title} from Google Drive...";
+                    var (ok, dlPath, _) = await _cloudSync.EnsureBinaryFileDownloadedAsync(cm.Filename, "zen", cm.Filename);
+                    if (ok && File.Exists(dlPath)) mediaPath = dlPath;
+                }
+                if (!File.Exists(mediaPath))
+                {
+                    ActivateBuiltinZenFallback(found, "Synced file missing locally");
+                    return;
+                }
+
+                if (ZenCustomPromptBox != null) ZenCustomPromptBox.Visibility = Visibility.Collapsed;
+                if (BtnZenPickVideoFolder != null) BtnZenPickVideoFolder.Visibility = Visibility.Collapsed;
+                if (BtnZenPrevVideo != null) BtnZenPrevVideo.Visibility = Visibility.Collapsed;
+                if (BtnZenNextVideo != null) BtnZenNextVideo.Visibility = Visibility.Collapsed;
+                PlayZenMediaFile(mediaPath, $"Custom Zen • {cm.Title}", found);
+                return;
+            }
+
             if (found.Id != "custom")
             {
                 ActivateBuiltinZenFallback(found, null);
@@ -4102,18 +4396,21 @@ namespace StudyHub
             if (BtnZenNextVideo != null) BtnZenNextVideo.Visibility = multi ? Visibility.Visible : Visibility.Collapsed;
 
             _zenCurrentVideoIdx = ((_zenCurrentVideoIdx % _zenCustomVideos.Count) + _zenCustomVideos.Count) % _zenCustomVideos.Count;
-            string mediaPath = _zenCustomVideos[_zenCurrentVideoIdx];
-            if (!File.Exists(mediaPath))
+            string folderMediaPath = _zenCustomVideos[_zenCurrentVideoIdx];
+            if (!File.Exists(folderMediaPath))
             {
                 RefreshZenCustomVideos();
                 ActivateBuiltinZenFallback(found, "File missing");
                 return;
             }
 
+            PlayZenMediaFile(folderMediaPath, $"Custom Video ({_zenCurrentVideoIdx + 1}/{_zenCustomVideos.Count}) • {Path.GetFileName(folderMediaPath)}", found);
+        }
+
+        private void PlayZenMediaFile(string mediaPath, string labelText, ZenSceneOption fallbackOption)
+        {
             if (TxtZenSceneLabel != null)
-            {
-                TxtZenSceneLabel.Text = $"Custom Video ({_zenCurrentVideoIdx + 1}/{_zenCustomVideos.Count}) • {Path.GetFileName(mediaPath)}";
-            }
+                TxtZenSceneLabel.Text = labelText;
 
             string ext = Path.GetExtension(mediaPath).ToLowerInvariant();
             bool isImage = ext is ".gif" or ".webp" or ".png" or ".jpg" or ".jpeg";
@@ -4160,7 +4457,7 @@ namespace StudyHub
             }
             catch
             {
-                ActivateBuiltinZenFallback(found, "Unsupported codec fallback");
+                ActivateBuiltinZenFallback(fallbackOption, "Unsupported codec fallback");
             }
 
             UpdateRenderLoopState();
@@ -5758,6 +6055,69 @@ namespace StudyHub
                 bd.MouseDown += (s, e) => ApplyZenScene(zid);
                 WpZenCards.Children.Add(bd);
             }
+
+            if (_state?.CustomZenMedia != null)
+            {
+                foreach (var cm in _state.CustomZenMedia)
+                {
+                    string customKey = $"custom_media:{cm.Id}";
+                    bool active = string.Equals(customKey, curZen, StringComparison.OrdinalIgnoreCase);
+                    var bd = new Border
+                    {
+                        Background = active
+                            ? new SolidColorBrush(Color.FromArgb(40, 245, 158, 11))
+                            : (_isDarkMode ? new SolidColorBrush(Color.FromRgb(22, 27, 44)) : new SolidColorBrush(Color.FromRgb(248, 250, 252))),
+                        BorderBrush = active
+                            ? new SolidColorBrush(Color.FromRgb(245, 158, 11))
+                            : (_isDarkMode ? new SolidColorBrush(Color.FromRgb(40, 48, 86)) : new SolidColorBrush(Color.FromRgb(226, 232, 240))),
+                        BorderThickness = new Thickness(active ? 2 : 1),
+                        CornerRadius = new CornerRadius(14),
+                        Padding = new Thickness(10),
+                        Margin = new Thickness(4),
+                        Cursor = Cursors.Hand
+                    };
+                    var sp = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+                    sp.Children.Add(new TextBlock
+                    {
+                        Text = $"✨ {cm.Title}",
+                        FontWeight = FontWeights.Bold,
+                        FontSize = 12,
+                        Foreground = _isDarkMode ? Brushes.White : new SolidColorBrush(Color.FromRgb(15, 23, 42)),
+                        TextTrimming = TextTrimming.CharacterEllipsis
+                    });
+                    sp.Children.Add(new TextBlock
+                    {
+                        Text = $"Synced Custom {(string.Equals(cm.MediaType, "image", StringComparison.OrdinalIgnoreCase) ? "Image" : "Video")}",
+                        FontSize = 10,
+                        Foreground = _isDarkMode ? new SolidColorBrush(Color.FromRgb(138, 149, 183)) : new SolidColorBrush(Color.FromRgb(100, 116, 139)),
+                        Margin = new Thickness(0, 2, 0, 0)
+                    });
+                    bd.Child = sp;
+                    bd.MouseDown += (_, _) => ApplyZenScene(customKey);
+                    WpZenCards.Children.Add(bd);
+                }
+            }
+
+            var addCustomBtn = new Border
+            {
+                Background = _isDarkMode ? new SolidColorBrush(Color.FromRgb(22, 27, 44)) : new SolidColorBrush(Color.FromRgb(248, 250, 252)),
+                BorderBrush = new SolidColorBrush(Color.FromRgb(139, 92, 246)),
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(14),
+                Padding = new Thickness(12, 10, 12, 10),
+                Margin = new Thickness(4),
+                Cursor = Cursors.Hand
+            };
+            addCustomBtn.Child = new TextBlock
+            {
+                Text = "➕ Add Synced Zen Scene",
+                FontWeight = FontWeights.Bold,
+                FontSize = 12,
+                Foreground = new SolidColorBrush(Color.FromRgb(167, 139, 250)),
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            addCustomBtn.MouseDown += (_, _) => PromptAndAddCustomZenMedia();
+            WpZenCards.Children.Add(addCustomBtn);
         }
 
         private static Brush ParseTailwindPreviewBrush(string commaSeparatedHex)
@@ -7539,6 +7899,8 @@ namespace StudyHub
 
         // ================= GOOGLE DRIVE CLOUD SYNC (CROSS-PLATFORM) =================
 
+        private bool _isUpdatingCloudPrefsUi;
+
         private void CloudSync_StatusChanged(SyncProgressReport report)
         {
             if (_isClosing) return;
@@ -7608,8 +7970,25 @@ namespace StudyHub
             if (BtnCloudSyncNow != null) BtnCloudSyncNow.IsEnabled = cfg.HasValidSession;
             if (BtnCloudCreateSnapshot != null) BtnCloudCreateSnapshot.IsEnabled = cfg.HasValidSession;
 
-            if (ChkCloudAutoSync != null) ChkCloudAutoSync.IsChecked = _state?.Settings?.AutoSyncEnabled ?? true;
-            if (ChkCloudSyncFiles != null) ChkCloudSyncFiles.IsChecked = _state?.Settings?.SyncFilesEnabled ?? true;
+            _isUpdatingCloudPrefsUi = true;
+            try
+            {
+                var st = _state?.Settings;
+                if (ChkCloudAutoSync != null) ChkCloudAutoSync.IsChecked = st?.AutoSyncEnabled ?? true;
+                if (ChkCloudSyncFiles != null) ChkCloudSyncFiles.IsChecked = st?.SyncFilesEnabled ?? true;
+                if (ChkCloudSyncCourses != null) ChkCloudSyncCourses.IsChecked = st?.SyncCoursesAndNotes ?? true;
+                if (ChkCloudSyncLinks != null) ChkCloudSyncLinks.IsChecked = st?.SyncLinksAndDeadlines ?? true;
+                if (ChkCloudSyncCalendar != null) ChkCloudSyncCalendar.IsChecked = st?.SyncCalendar ?? true;
+                if (ChkCloudSyncPdfs != null) ChkCloudSyncPdfs.IsChecked = st?.SyncPdfs ?? true;
+                if (ChkCloudSyncVideos != null) ChkCloudSyncVideos.IsChecked = st?.SyncVideosAndRecordings ?? true;
+                if (ChkCloudSyncZen != null) ChkCloudSyncZen.IsChecked = st?.SyncExtraZenScenes ?? true;
+                if (ChkCloudSyncAudio != null) ChkCloudSyncAudio.IsChecked = st?.SyncExtraAudio ?? true;
+                if (ChkCloudSyncPrefs != null) ChkCloudSyncPrefs.IsChecked = st?.SyncPreferences ?? true;
+            }
+            finally
+            {
+                _isUpdatingCloudPrefsUi = false;
+            }
         }
 
         private async void BtnNavCloudSync_MouseDown(object sender, MouseButtonEventArgs e)
@@ -7940,9 +8319,17 @@ namespace StudyHub
 
         private void ChkCloudPrefs_Changed(object sender, RoutedEventArgs e)
         {
-            if (_state?.Settings == null) return;
+            if (_isUpdatingCloudPrefsUi || _state?.Settings == null) return;
             _state.Settings.AutoSyncEnabled = ChkCloudAutoSync.IsChecked ?? true;
             _state.Settings.SyncFilesEnabled = ChkCloudSyncFiles.IsChecked ?? true;
+            _state.Settings.SyncCoursesAndNotes = ChkCloudSyncCourses?.IsChecked ?? true;
+            _state.Settings.SyncLinksAndDeadlines = ChkCloudSyncLinks?.IsChecked ?? true;
+            _state.Settings.SyncCalendar = ChkCloudSyncCalendar?.IsChecked ?? true;
+            _state.Settings.SyncPdfs = ChkCloudSyncPdfs?.IsChecked ?? true;
+            _state.Settings.SyncVideosAndRecordings = ChkCloudSyncVideos?.IsChecked ?? true;
+            _state.Settings.SyncExtraZenScenes = ChkCloudSyncZen?.IsChecked ?? true;
+            _state.Settings.SyncExtraAudio = ChkCloudSyncAudio?.IsChecked ?? true;
+            _state.Settings.SyncPreferences = ChkCloudSyncPrefs?.IsChecked ?? true;
             _state.Settings.SettingsUpdatedAtUtc = DateTime.UtcNow.ToString("O");
             SaveState(countActivity: false);
         }
@@ -8050,6 +8437,9 @@ namespace StudyHub
             UpdateDashboardStats();
             UpdateControlCenterUiState();
             RenderControlCenterThemesAndEffects();
+            RenderControlCenterZenCards();
+            UpdateCloudSyncUiState();
+            ApplyZenScene(_state.Settings?.ZenScene ?? "north_pole", saveToDisk: false);
 
             if (CalendarModalGrid.Visibility == Visibility.Visible)
                 RenderPcCalendarModalViews();
