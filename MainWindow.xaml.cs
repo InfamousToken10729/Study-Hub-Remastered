@@ -90,6 +90,7 @@ namespace StudyHub
         }
         private readonly List<ParticleEngineItem> _activeGlobalParticles = new();
         private readonly List<MeshSegmentItem> _activeMeshLines = new();
+        private readonly List<MeshSegmentItem> _activeMouseMeshLines = new();
         private BitmapSource? _matrixGlyphStripBitmap;
         private string _currentParticleEffect = "network";
         private Point _lastParticleMousePos = new(-9999, -9999);
@@ -5446,6 +5447,7 @@ namespace StudyHub
             GlobalThemeCanvas.Children.Clear();
             _activeGlobalParticles.Clear();
             _activeMeshLines.Clear();
+            _activeMouseMeshLines.Clear();
 
             if (valid.Id == "disable")
             {
@@ -5462,23 +5464,69 @@ namespace StudyHub
             {
                 case "network":
                     {
-                        var nodeBrush = new SolidColorBrush(Color.FromArgb(200, 34, 211, 238));
-                        nodeBrush.Freeze();
-                        var meshBrush = new SolidColorBrush(Color.FromArgb(40, 124, 92, 255));
+                        var nodeBrushPrimary = new SolidColorBrush(Color.FromArgb(230, 226, 232, 240));
+                        nodeBrushPrimary.Freeze();
+                        var nodeBrushAccent = new SolidColorBrush(Color.FromArgb(225, 165, 180, 252));
+                        nodeBrushAccent.Freeze();
+                        var meshBrush = new SolidColorBrush(Color.FromRgb(165, 180, 252));
                         meshBrush.Freeze();
+                        var mouseMeshBrush = new SolidColorBrush(Color.FromRgb(125, 211, 252));
+                        mouseMeshBrush.Freeze();
 
-                        // 35 constellation nodes positioned via TranslateTransform (zero layout invalidation)
-                        for (int i = 0; i < 35; i++)
+                        // Pre-create mesh & cursor-tether line segments first so vertices render crisp on top
+                        for (int i = 0; i < 240; i++)
                         {
-                            double sz = _rand.Next(4, 8);
+                            var mt = new MatrixTransform();
+                            var rect = new Rectangle
+                            {
+                                Width = 1.0,
+                                Height = 1.15,
+                                Fill = meshBrush,
+                                RenderTransform = mt,
+                                Opacity = 0.0,
+                                IsHitTestVisible = false
+                            };
+                            Canvas.SetLeft(rect, 0);
+                            Canvas.SetTop(rect, 0);
+                            GlobalThemeCanvas.Children.Add(rect);
+                            _activeMeshLines.Add(new MeshSegmentItem { Rect = rect, Transform = mt });
+                        }
+
+                        for (int i = 0; i < 28; i++)
+                        {
+                            var mt = new MatrixTransform();
+                            var rect = new Rectangle
+                            {
+                                Width = 1.0,
+                                Height = 1.35,
+                                Fill = mouseMeshBrush,
+                                RenderTransform = mt,
+                                Opacity = 0.0,
+                                IsHitTestVisible = false
+                            };
+                            Canvas.SetLeft(rect, 0);
+                            Canvas.SetTop(rect, 0);
+                            GlobalThemeCanvas.Children.Add(rect);
+                            _activeMouseMeshLines.Add(new MeshSegmentItem { Rect = rect, Transform = mt });
+                        }
+
+                        // 64 constellation nodes positioned via TranslateTransform (zero layout invalidation)
+                        for (int i = 0; i < 64; i++)
+                        {
+                            double sz = 2.6 + _rand.NextDouble() * 2.4;
                             double x = _rand.NextDouble() * w;
                             double y = _rand.NextDouble() * h;
+                            double vx = (_rand.NextDouble() - 0.5) * 1.15;
+                            double vy = (_rand.NextDouble() - 0.5) * 1.15;
+                            if (Math.Abs(vx) < 0.16) vx = (i % 2 == 0 ? 0.28 : -0.28);
+                            if (Math.Abs(vy) < 0.16) vy = (i % 3 == 0 ? 0.28 : -0.28);
+
                             var tt = new TranslateTransform(x, y);
                             var el = new Ellipse
                             {
                                 Width = sz,
                                 Height = sz,
-                                Fill = nodeBrush,
+                                Fill = (i % 3 == 0) ? nodeBrushAccent : nodeBrushPrimary,
                                 RenderTransform = tt,
                                 IsHitTestVisible = false
                             };
@@ -5491,29 +5539,12 @@ namespace StudyHub
                                 Element = el,
                                 Translate = tt,
                                 X = x, Y = y,
-                                Vx = (_rand.NextDouble() - 0.5) * 1.2,
-                                Vy = (_rand.NextDouble() - 0.5) * 1.2,
-                                BaseColor = Color.FromRgb(34, 211, 238)
+                                R = sz * 0.5,
+                                MaxR = Math.Sqrt(vx * vx + vy * vy),
+                                Vx = vx,
+                                Vy = vy,
+                                BaseColor = (i % 3 == 0) ? Color.FromRgb(165, 180, 252) : Color.FromRgb(226, 232, 240)
                             });
-                        }
-
-                        // Pre-create 28 unit-quad mesh segments driven purely via MatrixTransform + Opacity
-                        for (int i = 0; i < 28; i++)
-                        {
-                            var mt = new MatrixTransform();
-                            var rect = new Rectangle
-                            {
-                                Width = 1.0,
-                                Height = 1.0,
-                                Fill = meshBrush,
-                                RenderTransform = mt,
-                                Opacity = 0.0,
-                                IsHitTestVisible = false
-                            };
-                            Canvas.SetLeft(rect, 0);
-                            Canvas.SetTop(rect, 0);
-                            GlobalThemeCanvas.Children.Add(rect);
-                            _activeMeshLines.Add(new MeshSegmentItem { Rect = rect, Transform = mt });
                         }
                         break;
                     }
@@ -6314,15 +6345,52 @@ namespace StudyHub
             }
             else if (_currentParticleEffect == "network")
             {
+                bool mouseActive = (DateTime.UtcNow - _lastParticleMouseMoveUtc).TotalSeconds < 6.0
+                    && _lastParticleMousePos.X >= 0 && _lastParticleMousePos.Y >= 0
+                    && _lastParticleMousePos.X <= w && _lastParticleMousePos.Y <= h;
+                double mx = _lastParticleMousePos.X;
+                double my = _lastParticleMousePos.Y;
+
+                const double nodeMaxDist = 180.0;
+                const double nodeMaxDistSq = nodeMaxDist * nodeMaxDist;
+                const double mouseMaxDist = 215.0;
+                const double mouseMaxDistSq = mouseMaxDist * mouseMaxDist;
+
                 for (int i = 0; i < _activeGlobalParticles.Count; i++)
                 {
                     var p = _activeGlobalParticles[i];
                     p.X += p.Vx * f;
                     p.Y += p.Vy * f;
+
+                    if (mouseActive)
+                    {
+                        double mdx = (p.X + p.R) - mx;
+                        double mdy = (p.Y + p.R) - my;
+                        double mdSq = mdx * mdx + mdy * mdy;
+                        if (mdSq > 1.0 && mdSq < 25600.0) // < 160px interactive field
+                        {
+                            double md = Math.Sqrt(mdSq);
+                            if (md < 64.0)
+                            {
+                                // Gentle close-range repulsion so nodes part around the cursor tip without leaving an empty void
+                                double push = (1.0 - md / 64.0) * 0.42 * f;
+                                p.X += (mdx / md) * push;
+                                p.Y += (mdy / md) * push;
+                            }
+                            else
+                            {
+                                // Subtle gravitational draw inside outer ring so constellations cluster interactively toward pointer
+                                double pull = (1.0 - (md - 64.0) / 96.0) * 0.14 * f;
+                                p.X -= (mdx / md) * pull;
+                                p.Y -= (mdy / md) * pull;
+                            }
+                        }
+                    }
+
                     if (p.X < 0) { p.X = 0; p.Vx = Math.Abs(p.Vx); }
-                    else if (p.X > w) { p.X = w; p.Vx = -Math.Abs(p.Vx); }
+                    else if (p.X > w - p.R * 2) { p.X = Math.Max(0, w - p.R * 2); p.Vx = -Math.Abs(p.Vx); }
                     if (p.Y < 0) { p.Y = 0; p.Vy = Math.Abs(p.Vy); }
-                    else if (p.Y > h) { p.Y = h; p.Vy = -Math.Abs(p.Vy); }
+                    else if (p.Y > h - p.R * 2) { p.Y = Math.Max(0, h - p.R * 2); p.Vy = -Math.Abs(p.Vy); }
                     p.Translate.X = p.X;
                     p.Translate.Y = p.Y;
                 }
@@ -6331,16 +6399,16 @@ namespace StudyHub
                 for (int i = 0; i < _activeGlobalParticles.Count && lineIdx < _activeMeshLines.Count; i++)
                 {
                     var pi = _activeGlobalParticles[i];
-                    double x1 = pi.X + 3.0;
-                    double y1 = pi.Y + 3.0;
+                    double x1 = pi.X + pi.R;
+                    double y1 = pi.Y + pi.R;
                     for (int j = i + 1; j < _activeGlobalParticles.Count && lineIdx < _activeMeshLines.Count; j++)
                     {
                         var pj = _activeGlobalParticles[j];
-                        double dx = (pj.X + 3.0) - x1;
-                        double dy = (pj.Y + 3.0) - y1;
+                        double dx = (pj.X + pj.R) - x1;
+                        double dy = (pj.Y + pj.R) - y1;
                         double distSq = dx * dx + dy * dy;
 
-                        if (distSq < 14400.0) // 120 * 120
+                        if (distSq < nodeMaxDistSq)
                         {
                             double dist = Math.Sqrt(distSq);
                             double invDist = dist > 0.001 ? 1.0 / dist : 0.0;
@@ -6348,14 +6416,41 @@ namespace StudyHub
                             double ny = dx * invDist;
 
                             var seg = _activeMeshLines[lineIdx++];
-                            seg.Transform.Matrix = new Matrix(dx, dy, nx, ny, x1 - 0.5 * nx, y1 - 0.5 * ny);
-                            seg.Rect.Opacity = (1.0 - dist / 120.0) * 0.45;
+                            seg.Transform.Matrix = new Matrix(dx, dy, nx, ny, x1 - 0.55 * nx, y1 - 0.55 * ny);
+                            seg.Rect.Opacity = (1.0 - dist / nodeMaxDist) * (_isDarkMode ? 0.62 : 0.45);
                         }
                     }
                 }
                 for (; lineIdx < _activeMeshLines.Count; lineIdx++)
                 {
                     _activeMeshLines[lineIdx].Rect.Opacity = 0.0;
+                }
+
+                int mouseLineIdx = 0;
+                if (mouseActive)
+                {
+                    for (int i = 0; i < _activeGlobalParticles.Count && mouseLineIdx < _activeMouseMeshLines.Count; i++)
+                    {
+                        var pi = _activeGlobalParticles[i];
+                        double dx = (pi.X + pi.R) - mx;
+                        double dy = (pi.Y + pi.R) - my;
+                        double distSq = dx * dx + dy * dy;
+                        if (distSq < mouseMaxDistSq)
+                        {
+                            double dist = Math.Sqrt(distSq);
+                            double invDist = dist > 0.001 ? 1.0 / dist : 0.0;
+                            double nx = -dy * invDist;
+                            double ny = dx * invDist;
+
+                            var seg = _activeMouseMeshLines[mouseLineIdx++];
+                            seg.Transform.Matrix = new Matrix(dx, dy, nx, ny, mx - 0.65 * nx, my - 0.65 * ny);
+                            seg.Rect.Opacity = (1.0 - dist / mouseMaxDist) * (_isDarkMode ? 0.78 : 0.55);
+                        }
+                    }
+                }
+                for (; mouseLineIdx < _activeMouseMeshLines.Count; mouseLineIdx++)
+                {
+                    _activeMouseMeshLines[mouseLineIdx].Rect.Opacity = 0.0;
                 }
             }
             else if (_currentParticleEffect == "matrix")
@@ -8817,9 +8912,14 @@ namespace StudyHub
             if (TxtCloudStatusBadge != null) TxtCloudStatusBadge.Text = report.Headline;
             if (TxtCloudLastSyncDetail != null && !string.IsNullOrWhiteSpace(report.Detail))
                 TxtCloudLastSyncDetail.Text = report.Detail;
+            if (TxtCloudMetaMerge != null)
+                TxtCloudMetaMerge.Text = !string.IsNullOrWhiteSpace(report.Headline) ? report.Headline : "Idle";
 
             UpdateCloudSyncUiState();
         }
+
+        private bool _isCloudAdvancedExpanded = false;
+        private bool _isCloudSecretHidden = true;
 
         private void UpdateCloudSyncUiState()
         {
@@ -8829,20 +8929,52 @@ namespace StudyHub
             if (TxtCloudClientSecret != null && TxtCloudClientSecret.Text != cfg.ClientSecret)
                 TxtCloudClientSecret.Text = cfg.ClientSecret;
 
+            if (BdCloudSecretMask != null && TxtCloudClientSecret != null)
+            {
+                bool showMask = _isCloudSecretHidden && !string.IsNullOrWhiteSpace(TxtCloudClientSecret.Text) && !TxtCloudClientSecret.IsFocused;
+                BdCloudSecretMask.Visibility = showMask ? Visibility.Visible : Visibility.Collapsed;
+                if (TxtCloudSecretMaskDots != null)
+                    TxtCloudSecretMaskDots.Text = new string('•', Math.Clamp(TxtCloudClientSecret.Text.Length, 10, 28));
+            }
+
+            if (TxtCloudMetaAccount != null)
+                TxtCloudMetaAccount.Text = cfg.HasValidSession && !string.IsNullOrWhiteSpace(cfg.UserEmail)
+                    ? cfg.UserEmail
+                    : (cfg.HasClientCredentials ? "Credentials Ready" : "Not Signed In");
+
+            if (TxtCloudMetaDeviceFolder != null)
+                TxtCloudMetaDeviceFolder.Text = $"{cfg.DeviceName} • /{GoogleDriveSyncService.RootFolderName}/";
+
+            if (TxtCloudMetaMerge != null && string.IsNullOrWhiteSpace(TxtCloudMetaMerge.Text))
+                TxtCloudMetaMerge.Text = cfg.HasValidSession ? "Ready" : "Setup Needed";
+
+            if (TxtCloudAdvancedSummary != null)
+            {
+                if (cfg.HasClientCredentials)
+                    TxtCloudAdvancedSummary.Text = cfg.HasValidSession ? "Paired & Configured ✓" : "Client ID Saved ✓";
+                else
+                    TxtCloudAdvancedSummary.Text = "Setup Needed";
+            }
+
             if (TxtCloudAccountStatus != null)
             {
                 if (!cfg.HasClientCredentials)
-                    TxtCloudAccountStatus.Text = $"Device ID: {cfg.DeviceName} • Step 1: Import client_secret.json or paste Client ID below.";
+                    TxtCloudAccountStatus.Text = "Step 1: Expand 'Advanced API & Mobile Pairing' below to import client_secret.json (or tap How to Link for a step-by-step guide).";
                 else if (!cfg.HasValidSession)
-                    TxtCloudAccountStatus.Text = $"Device ID: {cfg.DeviceName} • Credentials saved. Click 'Sign In with Google' to authorize Drive.";
+                    TxtCloudAccountStatus.Text = "OAuth Client credentials are saved. Click 'Sign In with Google' above to connect your Drive.";
                 else
-                    TxtCloudAccountStatus.Text = $"Signed in as {cfg.UserEmail} ({cfg.DeviceName}) • Syncing to Google Drive /StudyHub_Sync/";
+                    TxtCloudAccountStatus.Text = $"Connected to Google Drive as {cfg.UserEmail}. Changes sync across Windows & Android automatically.";
             }
 
             if (BtnCloudSignIn != null) BtnCloudSignIn.Visibility = cfg.HasValidSession ? Visibility.Collapsed : Visibility.Visible;
+            if (BtnCloudSyncNow != null)
+            {
+                BtnCloudSyncNow.Visibility = cfg.HasValidSession ? Visibility.Visible : Visibility.Collapsed;
+                BtnCloudSyncNow.IsEnabled = cfg.HasValidSession;
+            }
             if (BtnCloudSignOut != null) BtnCloudSignOut.Visibility = cfg.HasValidSession ? Visibility.Visible : Visibility.Collapsed;
-            if (BtnCloudSyncNow != null) BtnCloudSyncNow.IsEnabled = cfg.HasValidSession;
             if (BtnCloudCreateSnapshot != null) BtnCloudCreateSnapshot.IsEnabled = cfg.HasValidSession;
+            if (MenuBtnCloudCreateSnapshot != null) MenuBtnCloudCreateSnapshot.IsEnabled = cfg.HasValidSession;
 
             _isUpdatingCloudPrefsUi = true;
             try
@@ -8863,6 +8995,105 @@ namespace StudyHub
             {
                 _isUpdatingCloudPrefsUi = false;
             }
+        }
+
+        private void SetCloudAdvancedExpanded(bool expanded)
+        {
+            _isCloudAdvancedExpanded = expanded;
+            if (CloudAdvancedAccordionBody != null)
+                CloudAdvancedAccordionBody.Visibility = expanded ? Visibility.Visible : Visibility.Collapsed;
+            if (TxtCloudAdvancedChevron != null)
+                TxtCloudAdvancedChevron.Text = expanded ? "▾" : "▸";
+        }
+
+        private void SetCloudManualFallbackExpanded(bool expanded)
+        {
+            if (BdCloudManualAuthFallback != null)
+                BdCloudManualAuthFallback.Visibility = expanded ? Visibility.Visible : Visibility.Collapsed;
+            if (TxtCloudManualAuthToggleLabel != null)
+                TxtCloudManualAuthToggleLabel.Text = expanded
+                    ? "Hide manual callback URL fallback ▾"
+                    : "Browser redirect blocked? Enter callback URL manually ▸";
+        }
+
+        private void BtnCloudToggleAdvanced_Click(object sender, RoutedEventArgs e)
+            => SetCloudAdvancedExpanded(!_isCloudAdvancedExpanded);
+
+        private void BtnCloudOpenAdvancedFromMenu_Click(object sender, RoutedEventArgs e)
+        {
+            if (CloudActionsPopup != null) CloudActionsPopup.IsOpen = false;
+            SetCloudAdvancedExpanded(true);
+            CloudAdvancedAccordionBody?.BringIntoView();
+        }
+
+        private void BtnCloudToggleManualAuth_Click(object sender, RoutedEventArgs e)
+        {
+            if (CloudActionsPopup != null) CloudActionsPopup.IsOpen = false;
+            bool next = BdCloudManualAuthFallback == null || BdCloudManualAuthFallback.Visibility != Visibility.Visible;
+            SetCloudManualFallbackExpanded(next);
+        }
+
+        private void BtnCloudActionsOverflow_Click(object sender, RoutedEventArgs e)
+        {
+            if (CloudActionsPopup != null)
+                CloudActionsPopup.IsOpen = !CloudActionsPopup.IsOpen;
+        }
+
+        private void BtnCloudHowToLink_Click(object sender, RoutedEventArgs e)
+        {
+            if (CloudHowToModalGrid != null) CloudHowToModalGrid.Visibility = Visibility.Visible;
+        }
+
+        private void BtnCloseCloudHowTo_Click(object sender, RoutedEventArgs e)
+        {
+            if (CloudHowToModalGrid != null) CloudHowToModalGrid.Visibility = Visibility.Collapsed;
+        }
+
+        private void BtnCloseCloudHowTo_MouseDown(object sender, MouseButtonEventArgs e)
+        {
+            if (CloudHowToModalGrid != null) CloudHowToModalGrid.Visibility = Visibility.Collapsed;
+        }
+
+        private void BtnCloudCopyClientId_Click(object sender, RoutedEventArgs e)
+        {
+            string val = TxtCloudClientId?.Text?.Trim() ?? "";
+            if (string.IsNullOrEmpty(val)) { ShowToast("Client ID field is empty."); return; }
+            Clipboard.SetText(val);
+            ShowToast("Client ID copied to clipboard 📋");
+        }
+
+        private void BtnCloudClearClientId_Click(object sender, RoutedEventArgs e)
+        {
+            if (TxtCloudClientId != null) TxtCloudClientId.Text = "";
+        }
+
+        private void BtnCloudToggleSecretMask_Click(object sender, RoutedEventArgs e)
+        {
+            _isCloudSecretHidden = !_isCloudSecretHidden;
+            UpdateCloudSyncUiState();
+            if (!_isCloudSecretHidden) TxtCloudClientSecret?.Focus();
+        }
+
+        private void BdCloudSecretMask_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            _isCloudSecretHidden = false;
+            UpdateCloudSyncUiState();
+            TxtCloudClientSecret?.Focus();
+        }
+
+        private void BtnCloudCopyClientSecret_Click(object sender, RoutedEventArgs e)
+        {
+            string val = TxtCloudClientSecret?.Text?.Trim() ?? "";
+            if (string.IsNullOrEmpty(val)) { ShowToast("Client Secret field is empty."); return; }
+            Clipboard.SetText(val);
+            ShowToast("Client Secret copied to clipboard 📋");
+        }
+
+        private void BtnCloudClearClientSecret_Click(object sender, RoutedEventArgs e)
+        {
+            _isCloudSecretHidden = false;
+            if (TxtCloudClientSecret != null) TxtCloudClientSecret.Text = "";
+            UpdateCloudSyncUiState();
         }
 
         private async void BtnNavCloudSync_MouseDown(object sender, MouseButtonEventArgs e)
@@ -8895,6 +9126,7 @@ namespace StudyHub
 
         private void BtnCloudImportClientJson_Click(object sender, RoutedEventArgs e)
         {
+            if (CloudActionsPopup != null) CloudActionsPopup.IsOpen = false;
             var dlg = new OpenFileDialog
             {
                 Title = "Select Google Cloud client_secret_*.json or StudyHub_GDrive_QuickPair.json",
@@ -8918,9 +9150,11 @@ namespace StudyHub
 
         private void BtnCloudCopyQuickPair_Click(object sender, RoutedEventArgs e)
         {
+            if (CloudActionsPopup != null) CloudActionsPopup.IsOpen = false;
             string code = _cloudSync.ExportQuickPairCode();
             if (string.IsNullOrWhiteSpace(code))
             {
+                SetCloudAdvancedExpanded(true);
                 ShowToast("Save or import your Google OAuth credentials first.");
                 return;
             }
@@ -8930,9 +9164,11 @@ namespace StudyHub
 
         private void BtnCloudExportQuickPairFile_Click(object sender, RoutedEventArgs e)
         {
+            if (CloudActionsPopup != null) CloudActionsPopup.IsOpen = false;
             string json = _cloudSync.ExportQuickPairJson();
             if (string.IsNullOrWhiteSpace(json))
             {
+                SetCloudAdvancedExpanded(true);
                 ShowToast("Save or import your Google OAuth credentials first.");
                 return;
             }
@@ -8950,6 +9186,7 @@ namespace StudyHub
 
         private void BtnCloudImportQuickPairPrompt_Click(object sender, RoutedEventArgs e)
         {
+            if (CloudActionsPopup != null) CloudActionsPopup.IsOpen = false;
             string input = Microsoft.VisualBasic.Interaction.InputBox(
                 "Paste your StudyHub Quick-Pair code (SHPAIR1:...) or JSON contents here:",
                 "Import Quick-Pair Credentials", "");
@@ -8963,7 +9200,8 @@ namespace StudyHub
         {
             if (!_cloudSync.Config.HasClientCredentials)
             {
-                ShowToast("Import your Google client_secret.json or Client ID first.");
+                SetCloudAdvancedExpanded(true);
+                ShowToast("Expand 'Advanced API & Mobile Pairing' below to import client_secret.json first.");
                 return;
             }
             BtnCloudSignIn.IsEnabled = false;
@@ -8978,7 +9216,13 @@ namespace StudyHub
                 ShowToast(ok ? $"✅ {msg}" : $"⚠️ {msg}");
                 if (ok)
                 {
+                    SetCloudManualFallbackExpanded(false);
                     await ExecuteCloudSyncPcAsync(silentAutoSync: false);
+                }
+                else
+                {
+                    // Reveal callback URL fallback automatically when interactive redirect fails
+                    SetCloudManualFallbackExpanded(true);
                 }
             }
             finally
@@ -8995,6 +9239,7 @@ namespace StudyHub
             if (ok)
             {
                 TxtCloudManualAuthInput.Text = "";
+                SetCloudManualFallbackExpanded(false);
                 await ExecuteCloudSyncPcAsync(silentAutoSync: false);
             }
         }
@@ -9210,6 +9455,7 @@ namespace StudyHub
 
         private async void BtnCloudCreateSnapshot_Click(object sender, RoutedEventArgs e)
         {
+            if (CloudActionsPopup != null) CloudActionsPopup.IsOpen = false;
             var (ok, msg) = await _cloudSync.UploadManualBackupSnapshotAsync(_state);
             ShowToast(ok ? $"📸 {msg}" : $"⚠️ {msg}");
             if (ok) await LoadCloudSnapshotsListPcAsync();
@@ -9217,6 +9463,7 @@ namespace StudyHub
 
         private async void BtnCloudRefreshSnapshots_Click(object sender, RoutedEventArgs e)
         {
+            if (CloudActionsPopup != null) CloudActionsPopup.IsOpen = false;
             await LoadCloudSnapshotsListPcAsync();
         }
 

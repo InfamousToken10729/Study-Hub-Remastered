@@ -11,7 +11,7 @@
         KeyDown="Window_KeyDown"
         Closing="Window_Closing">
 
-    <Grid x:Name="RootMainGrid" Background="Transparent" MouseMove="RootMainGrid_MouseMove">
+    <Grid x:Name="RootMainGrid" Background="Transparent" PreviewMouseMove="RootMainGrid_MouseMove">
         <!-- Main Application Layout Grid -->
         <Grid.RowDefinitions>
             <RowDefinition Height="64"/> <!-- Top Navigation Bar -->
@@ -2560,138 +2560,380 @@
 
                                 <!-- ================= PARTITION 4.5: GOOGLE DRIVE CLOUD SYNC ================= -->
                                 <StackPanel x:Name="SpartCloud" Visibility="Collapsed">
-                                    <!-- Connection Status & Quick Actions -->
-                                    <Border Background="{DynamicResource CardBgBrush}" BorderBrush="{DynamicResource BorderBrushTheme}" BorderThickness="1" CornerRadius="18" Padding="18" Margin="0,0,0,16">
+
+                                    <!-- SECTION 1: STATUS & QUICK ACTIONS -->
+                                    <Border Background="{DynamicResource CardBgBrush}" BorderBrush="{DynamicResource BorderBrushTheme}" BorderThickness="1" CornerRadius="18" Padding="20" Margin="0,0,0,16">
                                         <StackPanel>
-                                            <Grid Margin="0,0,0,10">
-                                                <StackPanel>
-                                                    <TextBlock Text="☁️ Cross-Platform Google Drive Sync (Zero Cost)" FontWeight="Black" FontSize="15" Foreground="#38BDF8" Margin="0,0,0,4"/>
-                                                    <TextBlock x:Name="TxtCloudAccountStatus" Text="Not configured yet — connect your personal Google Drive to sync Windows &amp; Android seamlessly." FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}" TextWrapping="Wrap"/>
+                                            <Grid Margin="0,0,0,14">
+                                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                    <TextBlock Text="☁️" FontSize="15" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                                    <TextBlock Text="Google Drive Sync &amp; Status" FontWeight="Black" FontSize="14.5" Foreground="#38BDF8" VerticalAlignment="Center"/>
                                                 </StackPanel>
-                                                <Border x:Name="BdCloudStatusBadge" Background="#1E293B" CornerRadius="10" Padding="10,4" HorizontalAlignment="Right" VerticalAlignment="Top">
+                                                <Border x:Name="BdCloudStatusBadge" Background="#1E293B" CornerRadius="10" Padding="11,4" HorizontalAlignment="Right" VerticalAlignment="Center">
                                                     <TextBlock x:Name="TxtCloudStatusBadge" Text="Setup Needed" FontSize="11" FontWeight="Bold" Foreground="#CBD5E1"/>
                                                 </Border>
                                             </Grid>
 
-                                            <TextBlock x:Name="TxtCloudLastSyncDetail" Text="3-Way Smart Merge + Tombstones + Rolling Time Machine Snapshots protect your data against offline edits or user errors." FontSize="11.5" Foreground="{DynamicResource SecondaryTextBrush}" TextWrapping="Wrap" Margin="0,0,0,14"/>
+                                            <!-- Clean 3-Card Metadata Block -->
+                                            <Grid Margin="0,0,0,14">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="10"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="10"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                </Grid.ColumnDefinitions>
 
-                                            <WrapPanel>
-                                                <Button x:Name="BtnCloudSignIn" Click="BtnCloudSignIn_Click" Style="{StaticResource BrandButtonStyle}" Padding="16,8" Margin="0,0,10,8">
-                                                    <TextBlock Text="🔑 Sign In with Google"/>
-                                                </Button>
-                                                <Button x:Name="BtnCloudSyncNow" Click="BtnCloudSyncNow_Click" Style="{StaticResource BrandButtonStyle}" Padding="16,8" Margin="0,0,10,8">
-                                                    <TextBlock Text="🔄 Sync Now"/>
-                                                </Button>
-                                                <Button x:Name="BtnCloudCreateSnapshot" Click="BtnCloudCreateSnapshot_Click" Style="{StaticResource SecondaryButtonStyle}" Padding="14,8" Margin="0,0,10,8">
-                                                    <TextBlock Text="📸 Create Snapshot"/>
-                                                </Button>
-                                                <Button x:Name="BtnCloudSignOut" Click="BtnCloudSignOut_Click" Style="{StaticResource DangerButtonStyle}" Padding="14,8" Margin="0,0,0,8" Visibility="Collapsed">
-                                                    <TextBlock Text="Sign Out"/>
-                                                </Button>
-                                            </WrapPanel>
+                                                <Border Grid.Column="0" Background="{DynamicResource InputBgBrush}" BorderBrush="{DynamicResource BorderBrushTheme}" BorderThickness="1" CornerRadius="12" Padding="12,10">
+                                                    <StackPanel>
+                                                        <TextBlock Text="GOOGLE ACCOUNT" FontSize="9.5" FontWeight="Bold" Foreground="{DynamicResource MutedTextBrush}" Margin="0,0,0,3"/>
+                                                        <TextBlock x:Name="TxtCloudMetaAccount" Text="Not Signed In" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}" TextTrimming="CharacterEllipsis"/>
+                                                    </StackPanel>
+                                                </Border>
 
-                                            <!-- Manual Auth Fallback Section -->
-                                            <Border Background="{DynamicResource SubtleBgBrush}" BorderBrush="{DynamicResource BorderBrushTheme}" BorderThickness="1" CornerRadius="12" Padding="12" Margin="0,6,0,0">
+                                                <Border Grid.Column="2" Background="{DynamicResource InputBgBrush}" BorderBrush="{DynamicResource BorderBrushTheme}" BorderThickness="1" CornerRadius="12" Padding="12,10">
+                                                    <StackPanel>
+                                                        <TextBlock Text="DEVICE &amp; CLOUD FOLDER" FontSize="9.5" FontWeight="Bold" Foreground="{DynamicResource MutedTextBrush}" Margin="0,0,0,3"/>
+                                                        <TextBlock x:Name="TxtCloudMetaDeviceFolder" Text="StudyHub PC • /StudyHub_Sync/" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}" TextTrimming="CharacterEllipsis"/>
+                                                    </StackPanel>
+                                                </Border>
+
+                                                <Border Grid.Column="4" Background="{DynamicResource InputBgBrush}" BorderBrush="{DynamicResource BorderBrushTheme}" BorderThickness="1" CornerRadius="12" Padding="12,10">
+                                                    <StackPanel>
+                                                        <TextBlock Text="SYNC &amp; MERGE STATE" FontSize="9.5" FontWeight="Bold" Foreground="{DynamicResource MutedTextBrush}" Margin="0,0,0,3"/>
+                                                        <TextBlock x:Name="TxtCloudMetaMerge" Text="Awaiting first setup" FontSize="12" FontWeight="SemiBold" Foreground="#38BDF8" TextTrimming="CharacterEllipsis"/>
+                                                    </StackPanel>
+                                                </Border>
+                                            </Grid>
+
+                                            <!-- Concise Dynamic Summary Line -->
+                                            <TextBlock x:Name="TxtCloudAccountStatus" Text="Connect your free personal Google Drive to keep PC and Android synced privately." FontSize="11.5" Foreground="{DynamicResource SecondaryTextBrush}" TextWrapping="Wrap" Margin="0,0,0,4"/>
+                                            <TextBlock x:Name="TxtCloudLastSyncDetail" Text="3-Way Smart Merge + Tombstones + Time Machine Snapshots protect your data against offline edits or mistakes." FontSize="11" Foreground="{DynamicResource MutedTextBrush}" TextWrapping="Wrap" Margin="0,0,0,16"/>
+
+                                            <!-- Action Bar: Primary Hierarchy + How to Link + Utilities Overflow + Muted Outline Sign Out -->
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+
+                                                <WrapPanel Grid.Column="0" VerticalAlignment="Center">
+                                                    <Button x:Name="BtnCloudSignIn" Click="BtnCloudSignIn_Click" Style="{StaticResource BrandButtonStyle}" Padding="18,9" Margin="0,0,10,6">
+                                                        <TextBlock Text="🔑 Sign In with Google" FontWeight="Bold"/>
+                                                    </Button>
+                                                    <Button x:Name="BtnCloudSyncNow" Click="BtnCloudSyncNow_Click" Style="{StaticResource BrandButtonStyle}" Padding="20,9" Margin="0,0,10,6">
+                                                        <TextBlock Text="🔄 Sync Now" FontWeight="Bold"/>
+                                                    </Button>
+                                                    <Button x:Name="BtnCloudHowToLink" Click="BtnCloudHowToLink_Click" Style="{StaticResource SecondaryButtonStyle}" Padding="14,9" Margin="0,0,10,6">
+                                                        <TextBlock Text="📖 How to Link"/>
+                                                    </Button>
+                                                    <Button x:Name="BtnCloudActionsOverflow" Click="BtnCloudActionsOverflow_Click" Style="{StaticResource SecondaryButtonStyle}" Padding="14,9" Margin="0,0,10,6" ToolTip="More Cloud Sync &amp; Pairing Actions">
+                                                        <TextBlock Text="⋯ More Actions ▾"/>
+                                                    </Button>
+                                                </WrapPanel>
+
+                                                <Button x:Name="BtnCloudSignOut" Grid.Column="1" Click="BtnCloudSignOut_Click"
+                                                        Style="{StaticResource SecondaryButtonStyle}"
+                                                        Background="Transparent" BorderBrush="#6B2B38" Foreground="#FCA5A5"
+                                                        Padding="14,8" Margin="0,0,0,6" VerticalAlignment="Center" Visibility="Collapsed">
+                                                    <TextBlock Text="Sign Out" FontSize="12"/>
+                                                </Button>
+                                            </Grid>
+
+                                            <!-- Overflow Actions Popup Menu (Theme-Aware & Crisp) -->
+                                            <Popup x:Name="CloudActionsPopup" PlacementTarget="{Binding ElementName=BtnCloudActionsOverflow}" Placement="Bottom" StaysOpen="False" AllowsTransparency="True">
+                                                <Border Background="{DynamicResource NavBgBrush}" BorderBrush="{DynamicResource BorderBrushTheme}" BorderThickness="1.2" CornerRadius="14" Padding="6" MinWidth="250" Margin="0,4,0,0">
+                                                    <StackPanel>
+                                                        <Button x:Name="MenuBtnCloudCreateSnapshot" Click="BtnCloudCreateSnapshot_Click" Style="{StaticResource SecondaryButtonStyle}" Background="Transparent" BorderThickness="0" HorizontalContentAlignment="Left" Padding="12,8">
+                                                            <TextBlock Text="📸 Create Recovery Snapshot" FontSize="12"/>
+                                                        </Button>
+                                                        <Button Click="BtnCloudRefreshSnapshots_Click" Style="{StaticResource SecondaryButtonStyle}" Background="Transparent" BorderThickness="0" HorizontalContentAlignment="Left" Padding="12,8">
+                                                            <TextBlock Text="🕒 Load Time Machine Snapshots" FontSize="12"/>
+                                                        </Button>
+                                                        <Border Height="1" Background="{DynamicResource BorderBrushTheme}" Margin="6,4"/>
+                                                        <Button Click="BtnCloudImportClientJson_Click" Style="{StaticResource SecondaryButtonStyle}" Background="Transparent" BorderThickness="0" HorizontalContentAlignment="Left" Padding="12,8">
+                                                            <TextBlock Text="📄 Import client_secret.json" FontSize="12"/>
+                                                        </Button>
+                                                        <Button Click="BtnCloudCopyQuickPair_Click" Style="{StaticResource SecondaryButtonStyle}" Background="Transparent" BorderThickness="0" HorizontalContentAlignment="Left" Padding="12,8">
+                                                            <TextBlock Text="📋 Copy Phone Quick-Pair Code" FontSize="12"/>
+                                                        </Button>
+                                                        <Button Click="BtnCloudExportQuickPairFile_Click" Style="{StaticResource SecondaryButtonStyle}" Background="Transparent" BorderThickness="0" HorizontalContentAlignment="Left" Padding="12,8">
+                                                            <TextBlock Text="📤 Export Quick-Pair JSON File" FontSize="12"/>
+                                                        </Button>
+                                                        <Button Click="BtnCloudImportQuickPairPrompt_Click" Style="{StaticResource SecondaryButtonStyle}" Background="Transparent" BorderThickness="0" HorizontalContentAlignment="Left" Padding="12,8">
+                                                            <TextBlock Text="📥 Paste Quick-Pair Code" FontSize="12"/>
+                                                        </Button>
+                                                        <Border Height="1" Background="{DynamicResource BorderBrushTheme}" Margin="6,4"/>
+                                                        <Button Click="BtnCloudOpenAdvancedFromMenu_Click" Style="{StaticResource SecondaryButtonStyle}" Background="Transparent" BorderThickness="0" HorizontalContentAlignment="Left" Padding="12,8">
+                                                            <TextBlock Text="🔐 Advanced API &amp; Mobile Pairing" FontSize="12"/>
+                                                        </Button>
+                                                        <Button Click="BtnCloudToggleManualAuth_Click" Style="{StaticResource SecondaryButtonStyle}" Background="Transparent" BorderThickness="0" HorizontalContentAlignment="Left" Padding="12,8">
+                                                            <TextBlock Text="🔗 Browser Redirect Fallback" FontSize="12"/>
+                                                        </Button>
+                                                    </StackPanel>
+                                                </Border>
+                                            </Popup>
+
+                                            <!-- Subtle On-Demand Fallback Toggle -->
+                                            <StackPanel Margin="0,6,0,0">
+                                                <Button x:Name="BtnCloudToggleManualAuth" Click="BtnCloudToggleManualAuth_Click"
+                                                        Background="Transparent" BorderThickness="0" Cursor="Hand"
+                                                        HorizontalAlignment="Left" Padding="0,2">
+                                                    <TextBlock x:Name="TxtCloudManualAuthToggleLabel" Text="Browser redirect blocked? Enter callback URL manually ▸" FontSize="11" Foreground="{DynamicResource MutedTextBrush}" TextDecorations="Underline"/>
+                                                </Button>
+
+                                                <!-- Contextual Manual Auth Fallback (Hidden unless requested or auth redirect fails) -->
+                                                <Border x:Name="BdCloudManualAuthFallback" Visibility="Collapsed" Background="{DynamicResource SubtleBgBrush}" BorderBrush="#F59E0B55" BorderThickness="1" CornerRadius="12" Padding="14,12" Margin="0,8,0,0">
+                                                    <StackPanel>
+                                                        <TextBlock Text="Paste the http://127.0.0.1.../callback?code=... URL from your browser address bar:" FontSize="11.5" FontWeight="SemiBold" Foreground="{DynamicResource SecondaryTextBrush}" Margin="0,0,0,8" TextWrapping="Wrap"/>
+                                                        <Grid>
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="*"/>
+                                                                <ColumnDefinition Width="10"/>
+                                                                <ColumnDefinition Width="Auto"/>
+                                                            </Grid.ColumnDefinitions>
+                                                            <TextBox x:Name="TxtCloudManualAuthInput" Grid.Column="0" Style="{StaticResource ModernTextBoxStyle}" Height="38" ToolTip="Paste full http://127.0.0.1.../callback?code=... URL or code"/>
+                                                            <Button Grid.Column="2" Click="BtnCloudCompleteManualAuth_Click" Style="{StaticResource SecondaryButtonStyle}" Padding="14,8" Height="38">
+                                                                <TextBlock Text="Complete Sign-In" FontSize="12"/>
+                                                            </Button>
+                                                        </Grid>
+                                                    </StackPanel>
+                                                </Border>
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <!-- SECTION 2: SYNC PREFERENCES & SEGMENTED SCOPE -->
+                                    <Border Background="{DynamicResource CardBgBrush}" BorderBrush="{DynamicResource BorderBrushTheme}" BorderThickness="1" CornerRadius="18" Padding="20" Margin="0,0,0,16">
+                                        <StackPanel>
+                                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,0,14">
+                                                <TextBlock Text="⚙️" FontSize="15" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                                <TextBlock Text="Sync Preferences &amp; Scope" FontWeight="Black" FontSize="14.5" Foreground="{DynamicResource PrimaryTextBrush}" VerticalAlignment="Center"/>
+                                            </StackPanel>
+
+                                            <Border Background="{DynamicResource InputBgBrush}" BorderBrush="{DynamicResource BorderBrushTheme}" BorderThickness="1" CornerRadius="12" Padding="14,12" Margin="0,0,0,14">
                                                 <StackPanel>
-                                                    <TextBlock Text="Browser redirect blocked? Paste the callback URL or authorization code:" FontSize="11" Foreground="{DynamicResource SecondaryTextBrush}" Margin="0,0,0,6"/>
+                                                    <CheckBox x:Name="ChkCloudAutoSync" Checked="ChkCloudPrefs_Changed" Unchecked="ChkCloudPrefs_Changed" Foreground="{DynamicResource PrimaryTextBrush}" VerticalContentAlignment="Top" Margin="0,0,0,10">
+                                                        <StackPanel Margin="4,-1,0,0">
+                                                            <TextBlock Text="Auto-sync automatically after saving changes &amp; on app launch" FontSize="12.5" FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}"/>
+                                                            <TextBlock Text="Keeps desktop and Android updated in the background without manual clicks." FontSize="11" Foreground="{DynamicResource SecondaryTextBrush}" Margin="0,2,0,0"/>
+                                                        </StackPanel>
+                                                    </CheckBox>
+                                                    <CheckBox x:Name="ChkCloudSyncFiles" Checked="ChkCloudPrefs_Changed" Unchecked="ChkCloudPrefs_Changed" Foreground="{DynamicResource PrimaryTextBrush}" VerticalContentAlignment="Top">
+                                                        <StackPanel Margin="4,-1,0,0">
+                                                            <TextBlock Text="Enable Binary Media Transfers" FontSize="12.5" FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}"/>
+                                                            <TextBlock Text="Automatically upload and download course PDFs, lecture videos, recordings &amp; custom Zen files." FontSize="11" Foreground="{DynamicResource SecondaryTextBrush}" Margin="0,2,0,0"/>
+                                                        </StackPanel>
+                                                    </CheckBox>
+                                                </StackPanel>
+                                            </Border>
+
+                                            <TextBlock Text="Choose What to Sync (per device — unchecked items stay untouched on other devices)" FontSize="11.5" FontWeight="SemiBold" Foreground="{DynamicResource SecondaryTextBrush}" Margin="0,0,0,10" TextWrapping="Wrap"/>
+
+                                            <!-- Segmented Card Layout (3 Distinct Categorical Cards) -->
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="12"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="12"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                </Grid.ColumnDefinitions>
+
+                                                <!-- Category 1: Productivity & Academics -->
+                                                <Border Grid.Column="0" Background="{DynamicResource InputBgBrush}" BorderBrush="{DynamicResource BorderBrushTheme}" BorderThickness="1" CornerRadius="14" Padding="14">
+                                                    <StackPanel>
+                                                        <TextBlock Text="📚 PRODUCTIVITY &amp; ACADEMICS" FontSize="10" FontWeight="Black" Foreground="#38BDF8" Margin="0,0,0,12"/>
+
+                                                        <CheckBox x:Name="ChkCloudSyncCourses" Checked="ChkCloudPrefs_Changed" Unchecked="ChkCloudPrefs_Changed" VerticalContentAlignment="Top" Margin="0,0,0,11">
+                                                            <StackPanel Margin="4,-1,0,0">
+                                                                <TextBlock Text="Subjects, Notes &amp; Decks" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}"/>
+                                                                <TextBlock Text="Courses, folders, notes &amp; flashcards" FontSize="10.5" Foreground="{DynamicResource MutedTextBrush}" TextWrapping="Wrap"/>
+                                                            </StackPanel>
+                                                        </CheckBox>
+
+                                                        <CheckBox x:Name="ChkCloudSyncLinks" Checked="ChkCloudPrefs_Changed" Unchecked="ChkCloudPrefs_Changed" VerticalContentAlignment="Top" Margin="0,0,0,11">
+                                                            <StackPanel Margin="4,-1,0,0">
+                                                                <TextBlock Text="Links, Tasks &amp; Deadlines" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}"/>
+                                                                <TextBlock Text="Bookmarks, study tasks &amp; due dates" FontSize="10.5" Foreground="{DynamicResource MutedTextBrush}" TextWrapping="Wrap"/>
+                                                            </StackPanel>
+                                                        </CheckBox>
+
+                                                        <CheckBox x:Name="ChkCloudSyncCalendar" Checked="ChkCloudPrefs_Changed" Unchecked="ChkCloudPrefs_Changed" VerticalContentAlignment="Top">
+                                                            <StackPanel Margin="4,-1,0,0">
+                                                                <TextBlock Text="Calendar &amp; Study Heatmap" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}"/>
+                                                                <TextBlock Text="Events, reminders &amp; daily streak log" FontSize="10.5" Foreground="{DynamicResource MutedTextBrush}" TextWrapping="Wrap"/>
+                                                            </StackPanel>
+                                                        </CheckBox>
+                                                    </StackPanel>
+                                                </Border>
+
+                                                <!-- Category 2: Media & Assets -->
+                                                <Border Grid.Column="2" Background="{DynamicResource InputBgBrush}" BorderBrush="{DynamicResource BorderBrushTheme}" BorderThickness="1" CornerRadius="14" Padding="14">
+                                                    <StackPanel>
+                                                        <TextBlock Text="📦 MEDIA &amp; ASSETS" FontSize="10" FontWeight="Black" Foreground="#A78BFA" Margin="0,0,0,12"/>
+
+                                                        <CheckBox x:Name="ChkCloudSyncPdfs" Checked="ChkCloudPrefs_Changed" Unchecked="ChkCloudPrefs_Changed" VerticalContentAlignment="Top" Margin="0,0,0,11">
+                                                            <StackPanel Margin="4,-1,0,0">
+                                                                <TextBlock Text="PDFs &amp; Study Documents" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}"/>
+                                                                <TextBlock Text="Downloadable PDF files per subject" FontSize="10.5" Foreground="{DynamicResource MutedTextBrush}" TextWrapping="Wrap"/>
+                                                            </StackPanel>
+                                                        </CheckBox>
+
+                                                        <CheckBox x:Name="ChkCloudSyncVideos" Checked="ChkCloudPrefs_Changed" Unchecked="ChkCloudPrefs_Changed" VerticalContentAlignment="Top" Margin="0,0,0,11">
+                                                            <StackPanel Margin="4,-1,0,0">
+                                                                <TextBlock Text="Videos &amp; Recordings" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}"/>
+                                                                <TextBlock Text="Lecture videos &amp; class voice notes" FontSize="10.5" Foreground="{DynamicResource MutedTextBrush}" TextWrapping="Wrap"/>
+                                                            </StackPanel>
+                                                        </CheckBox>
+
+                                                        <CheckBox x:Name="ChkCloudSyncZen" Checked="ChkCloudPrefs_Changed" Unchecked="ChkCloudPrefs_Changed" VerticalContentAlignment="Top">
+                                                            <StackPanel Margin="4,-1,0,0">
+                                                                <TextBlock Text="Extra Zen Scenes &amp; Media" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}"/>
+                                                                <TextBlock Text="Custom focus images, scenes &amp; videos" FontSize="10.5" Foreground="{DynamicResource MutedTextBrush}" TextWrapping="Wrap"/>
+                                                            </StackPanel>
+                                                        </CheckBox>
+                                                    </StackPanel>
+                                                </Border>
+
+                                                <!-- Category 3: System & App Data -->
+                                                <Border Grid.Column="4" Background="{DynamicResource InputBgBrush}" BorderBrush="{DynamicResource BorderBrushTheme}" BorderThickness="1" CornerRadius="14" Padding="14">
+                                                    <StackPanel>
+                                                        <TextBlock Text="🎛️ SYSTEM &amp; APP DATA" FontSize="10" FontWeight="Black" Foreground="#10B981" Margin="0,0,0,12"/>
+
+                                                        <CheckBox x:Name="ChkCloudSyncAudio" Checked="ChkCloudPrefs_Changed" Unchecked="ChkCloudPrefs_Changed" VerticalContentAlignment="Top" Margin="0,0,0,11">
+                                                            <StackPanel Margin="4,-1,0,0">
+                                                                <TextBlock Text="Extra Audio &amp; Mixer Presets" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}"/>
+                                                                <TextBlock Text="Custom ambient tracks &amp; volume sliders" FontSize="10.5" Foreground="{DynamicResource MutedTextBrush}" TextWrapping="Wrap"/>
+                                                            </StackPanel>
+                                                        </CheckBox>
+
+                                                        <CheckBox x:Name="ChkCloudSyncPrefs" Checked="ChkCloudPrefs_Changed" Unchecked="ChkCloudPrefs_Changed" VerticalContentAlignment="Top">
+                                                            <StackPanel Margin="4,-1,0,0">
+                                                                <TextBlock Text="Theme, Particles &amp; Settings" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}"/>
+                                                                <TextBlock Text="Surface backdrop, particles &amp; clock UI" FontSize="10.5" Foreground="{DynamicResource MutedTextBrush}" TextWrapping="Wrap"/>
+                                                            </StackPanel>
+                                                        </CheckBox>
+                                                    </StackPanel>
+                                                </Border>
+                                            </Grid>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <!-- SECTION 3: CLOUD TIME MACHINE / BACKUPS -->
+                                    <Border Background="{DynamicResource CardBgBrush}" BorderBrush="{DynamicResource BorderBrushTheme}" BorderThickness="1" CornerRadius="18" Padding="20" Margin="0,0,0,16">
+                                        <StackPanel>
+                                            <Grid Margin="0,0,0,12">
+                                                <StackPanel>
+                                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,0,4">
+                                                        <TextBlock Text="🕒" FontSize="15" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                                        <TextBlock Text="Cloud Time Machine &amp; Backups" FontWeight="Black" FontSize="14.5" Foreground="#A78BFA" VerticalAlignment="Center"/>
+                                                    </StackPanel>
+                                                    <TextBlock Text="Rolling snapshots stored in StudyHub_Sync/Snapshots/ let you roll back safely before major changes or overwrites." FontSize="11.5" Foreground="{DynamicResource SecondaryTextBrush}" TextWrapping="Wrap"/>
+                                                </StackPanel>
+                                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                                    <Button x:Name="BtnCloudCreateSnapshot" Click="BtnCloudCreateSnapshot_Click" Style="{StaticResource SecondaryButtonStyle}" Padding="12,7" Margin="0,0,8,0">
+                                                        <TextBlock Text="📸 Create Snapshot" FontSize="11.5"/>
+                                                    </Button>
+                                                    <Button Click="BtnCloudRefreshSnapshots_Click" Style="{StaticResource SecondaryButtonStyle}" Padding="12,7">
+                                                        <TextBlock Text="🔄 Load Snapshots" FontSize="11.5"/>
+                                                    </Button>
+                                                </StackPanel>
+                                            </Grid>
+                                            <StackPanel x:Name="CloudSnapshotsStackPanel">
+                                                <TextBlock Text="Click 'Load Snapshots' while signed in to inspect or restore recovery points." FontSize="11.5" Foreground="{DynamicResource SecondaryTextBrush}"/>
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <!-- SECTION 4: COLLAPSIBLE ADVANCED API & MOBILE PAIRING ACCORDION -->
+                                    <Border Background="{DynamicResource CardBgBrush}" BorderBrush="{DynamicResource BorderBrushTheme}" BorderThickness="1" CornerRadius="18" Padding="20">
+                                        <StackPanel>
+                                            <Button x:Name="BtnCloudToggleAdvanced" Click="BtnCloudToggleAdvanced_Click" Background="Transparent" BorderThickness="0" Padding="0" HorizontalContentAlignment="Stretch" Cursor="Hand">
+                                                <Grid>
+                                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                        <TextBlock Text="🔐" FontSize="15" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                                        <StackPanel>
+                                                            <TextBlock Text="Advanced API &amp; Mobile Pairing" FontWeight="Black" FontSize="14.5" Foreground="{DynamicResource PrimaryTextBrush}"/>
+                                                            <TextBlock Text="Google Cloud Desktop OAuth Client ID, Client Secret, client_secret.json import &amp; Android Quick-Pair" FontSize="11.5" Foreground="{DynamicResource SecondaryTextBrush}"/>
+                                                        </StackPanel>
+                                                    </StackPanel>
+                                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                                        <Border Background="{DynamicResource InputBgBrush}" BorderBrush="{DynamicResource BorderBrushTheme}" BorderThickness="1" CornerRadius="9" Padding="10,4" Margin="0,0,10,0">
+                                                            <TextBlock x:Name="TxtCloudAdvancedSummary" Text="Expand Setup" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource SecondaryTextBrush}"/>
+                                                        </Border>
+                                                        <TextBlock x:Name="TxtCloudAdvancedChevron" Text="▸" FontSize="16" FontWeight="Bold" Foreground="{DynamicResource SecondaryTextBrush}" VerticalAlignment="Center"/>
+                                                    </StackPanel>
+                                                </Grid>
+                                            </Button>
+
+                                            <StackPanel x:Name="CloudAdvancedAccordionBody" Visibility="Collapsed" Margin="0,16,0,0">
+                                                <Border Height="1" Background="{DynamicResource BorderBrushTheme}" Margin="0,0,0,16"/>
+
+                                                <!-- Client ID Field with Inline Right-Border Copy & Clear Icons -->
+                                                <TextBlock Text="Google OAuth Client ID" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource SecondaryTextBrush}" Margin="0,0,0,6"/>
+                                                <Border Background="{DynamicResource InputBgBrush}" BorderBrush="{DynamicResource BorderBrushTheme}" BorderThickness="1" CornerRadius="12" MinHeight="44" Padding="12,4" Margin="0,0,0,14">
                                                     <Grid>
                                                         <Grid.ColumnDefinitions>
                                                             <ColumnDefinition Width="*"/>
-                                                            <ColumnDefinition Width="8"/>
                                                             <ColumnDefinition Width="Auto"/>
                                                         </Grid.ColumnDefinitions>
-                                                        <TextBox x:Name="TxtCloudManualAuthInput" Grid.Column="0" Style="{StaticResource ModernTextBoxStyle}" Height="34" ToolTip="Paste full http://127.0.0.1.../callback?code=... URL or code"/>
-                                                        <Button Grid.Column="2" Click="BtnCloudCompleteManualAuth_Click" Style="{StaticResource SecondaryButtonStyle}" Padding="12,6" Height="34">
-                                                            <TextBlock Text="Complete Sign-In" FontSize="11.5"/>
-                                                        </Button>
+                                                        <TextBox x:Name="TxtCloudClientId" Grid.Column="0" Background="Transparent" BorderThickness="0" Padding="2,6" VerticalContentAlignment="Center" Foreground="{DynamicResource PrimaryTextBrush}" CaretBrush="#7C5CFF" FontSize="13"/>
+                                                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0,0,0">
+                                                            <Button Click="BtnCloudCopyClientId_Click" Width="30" Height="30" Background="Transparent" BorderThickness="0" Cursor="Hand" ToolTip="Copy Client ID">
+                                                                <TextBlock Text="📋" FontSize="13" Foreground="{DynamicResource SecondaryTextBrush}"/>
+                                                            </Button>
+                                                            <Button Click="BtnCloudClearClientId_Click" Width="30" Height="30" Background="Transparent" BorderThickness="0" Cursor="Hand" ToolTip="Clear Client ID">
+                                                                <TextBlock Text="✕" FontSize="12" FontWeight="Bold" Foreground="{DynamicResource MutedTextBrush}"/>
+                                                            </Button>
+                                                        </StackPanel>
                                                     </Grid>
-                                                </StackPanel>
-                                            </Border>
-                                        </StackPanel>
-                                    </Border>
+                                                </Border>
 
-                                    <!-- Google OAuth Client Credentials & Phone Quick-Pair -->
-                                    <Border Background="{DynamicResource CardBgBrush}" BorderBrush="{DynamicResource BorderBrushTheme}" BorderThickness="1" CornerRadius="18" Padding="18" Margin="0,0,0,16">
-                                        <StackPanel>
-                                            <TextBlock Text="🔐 Google OAuth Client &amp; Phone Quick-Pair" FontWeight="Black" FontSize="14" Foreground="{DynamicResource PrimaryTextBrush}" Margin="0,0,0,4"/>
-                                            <TextBlock Text="Import a free Google Cloud Desktop OAuth client_secret.json (takes ~2 mins once), or export a 1-click Quick-Pair code/file to pair your Android phone instantly." FontSize="11.5" Foreground="{DynamicResource SecondaryTextBrush}" TextWrapping="Wrap" Margin="0,0,0,12"/>
+                                                <!-- Client Secret Field with Inline Right-Border Reveal, Copy & Clear Icons -->
+                                                <TextBlock Text="Google OAuth Client Secret" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource SecondaryTextBrush}" Margin="0,0,0,6"/>
+                                                <Border Background="{DynamicResource InputBgBrush}" BorderBrush="{DynamicResource BorderBrushTheme}" BorderThickness="1" CornerRadius="12" MinHeight="44" Padding="12,4" Margin="0,0,0,16">
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*"/>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBox x:Name="TxtCloudClientSecret" Grid.Column="0" Background="Transparent" BorderThickness="0" Padding="2,6" VerticalContentAlignment="Center" Foreground="{DynamicResource PrimaryTextBrush}" CaretBrush="#7C5CFF" FontSize="13"/>
+                                                        <Border x:Name="BdCloudSecretMask" Grid.Column="0" Background="{DynamicResource InputBgBrush}" Padding="2,6" Visibility="Collapsed" MouseLeftButtonDown="BdCloudSecretMask_MouseLeftButtonDown" Cursor="IBeam">
+                                                            <TextBlock x:Name="TxtCloudSecretMaskDots" Text="••••••••••••••••••••••••" FontSize="13" Foreground="{DynamicResource SecondaryTextBrush}" VerticalAlignment="Center"/>
+                                                        </Border>
+                                                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0,0,0">
+                                                            <Button x:Name="BtnCloudToggleSecretMask" Click="BtnCloudToggleSecretMask_Click" Width="30" Height="30" Background="Transparent" BorderThickness="0" Cursor="Hand" ToolTip="Show / Hide Client Secret">
+                                                                <TextBlock Text="👁" FontSize="13" Foreground="{DynamicResource SecondaryTextBrush}"/>
+                                                            </Button>
+                                                            <Button Click="BtnCloudCopyClientSecret_Click" Width="30" Height="30" Background="Transparent" BorderThickness="0" Cursor="Hand" ToolTip="Copy Client Secret">
+                                                                <TextBlock Text="📋" FontSize="13" Foreground="{DynamicResource SecondaryTextBrush}"/>
+                                                            </Button>
+                                                            <Button Click="BtnCloudClearClientSecret_Click" Width="30" Height="30" Background="Transparent" BorderThickness="0" Cursor="Hand" ToolTip="Clear Client Secret">
+                                                                <TextBlock Text="✕" FontSize="12" FontWeight="Bold" Foreground="{DynamicResource MutedTextBrush}"/>
+                                                            </Button>
+                                                        </StackPanel>
+                                                    </Grid>
+                                                </Border>
 
-                                            <Grid Margin="0,0,0,8">
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="95"/>
-                                                    <ColumnDefinition Width="*"/>
-                                                </Grid.ColumnDefinitions>
-                                                <TextBlock Grid.Column="0" Text="Client ID:" FontSize="12" FontWeight="Bold" Foreground="{DynamicResource SecondaryTextBrush}" VerticalAlignment="Center"/>
-                                                <TextBox x:Name="TxtCloudClientId" Grid.Column="1" Style="{StaticResource ModernTextBoxStyle}" Height="34"/>
-                                            </Grid>
-
-                                            <Grid Margin="0,0,0,12">
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="95"/>
-                                                    <ColumnDefinition Width="*"/>
-                                                </Grid.ColumnDefinitions>
-                                                <TextBlock Grid.Column="0" Text="Client Secret:" FontSize="12" FontWeight="Bold" Foreground="{DynamicResource SecondaryTextBrush}" VerticalAlignment="Center"/>
-                                                <TextBox x:Name="TxtCloudClientSecret" Grid.Column="1" Style="{StaticResource ModernTextBoxStyle}" Height="34"/>
-                                            </Grid>
-
-                                            <WrapPanel>
-                                                <Button Click="BtnCloudSaveCredentials_Click" Style="{StaticResource BrandButtonStyle}" Padding="14,7" Margin="0,0,8,8">
-                                                    <TextBlock Text="💾 Save Credentials" FontSize="12"/>
-                                                </Button>
-                                                <Button Click="BtnCloudImportClientJson_Click" Style="{StaticResource SecondaryButtonStyle}" Padding="14,7" Margin="0,0,8,8">
-                                                    <TextBlock Text="📄 Import client_secret.json" FontSize="12"/>
-                                                </Button>
-                                                <Button Click="BtnCloudCopyQuickPair_Click" Style="{StaticResource SecondaryButtonStyle}" Padding="14,7" Margin="0,0,8,8">
-                                                    <TextBlock Text="📋 Copy Phone Quick-Pair Code" FontSize="12"/>
-                                                </Button>
-                                                <Button Click="BtnCloudExportQuickPairFile_Click" Style="{StaticResource SecondaryButtonStyle}" Padding="14,7" Margin="0,0,8,8">
-                                                    <TextBlock Text="📤 Export Quick-Pair JSON" FontSize="12"/>
-                                                </Button>
-                                                <Button Click="BtnCloudImportQuickPairPrompt_Click" Style="{StaticResource SecondaryButtonStyle}" Padding="14,7" Margin="0,0,0,8">
-                                                    <TextBlock Text="📥 Paste Quick-Pair Code" FontSize="12"/>
-                                                </Button>
-                                            </WrapPanel>
-                                        </StackPanel>
-                                    </Border>
-
-                                    <!-- Sync Behavior & Time Machine Snapshots -->
-                                    <Border Background="{DynamicResource CardBgBrush}" BorderBrush="{DynamicResource BorderBrushTheme}" BorderThickness="1" CornerRadius="18" Padding="18" Margin="0,0,0,16">
-                                        <StackPanel>
-                                            <TextBlock Text="⚙️ Sync Preferences" FontWeight="Black" FontSize="14" Foreground="{DynamicResource PrimaryTextBrush}" Margin="0,0,0,10"/>
-                                            <CheckBox x:Name="ChkCloudAutoSync" Content="Auto-sync automatically after saving changes &amp; on app launch" Checked="ChkCloudPrefs_Changed" Unchecked="ChkCloudPrefs_Changed" Foreground="{DynamicResource PrimaryTextBrush}" FontSize="12" Margin="0,0,0,8"/>
-                                            <CheckBox x:Name="ChkCloudSyncFiles" Content="Enable Binary Media Sync (Downloads &amp; Uploads for Files, Videos, Audio &amp; Custom Zen)" Checked="ChkCloudPrefs_Changed" Unchecked="ChkCloudPrefs_Changed" Foreground="{DynamicResource PrimaryTextBrush}" FontSize="12" Margin="0,0,0,14"/>
-
-                                            <Border Background="{DynamicResource InputBgBrush}" BorderBrush="{DynamicResource BorderBrushTheme}" BorderThickness="1" CornerRadius="12" Padding="14,12">
-                                                <StackPanel>
-                                                    <TextBlock Text="Choose What to Sync (per device — unchecked items stay untouched on other devices)" FontWeight="Bold" FontSize="11.5" Foreground="{DynamicResource SecondaryTextBrush}" Margin="0,0,0,10" TextWrapping="Wrap"/>
-                                                    <UniformGrid Columns="2">
-                                                        <CheckBox x:Name="ChkCloudSyncCourses" Content="📚 Subjects, Notes &amp; Flashcards" Checked="ChkCloudPrefs_Changed" Unchecked="ChkCloudPrefs_Changed" Foreground="{DynamicResource PrimaryTextBrush}" FontSize="11.5" Margin="0,0,8,8"/>
-                                                        <CheckBox x:Name="ChkCloudSyncLinks" Content="🔗 Links, Tasks &amp; Deadlines" Checked="ChkCloudPrefs_Changed" Unchecked="ChkCloudPrefs_Changed" Foreground="{DynamicResource PrimaryTextBrush}" FontSize="11.5" Margin="0,0,0,8"/>
-                                                        <CheckBox x:Name="ChkCloudSyncCalendar" Content="📅 Calendar Events &amp; Heatmap" Checked="ChkCloudPrefs_Changed" Unchecked="ChkCloudPrefs_Changed" Foreground="{DynamicResource PrimaryTextBrush}" FontSize="11.5" Margin="0,0,8,8"/>
-                                                        <CheckBox x:Name="ChkCloudSyncPdfs" Content="📄 PDFs &amp; Study Documents" Checked="ChkCloudPrefs_Changed" Unchecked="ChkCloudPrefs_Changed" Foreground="{DynamicResource PrimaryTextBrush}" FontSize="11.5" Margin="0,0,0,8"/>
-                                                        <CheckBox x:Name="ChkCloudSyncVideos" Content="🎬 Videos &amp; Recordings" Checked="ChkCloudPrefs_Changed" Unchecked="ChkCloudPrefs_Changed" Foreground="{DynamicResource PrimaryTextBrush}" FontSize="11.5" Margin="0,0,8,8"/>
-                                                        <CheckBox x:Name="ChkCloudSyncZen" Content="🏔️ Extra Zen Scenes &amp; Custom Media" Checked="ChkCloudPrefs_Changed" Unchecked="ChkCloudPrefs_Changed" Foreground="{DynamicResource PrimaryTextBrush}" FontSize="11.5" Margin="0,0,0,8"/>
-                                                        <CheckBox x:Name="ChkCloudSyncAudio" Content="🎧 Extra Audio &amp; Mixer Presets" Checked="ChkCloudPrefs_Changed" Unchecked="ChkCloudPrefs_Changed" Foreground="{DynamicResource PrimaryTextBrush}" FontSize="11.5" Margin="0,0,8,0"/>
-                                                        <CheckBox x:Name="ChkCloudSyncPrefs" Content="🎨 Theme, Particles &amp; App Preferences" Checked="ChkCloudPrefs_Changed" Unchecked="ChkCloudPrefs_Changed" Foreground="{DynamicResource PrimaryTextBrush}" FontSize="11.5" Margin="0,0,0,0"/>
-                                                    </UniformGrid>
-                                                </StackPanel>
-                                            </Border>
-                                        </StackPanel>
-                                    </Border>
-
-                                    <Border Background="{DynamicResource CardBgBrush}" BorderBrush="{DynamicResource BorderBrushTheme}" BorderThickness="1" CornerRadius="18" Padding="18">
-                                        <StackPanel>
-                                            <Grid Margin="0,0,0,10">
-                                                <StackPanel>
-                                                    <TextBlock Text="🕒 Cloud Time Machine (Recovery Snapshots)" FontWeight="Black" FontSize="14" Foreground="#A78BFA"/>
-                                                    <TextBlock Text="StudyHub keeps rolling snapshots inside StudyHub_Sync/Snapshots/ before major changes or overwrites." FontSize="11.5" Foreground="{DynamicResource SecondaryTextBrush}"/>
-                                                </StackPanel>
-                                                <Button Click="BtnCloudRefreshSnapshots_Click" Style="{StaticResource SecondaryButtonStyle}" HorizontalAlignment="Right" VerticalAlignment="Center" Padding="12,6">
-                                                    <TextBlock Text="🔄 Load Snapshots" FontSize="11.5"/>
-                                                </Button>
-                                            </Grid>
-                                            <StackPanel x:Name="CloudSnapshotsStackPanel">
-                                                <TextBlock Text="Click 'Load Snapshots' while signed in to view available recovery points." FontSize="11.5" Foreground="{DynamicResource SecondaryTextBrush}"/>
+                                                <!-- Uniform Credential & Phone Quick-Pair Toolbar -->
+                                                <WrapPanel>
+                                                    <Button Click="BtnCloudSaveCredentials_Click" Style="{StaticResource BrandButtonStyle}" Padding="15,8" Margin="0,0,8,8">
+                                                        <TextBlock Text="💾 Save Credentials" FontSize="12"/>
+                                                    </Button>
+                                                    <Button Click="BtnCloudImportClientJson_Click" Style="{StaticResource SecondaryButtonStyle}" Padding="14,8" Margin="0,0,8,8">
+                                                        <TextBlock Text="📄 Import client_secret.json" FontSize="12"/>
+                                                    </Button>
+                                                    <Button Click="BtnCloudCopyQuickPair_Click" Style="{StaticResource SecondaryButtonStyle}" Padding="14,8" Margin="0,0,8,8">
+                                                        <TextBlock Text="📋 Copy Phone Quick-Pair" FontSize="12"/>
+                                                    </Button>
+                                                    <Button Click="BtnCloudExportQuickPairFile_Click" Style="{StaticResource SecondaryButtonStyle}" Padding="14,8" Margin="0,0,8,8">
+                                                        <TextBlock Text="📤 Export Quick-Pair JSON" FontSize="12"/>
+                                                    </Button>
+                                                    <Button Click="BtnCloudImportQuickPairPrompt_Click" Style="{StaticResource SecondaryButtonStyle}" Padding="14,8" Margin="0,0,0,8">
+                                                        <TextBlock Text="📥 Paste Quick-Pair Code" FontSize="12"/>
+                                                    </Button>
+                                                </WrapPanel>
                                             </StackPanel>
                                         </StackPanel>
                                     </Border>
@@ -3155,6 +3397,141 @@
 
                     <TextBlock x:Name="TxtUpdateProgressDetail" Text="Please keep Study Hub open. The app will restart automatically when ready." FontSize="11.5" Foreground="{DynamicResource SecondaryTextBrush}" TextWrapping="Wrap"/>
                 </StackPanel>
+            </Border>
+        </Grid>
+
+        <!-- How to Link Google Drive Detailed Guide Modal (Text-Only Beginner Guide) -->
+        <Grid x:Name="CloudHowToModalGrid" Grid.Row="0" Grid.RowSpan="2" Visibility="Collapsed" Panel.ZIndex="450">
+            <Border Background="#CC000000" MouseLeftButtonDown="BtnCloseCloudHowTo_MouseDown"/>
+            <Border Width="760" MaxHeight="760" HorizontalAlignment="Center" VerticalAlignment="Center" Background="{DynamicResource NavBgBrush}" BorderBrush="#38BDF8" BorderThickness="1.5" CornerRadius="22" Padding="24">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Header -->
+                    <Grid Grid.Row="0" Margin="0,0,0,14">
+                        <StackPanel>
+                            <TextBlock Text="📖 How to Link Your Free Personal Google Drive (Step-by-Step)" FontSize="17" FontWeight="Black" Foreground="{DynamicResource PrimaryTextBrush}"/>
+                            <TextBlock Text="One-time setup (~3 minutes, 100% free, completely private to your own Google account). Works for both Windows PC and Android." FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}" Margin="0,4,0,0" TextWrapping="Wrap"/>
+                        </StackPanel>
+                        <Button Click="BtnCloseCloudHowTo_Click" Style="{StaticResource SecondaryButtonStyle}" HorizontalAlignment="Right" VerticalAlignment="Top" Padding="12,6">
+                            <TextBlock Text="✕ Close" FontSize="12"/>
+                        </Button>
+                    </Grid>
+
+                    <!-- Scrollable Guide Steps -->
+                    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Padding="0,0,8,0">
+                        <StackPanel>
+                            <!-- Info Banner -->
+                            <Border Background="{DynamicResource CardBgBrush}" BorderBrush="#38BDF866" BorderThickness="1" CornerRadius="14" Padding="14" Margin="0,0,0,12">
+                                <StackPanel>
+                                    <TextBlock Text="🔒 Why do I create my own Google Cloud OAuth Client?" FontSize="12.5" FontWeight="Bold" Foreground="#38BDF8" Margin="0,0,0,4"/>
+                                    <TextBlock Text="Instead of paying a subscription or sending your personal study files through a third-party server, StudyHub connects directly from your device to a private /StudyHub_Sync/ folder inside your own Google Drive. Google gives every account free OAuth API access with no billing card required." FontSize="11.5" Foreground="{DynamicResource SecondaryTextBrush}" TextWrapping="Wrap"/>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Step 1 -->
+                            <Border Background="{DynamicResource CardBgBrush}" BorderBrush="{DynamicResource BorderBrushTheme}" BorderThickness="1" CornerRadius="14" Padding="14" Margin="0,0,0,10">
+                                <StackPanel>
+                                    <TextBlock Text="STEP 1 — Open Google Cloud &amp; Create a New Project" FontSize="13" FontWeight="Black" Foreground="#A78BFA" Margin="0,0,0,6"/>
+                                    <TextBlock Text="1. Open your browser and go to https://console.cloud.google.com and sign in with your Google / Gmail account." FontSize="11.5" Foreground="{DynamicResource PrimaryTextBrush}" TextWrapping="Wrap" Margin="0,0,0,4"/>
+                                    <TextBlock Text="2. In the dark top navigation bar, right next to the 'Google Cloud' logo on the top-left, click the rounded Project selector pill/dropdown." FontSize="11.5" Foreground="{DynamicResource PrimaryTextBrush}" TextWrapping="Wrap" Margin="0,0,0,4"/>
+                                    <TextBlock Text="3. In the popup dialog that opens, click 'New Project' on the top right." FontSize="11.5" Foreground="{DynamicResource PrimaryTextBrush}" TextWrapping="Wrap" Margin="0,0,0,4"/>
+                                    <TextBlock Text="4. Enter a Project name such as 'StudyHub'. Leave Organization as 'No organization' (and Parent resource as 'No organization'), then click the blue 'Create' button." FontSize="11.5" Foreground="{DynamicResource PrimaryTextBrush}" TextWrapping="Wrap" Margin="0,0,0,4"/>
+                                    <TextBlock Text="5. Wait ~5 seconds until the notification confirms creation, then make sure the top-left project pill next to 'Google Cloud' now shows your new 'StudyHub' project!" FontSize="11.5" Foreground="{DynamicResource SecondaryTextBrush}" TextWrapping="Wrap"/>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Step 2 -->
+                            <Border Background="{DynamicResource CardBgBrush}" BorderBrush="{DynamicResource BorderBrushTheme}" BorderThickness="1" CornerRadius="14" Padding="14" Margin="0,0,0,10">
+                                <StackPanel>
+                                    <TextBlock Text="STEP 2 — Enable the Google Drive API" FontSize="13" FontWeight="Black" Foreground="#38BDF8" Margin="0,0,0,6"/>
+                                    <TextBlock Text="1. Click the top-left ☰ menu icon (or use the top Search bar to search 'Google Drive API')." FontSize="11.5" Foreground="{DynamicResource PrimaryTextBrush}" TextWrapping="Wrap" Margin="0,0,0,4"/>
+                                    <TextBlock Text="2. From the menu open 'APIs &amp; Services' -&gt; 'Library', find 'Google Drive API' (service name: drive.googleapis.com), and click on it." FontSize="11.5" Foreground="{DynamicResource PrimaryTextBrush}" TextWrapping="Wrap" Margin="0,0,0,4"/>
+                                    <TextBlock Text="3. Click the blue 'Enable' button. After a moment the page opens 'API/Service Details' confirming Status: Enabled." FontSize="11.5" Foreground="{DynamicResource PrimaryTextBrush}" TextWrapping="Wrap"/>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Step 3 -->
+                            <Border Background="{DynamicResource CardBgBrush}" BorderBrush="{DynamicResource BorderBrushTheme}" BorderThickness="1" CornerRadius="14" Padding="14" Margin="0,0,0,10">
+                                <StackPanel>
+                                    <TextBlock Text="STEP 3 — Configure Google Auth Platform (OAuth Consent Screen)" FontSize="13" FontWeight="Black" Foreground="#10B981" Margin="0,0,0,6"/>
+                                    <TextBlock Text="1. In the left sidebar under APIs &amp; Services click 'OAuth consent screen' (Google opens the 'Google Auth Platform / Overview' screen). Click 'Get started'." FontSize="11.5" Foreground="{DynamicResource PrimaryTextBrush}" TextWrapping="Wrap" Margin="0,0,0,5"/>
+                                    <TextBlock Text="2. Under Project configuration complete all 4 numbered sections:" FontSize="11.5" FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}" Margin="0,0,0,4"/>
+                                    <TextBlock Text="   • 1. App Information: Type App name 'StudyHub' and choose your Gmail as User support email. Click 'Next'." FontSize="11.5" Foreground="{DynamicResource SecondaryTextBrush}" TextWrapping="Wrap" Margin="0,0,0,3"/>
+                                    <TextBlock Text="   • 2. Audience: Select 'External' (VERY IMPORTANT — do NOT pick Internal unless using a corporate Workspace domain). Click 'Next'." FontSize="11.5" Foreground="{DynamicResource SecondaryTextBrush}" TextWrapping="Wrap" Margin="0,0,0,3"/>
+                                    <TextBlock Text="   • 3. Contact Information: Type your Gmail address for Developer contact information. Click 'Next'." FontSize="11.5" Foreground="{DynamicResource SecondaryTextBrush}" TextWrapping="Wrap" Margin="0,0,0,3"/>
+                                    <TextBlock Text="   • 4. Finish: Check 'I agree to the Google API Services: User Data Policy', click 'Continue', then click 'Create'." FontSize="11.5" Foreground="{DynamicResource SecondaryTextBrush}" TextWrapping="Wrap"/>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Step 4 (Critical Test User Step) -->
+                            <Border Background="{DynamicResource CardBgBrush}" BorderBrush="#F59E0B88" BorderThickness="1.2" CornerRadius="14" Padding="14" Margin="0,0,0,10">
+                                <StackPanel>
+                                    <TextBlock Text="STEP 4 — Add Yourself as a Test User (CRITICAL to avoid Error 403!)" FontSize="13" FontWeight="Black" Foreground="#FBBF24" Margin="0,0,0,6"/>
+                                    <TextBlock Text="When you select External, Google keeps your personal project in 'Testing' mode. Google will block sign-in with 'Error 403: access_denied' unless your Gmail address is added as a Test User:" FontSize="11.5" Foreground="{DynamicResource PrimaryTextBrush}" TextWrapping="Wrap" Margin="0,0,0,5"/>
+                                    <TextBlock Text="1. In the 'Google Auth Platform' left sidebar (with Overview, Branding, Audience, Clients, Data Access...), click 'Audience'." FontSize="11.5" Foreground="{DynamicResource PrimaryTextBrush}" TextWrapping="Wrap" Margin="0,0,0,4"/>
+                                    <TextBlock Text="2. Scroll down to 'Test users' and click '+ Add users'." FontSize="11.5" Foreground="{DynamicResource PrimaryTextBrush}" TextWrapping="Wrap" Margin="0,0,0,4"/>
+                                    <TextBlock Text="3. Enter the exact Gmail address you want to sync with, click 'Save', and verify your email appears in the Test users list." FontSize="11.5" Foreground="{DynamicResource PrimaryTextBrush}" TextWrapping="Wrap"/>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Step 5 -->
+                            <Border Background="{DynamicResource CardBgBrush}" BorderBrush="{DynamicResource BorderBrushTheme}" BorderThickness="1" CornerRadius="14" Padding="14" Margin="0,0,0,10">
+                                <StackPanel>
+                                    <TextBlock Text="STEP 5 — Create Your OAuth Desktop Client &amp; Download JSON" FontSize="13" FontWeight="Black" Foreground="#38BDF8" Margin="0,0,0,6"/>
+                                    <TextBlock Text="1. In the 'Google Auth Platform' left sidebar click 'Clients' (or click the 'Create OAuth client' button on the 'OAuth Overview' card)." FontSize="11.5" Foreground="{DynamicResource PrimaryTextBrush}" TextWrapping="Wrap" Margin="0,0,0,4"/>
+                                    <TextBlock Text="2. Click '+ Create client'. Under Application type ALWAYS select 'Desktop app' — even if you also plan to sync with your Android phone! (StudyHub reuses the exact same Desktop client safely via PKCE &amp; Quick-Pair)." FontSize="11.5" Foreground="{DynamicResource PrimaryTextBrush}" TextWrapping="Wrap" Margin="0,0,0,4"/>
+                                    <TextBlock Text="3. Name it 'StudyHub Desktop &amp; Phone' and click 'Create'." FontSize="11.5" Foreground="{DynamicResource PrimaryTextBrush}" TextWrapping="Wrap" Margin="0,0,0,4"/>
+                                    <TextBlock Text="4. In the confirmation modal click 'Download JSON' to save your client_secret_...json file (and keep it private — do not upload it to public GitHub repos!)." FontSize="11.5" Foreground="{DynamicResource PrimaryTextBrush}" TextWrapping="Wrap"/>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Step 6 -->
+                            <Border Background="{DynamicResource CardBgBrush}" BorderBrush="{DynamicResource BorderBrushTheme}" BorderThickness="1" CornerRadius="14" Padding="14" Margin="0,0,0,10">
+                                <StackPanel>
+                                    <TextBlock Text="STEP 6 — Link Your Windows PC" FontSize="13" FontWeight="Black" Foreground="#10B981" Margin="0,0,0,6"/>
+                                    <TextBlock Text="1. Back here in StudyHub Cloud Sync, expand 'Advanced API &amp; Mobile Pairing' below." FontSize="11.5" Foreground="{DynamicResource PrimaryTextBrush}" TextWrapping="Wrap" Margin="0,0,0,4"/>
+                                    <TextBlock Text="2. Click 'Import client_secret.json' and choose the .json file you downloaded in Step 5 — Client ID and Client Secret will fill in automatically." FontSize="11.5" Foreground="{DynamicResource PrimaryTextBrush}" TextWrapping="Wrap" Margin="0,0,0,4"/>
+                                    <TextBlock Text="3. Click 'Sign In with Google' at the top. Choose your Google account. If Google shows 'Google hasn't verified this app', click 'Continue' (safe because YOU own this personal Google Cloud project!) and allow Google Drive permission." FontSize="11.5" Foreground="{DynamicResource PrimaryTextBrush}" TextWrapping="Wrap" Margin="0,0,0,4"/>
+                                    <TextBlock Text="4. The browser shows success and StudyHub creates your private /StudyHub_Sync/ folder and runs your first sync." FontSize="11.5" Foreground="{DynamicResource SecondaryTextBrush}" TextWrapping="Wrap"/>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Step 7 -->
+                            <Border Background="{DynamicResource CardBgBrush}" BorderBrush="{DynamicResource BorderBrushTheme}" BorderThickness="1" CornerRadius="14" Padding="14" Margin="0,0,0,10">
+                                <StackPanel>
+                                    <TextBlock Text="STEP 7 — Quick-Pair Your Android Phone in 10 Seconds" FontSize="13" FontWeight="Black" Foreground="#EC4899" Margin="0,0,0,6"/>
+                                    <TextBlock Text="Do NOT repeat Steps 1–5 for your phone! Your phone reuses the exact same credentials:" FontSize="11.5" Foreground="{DynamicResource PrimaryTextBrush}" TextWrapping="Wrap" Margin="0,0,0,4"/>
+                                    <TextBlock Text="1. On PC inside 'Advanced API &amp; Mobile Pairing', click 'Copy Phone Quick-Pair' (copies an SHPAIR1:... code) OR click 'Export Quick-Pair JSON' and send the tiny file to your phone." FontSize="11.5" Foreground="{DynamicResource PrimaryTextBrush}" TextWrapping="Wrap" Margin="0,0,0,4"/>
+                                    <TextBlock Text="2. On StudyHub Android open Settings -&gt; Google Cloud Sync -&gt; expand 'Advanced API &amp; Mobile Pairing' -&gt; paste the SHPAIR1:... code and tap 'Apply Code' (or pick the JSON file)." FontSize="11.5" Foreground="{DynamicResource PrimaryTextBrush}" TextWrapping="Wrap" Margin="0,0,0,4"/>
+                                    <TextBlock Text="3. Tap 'Sign In Google', sign in with the exact same Gmail account, tap Continue, and both devices will sync subjects, notes, PDFs, audio, calendar &amp; themes!" FontSize="11.5" Foreground="{DynamicResource PrimaryTextBrush}" TextWrapping="Wrap"/>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- Troubleshooting -->
+                            <Border Background="{DynamicResource InputBgBrush}" BorderBrush="{DynamicResource BorderBrushTheme}" BorderThickness="1" CornerRadius="14" Padding="14" Margin="0,0,0,4">
+                                <StackPanel>
+                                    <TextBlock Text="🛠️ Troubleshooting Common Issues" FontSize="12.5" FontWeight="Black" Foreground="{DynamicResource PrimaryTextBrush}" Margin="0,0,0,6"/>
+                                    <TextBlock Text="• Error 403 (access_denied): You forgot Step 4! Go to Google Auth Platform -&gt; Audience -&gt; Test users and add your exact Gmail address." FontSize="11.5" Foreground="{DynamicResource SecondaryTextBrush}" TextWrapping="Wrap" Margin="0,0,0,4"/>
+                                    <TextBlock Text="• 'Google hasn't verified this app': Normal for personal Testing apps you own. Click Advanced / Continue to authorize." FontSize="11.5" Foreground="{DynamicResource SecondaryTextBrush}" TextWrapping="Wrap" Margin="0,0,0,4"/>
+                                    <TextBlock Text="• Browser shows localhost refused / redirect didn't return automatically: Copy the full http://127.0.0.1... address from Chrome/Edge's address bar, click 'Browser redirect blocked?' in Status &amp; Quick Actions, paste it, and click 'Complete Sign-In'." FontSize="11.5" Foreground="{DynamicResource SecondaryTextBrush}" TextWrapping="Wrap"/>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </ScrollViewer>
+
+                    <!-- Footer -->
+                    <Grid Grid.Row="2" Margin="0,14,0,0">
+                        <TextBlock Text="Tip: Your auth tokens are stored securely outside the app repo directory." FontSize="11" Foreground="{DynamicResource MutedTextBrush}" VerticalAlignment="Center"/>
+                        <Button Click="BtnCloseCloudHowTo_Click" Style="{StaticResource BrandButtonStyle}" HorizontalAlignment="Right" Padding="18,8">
+                            <TextBlock Text="Got It ✓"/>
+                        </Button>
+                    </Grid>
+                </Grid>
             </Border>
         </Grid>
 

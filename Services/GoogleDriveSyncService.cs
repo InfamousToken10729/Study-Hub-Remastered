@@ -39,7 +39,7 @@ namespace StudyHub.Services
         private const string DriveApiBase = "https://www.googleapis.com/drive/v3";
         private const string DriveUploadBase = "https://www.googleapis.com/upload/drive/v3";
 
-        private const string RootFolderName = "StudyHub_Sync";
+        public const string RootFolderName = "StudyHub_Sync";
         private const string FilesFolderName = "Files";
         private const string SoundsFolderName = "Sounds";
         private const string ZenMediaFolderName = "ZenMedia";

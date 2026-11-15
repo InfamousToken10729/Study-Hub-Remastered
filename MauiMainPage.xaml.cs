@@ -4370,6 +4370,8 @@ public partial class MauiMainPage : ContentPage
 
     // ================= GOOGLE DRIVE CLOUD SYNC (MOBILE & TABLET) =================
 
+    private bool _isMobileCloudAdvancedExpanded = false;
+
     private void ApplyMobileCloudStatusToUi(SyncProgressReport report)
     {
         if (report == null) return;
@@ -4385,6 +4387,7 @@ public partial class MauiMainPage : ContentPage
             _ => Color.FromArgb("#94A3B8")
         };
         LblMobileCloudStatusTitle.Text = report.Headline;
+        LblMobileCloudBadge.Text = report.Level.ToString();
         if (!string.IsNullOrWhiteSpace(report.Detail))
             LblMobileCloudStatusDetail.Text = report.Detail;
         UpdateMobileCloudSyncUiState();
@@ -4398,11 +4401,85 @@ public partial class MauiMainPage : ContentPage
         if (EntryMobileCloudClientSecret.Text != cfg.ClientSecret)
             EntryMobileCloudClientSecret.Text = cfg.ClientSecret;
 
+        LblMobileCloudMetaAccount.Text = cfg.HasValidSession && !string.IsNullOrWhiteSpace(cfg.UserEmail)
+            ? cfg.UserEmail
+            : (cfg.HasClientCredentials ? "Credentials Ready" : "Not Signed In");
+        LblMobileCloudMetaFolder.Text = $"{cfg.DeviceName} • /{GoogleDriveSyncService.RootFolderName}/";
+        LblMobileAdvancedSummary.Text = cfg.HasClientCredentials
+            ? (cfg.HasValidSession ? "Paired ✓" : "Saved ✓")
+            : "Expand";
+
         BtnMobileCloudSignIn.IsVisible = !cfg.HasValidSession;
         BtnMobileCloudSignOut.IsVisible = cfg.HasValidSession;
+        BtnMobileCloudSyncNow.IsVisible = cfg.HasValidSession;
         BtnMobileCloudSyncNow.IsEnabled = cfg.HasValidSession;
         BtnMobileCloudTimeMachine.IsEnabled = cfg.HasValidSession;
     }
+
+    private void SetMobileCloudAdvancedExpanded(bool expanded)
+    {
+        _isMobileCloudAdvancedExpanded = expanded;
+        MobileCloudAdvancedBody.IsVisible = expanded;
+        LblMobileAdvancedChevron.Text = expanded ? "▾" : "▸";
+    }
+
+    private void SetMobileFallbackExpanded(bool expanded)
+    {
+        MobileManualAuthContainer.IsVisible = expanded;
+        LblMobileFallbackToggle.Text = expanded
+            ? "Hide manual callback URL fallback ▾"
+            : "Browser redirect blocked? Enter callback manually ▸";
+    }
+
+    private void OnMobileCloudToggleAdvancedClicked(object? sender, TappedEventArgs e)
+        => SetMobileCloudAdvancedExpanded(!_isMobileCloudAdvancedExpanded);
+
+    private void OnMobileCloudToggleFallbackClicked(object? sender, TappedEventArgs e)
+        => SetMobileFallbackExpanded(!MobileManualAuthContainer.IsVisible);
+
+    private void OnMobileOpenHowToLinkClicked(object? sender, EventArgs e)
+        => MobileHowToLinkOverlay.IsVisible = true;
+
+    private void OnMobileCloseHowToLinkClicked(object? sender, EventArgs e)
+        => MobileHowToLinkOverlay.IsVisible = false;
+
+    private void OnMobileClearQuickPairClicked(object? sender, EventArgs e)
+        => EntryMobileQuickPairCode.Text = "";
+
+    private async void OnMobileCopyClientIdClicked(object? sender, EventArgs e)
+    {
+        string val = EntryMobileCloudClientId.Text?.Trim() ?? "";
+        if (string.IsNullOrEmpty(val)) { ShowToast("Client ID is empty."); return; }
+        await Microsoft.Maui.ApplicationModel.DataTransfer.Clipboard.Default.SetTextAsync(val);
+        ShowToast("Client ID copied! 📋");
+    }
+
+    private void OnMobileClearClientIdClicked(object? sender, EventArgs e)
+        => EntryMobileCloudClientId.Text = "";
+
+    private void OnMobileToggleSecretMaskClicked(object? sender, EventArgs e)
+        => EntryMobileCloudClientSecret.IsPassword = !EntryMobileCloudClientSecret.IsPassword;
+
+    private async void OnMobileCopyClientSecretClicked(object? sender, EventArgs e)
+    {
+        string val = EntryMobileCloudClientSecret.Text?.Trim() ?? "";
+        if (string.IsNullOrEmpty(val)) { ShowToast("Client Secret is empty."); return; }
+        await Microsoft.Maui.ApplicationModel.DataTransfer.Clipboard.Default.SetTextAsync(val);
+        ShowToast("Client Secret copied! 📋");
+    }
+
+    private void OnMobileClearClientSecretClicked(object? sender, EventArgs e)
+        => EntryMobileCloudClientSecret.Text = "";
+
+    private void OnRootPointerMoved(object? sender, PointerEventArgs e)
+    {
+        var pt = e.GetPosition(BackdropCanvas);
+        if (pt.HasValue)
+            _backdrop.SetPointerPosition((float)pt.Value.X, (float)pt.Value.Y, true);
+    }
+
+    private void OnRootPointerExited(object? sender, PointerEventArgs e)
+        => _backdrop.SetPointerPosition(-9999f, -9999f, false);
 
     private async void OnNavCloudSyncClicked(object? sender, EventArgs e)
     {
@@ -4463,6 +4540,7 @@ public partial class MauiMainPage : ContentPage
         string code = _cloudSync.ExportQuickPairCode();
         if (string.IsNullOrWhiteSpace(code))
         {
+            SetMobileCloudAdvancedExpanded(true);
             ShowToast("Save credentials first to generate Quick-Pair code.");
             return;
         }
@@ -4474,7 +4552,8 @@ public partial class MauiMainPage : ContentPage
     {
         if (!_cloudSync.Config.HasClientCredentials)
         {
-            ShowToast("Paste Quick-Pair code or pick client_secret.json first.");
+            SetMobileCloudAdvancedExpanded(true);
+            ShowToast("Expand 'Advanced API & Mobile Pairing' below to paste Quick-Pair code or pick JSON first.");
             return;
         }
         BtnMobileCloudSignIn.IsEnabled = false;
@@ -4491,7 +4570,12 @@ public partial class MauiMainPage : ContentPage
             ShowToast(ok ? $"✅ {msg}" : $"⚠️ {msg}");
             if (ok)
             {
+                SetMobileFallbackExpanded(false);
                 await ExecuteMobileCloudSyncAsync(silentAutoSync: false);
+            }
+            else
+            {
+                SetMobileFallbackExpanded(true);
             }
         }
         finally
@@ -4508,6 +4592,7 @@ public partial class MauiMainPage : ContentPage
         if (ok)
         {
             EntryMobileCloudManualAuth.Text = "";
+            SetMobileFallbackExpanded(false);
             await ExecuteMobileCloudSyncAsync(silentAutoSync: false);
         }
     }

@@ -30,6 +30,22 @@ public sealed class MauiBackdropDrawable : IDrawable
     private readonly List<ParticleNode> _particles = new();
     private string _seededEffect = "";
     private float _seedW = 0, _seedH = 0;
+    private float _pointerX = -9999f, _pointerY = -9999f;
+    private DateTime _pointerUtc = DateTime.MinValue;
+
+    public void SetPointerPosition(float x, float y, bool active)
+    {
+        if (active)
+        {
+            _pointerX = x;
+            _pointerY = y;
+            _pointerUtc = DateTime.UtcNow;
+        }
+        else
+        {
+            _pointerUtc = DateTime.MinValue;
+        }
+    }
 
     private static readonly string[] MatrixGlyphs =
     {
@@ -64,6 +80,11 @@ public sealed class MauiBackdropDrawable : IDrawable
 
         if (eff == "disable") return;
 
+        bool pointerActive = eff == "network"
+            && (DateTime.UtcNow - _pointerUtc).TotalSeconds < 6.0
+            && _pointerX >= 0 && _pointerY >= 0
+            && _pointerX <= _lastW && _pointerY <= _lastH;
+
         float dtScale = (float)(dt * 60.0);
         for (int i = 0; i < _particles.Count; i++)
         {
@@ -71,6 +92,29 @@ public sealed class MauiBackdropDrawable : IDrawable
             p.Phase += p.Speed * dtScale;
             p.X += p.Vx * dtScale;
             p.Y += p.Vy * dtScale;
+
+            if (pointerActive)
+            {
+                float mdx = p.X - _pointerX;
+                float mdy = p.Y - _pointerY;
+                float mdSq = mdx * mdx + mdy * mdy;
+                if (mdSq > 1f && mdSq < 21025f) // < 145px
+                {
+                    float md = (float)Math.Sqrt(mdSq);
+                    if (md < 52f)
+                    {
+                        float push = (1f - md / 52f) * 0.42f * dtScale;
+                        p.X += (mdx / md) * push;
+                        p.Y += (mdy / md) * push;
+                    }
+                    else
+                    {
+                        float pull = (1f - (md - 52f) / 93f) * 0.14f * dtScale;
+                        p.X -= (mdx / md) * pull;
+                        p.Y -= (mdy / md) * pull;
+                    }
+                }
+            }
 
             if (eff is "snow" or "sakura" or "petals_snowfall")
             {
@@ -189,7 +233,7 @@ public sealed class MauiBackdropDrawable : IDrawable
 
         int count = eff switch
         {
-            "network" => 46,
+            "network" => 54,
             "fading_stars" => 70,
             "snow" => 58,
             "matrix" => Math.Clamp((int)(w / 18f), 18, 36),
@@ -222,12 +266,12 @@ public sealed class MauiBackdropDrawable : IDrawable
             switch (eff)
             {
                 case "network":
-                    n.Vx = ((float)_rng.NextDouble() - 0.5f) * 1.45f;
-                    n.Vy = ((float)_rng.NextDouble() - 0.5f) * 1.45f;
-                    if (Math.Abs(n.Vx) < 0.15f) n.Vx = (i % 2 == 0 ? 0.35f : -0.35f);
-                    if (Math.Abs(n.Vy) < 0.15f) n.Vy = (i % 3 == 0 ? 0.35f : -0.35f);
-                    n.R = 2.4f + (float)_rng.NextDouble() * 1.8f;
-                    n.Col = (i % 3 == 0) ? Color.FromRgba(129, 140, 248, 225) : Color.FromRgba(34, 211, 238, 230);
+                    n.Vx = ((float)_rng.NextDouble() - 0.5f) * 1.15f;
+                    n.Vy = ((float)_rng.NextDouble() - 0.5f) * 1.15f;
+                    if (Math.Abs(n.Vx) < 0.16f) n.Vx = (i % 2 == 0 ? 0.28f : -0.28f);
+                    if (Math.Abs(n.Vy) < 0.16f) n.Vy = (i % 3 == 0 ? 0.28f : -0.28f);
+                    n.R = 1.8f + (float)_rng.NextDouble() * 1.7f;
+                    n.Col = (i % 3 == 0) ? Color.FromRgba(165, 180, 252, 225) : Color.FromRgba(226, 232, 240, 235);
                     break;
                 case "fading_stars":
                     n.Vx = (float)(_rng.NextDouble() - 0.5) * 0.10f;
@@ -453,9 +497,9 @@ public sealed class MauiBackdropDrawable : IDrawable
 
         if (eff == "network")
         {
-            float maxDist = Math.Clamp(Math.Min(w, h) * 0.36f, 120f, 195f);
+            float maxDist = Math.Clamp(Math.Min(w, h) * 0.38f, 130f, 195f);
             float maxDistSq = maxDist * maxDist;
-            canvas.StrokeSize = 1.35f;
+            canvas.StrokeSize = 1.15f;
             for (int i = 0; i < _particles.Count; i++)
             {
                 var a = _particles[i];
@@ -467,11 +511,34 @@ public sealed class MauiBackdropDrawable : IDrawable
                     float d2 = dx * dx + dy * dy;
                     if (d2 < maxDistSq)
                     {
-                        float alpha = (1f - (float)Math.Sqrt(d2) / maxDist) * 0.55f * lightMul;
+                        float alpha = (1f - (float)Math.Sqrt(d2) / maxDist) * 0.66f * lightMul;
                         canvas.StrokeColor = IsDarkMode
-                            ? Color.FromRgba(56, 189, 248, (int)(alpha * 255))
+                            ? Color.FromRgba(165, 180, 252, (int)(alpha * 255))
                             : Color.FromRgba(79, 70, 229, (int)(alpha * 255));
                         canvas.DrawLine(a.X, a.Y, b.X, b.Y);
+                    }
+                }
+            }
+
+            if ((DateTime.UtcNow - _pointerUtc).TotalSeconds < 6.0
+                && _pointerX >= 0 && _pointerY >= 0 && _pointerX <= w && _pointerY <= h)
+            {
+                float ptrMax = Math.Clamp(Math.Min(w, h) * 0.44f, 145f, 220f);
+                float ptrMaxSq = ptrMax * ptrMax;
+                canvas.StrokeSize = 1.3f;
+                for (int i = 0; i < _particles.Count; i++)
+                {
+                    var a = _particles[i];
+                    float dx = a.X - _pointerX;
+                    float dy = a.Y - _pointerY;
+                    float d2 = dx * dx + dy * dy;
+                    if (d2 < ptrMaxSq)
+                    {
+                        float alpha = (1f - (float)Math.Sqrt(d2) / ptrMax) * 0.78f * lightMul;
+                        canvas.StrokeColor = IsDarkMode
+                            ? Color.FromRgba(125, 211, 252, (int)(alpha * 255))
+                            : Color.FromRgba(79, 70, 229, (int)(alpha * 255));
+                        canvas.DrawLine(_pointerX, _pointerY, a.X, a.Y);
                     }
                 }
             }
@@ -484,10 +551,10 @@ public sealed class MauiBackdropDrawable : IDrawable
 
             if (eff == "network")
             {
-                var col = IsDarkMode ? p.Col : Color.FromRgba(79, 70, 229, 200);
-                canvas.FillColor = col.WithAlpha(0.22f * pulse * lightMul);
-                canvas.FillCircle(p.X, p.Y, p.R * 2.4f);
-                canvas.FillColor = col.WithAlpha(0.92f * lightMul);
+                var col = IsDarkMode ? p.Col : Color.FromRgba(79, 70, 229, 210);
+                canvas.FillColor = col.WithAlpha(0.18f * pulse * lightMul);
+                canvas.FillCircle(p.X, p.Y, p.R * 2.2f);
+                canvas.FillColor = col.WithAlpha(0.95f * lightMul);
                 canvas.FillCircle(p.X, p.Y, p.R);
             }
             else if (eff == "bubbles")

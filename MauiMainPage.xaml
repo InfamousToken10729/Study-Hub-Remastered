@@ -6,6 +6,11 @@
              BackgroundColor="#090B1A">
 
     <Grid x:Name="RootGrid">
+        <Grid.GestureRecognizers>
+            <PointerGestureRecognizer PointerMoved="OnRootPointerMoved"
+                                      PointerPressed="OnRootPointerMoved"
+                                      PointerExited="OnRootPointerExited" />
+        </Grid.GestureRecognizers>
         <!-- 1. Global Animated Backdrop (Themes, 8 Particle Engines & 17 Zen Worlds) -->
         <GraphicsView x:Name="BackdropCanvas"
                       InputTransparent="True"
@@ -1769,89 +1774,246 @@
                                 </Border>
                             </VerticalStackLayout>
 
-                            <!-- SUB-MENU 5: GOOGLE DRIVE CLOUD SYNC -->
-                            <VerticalStackLayout x:Name="SubMenuCloudSyncView" IsVisible="False" Spacing="10">
-                                <Label Text="GOOGLE DRIVE CLOUD SYNC (ZERO COST)" FontSize="10.5" FontAttributes="Bold" TextColor="#38BDF8" />
-                                <Border BackgroundColor="#0D1124" Stroke="#252E56" StrokeThickness="1" StrokeShape="RoundRectangle 12" Padding="12">
-                                    <VerticalStackLayout Spacing="8">
+                            <!-- SUB-MENU 5: GOOGLE DRIVE CLOUD SYNC (PROGRESSIVE DISCLOSURE) -->
+                            <VerticalStackLayout x:Name="SubMenuCloudSyncView" IsVisible="False" Spacing="12">
+
+                                <!-- 1. STATUS & QUICK ACTIONS -->
+                                <Border BackgroundColor="#0D1124" Stroke="#252E56" StrokeThickness="1" StrokeShape="RoundRectangle 14" Padding="14">
+                                    <VerticalStackLayout Spacing="10">
+                                        <Grid ColumnDefinitions="*,Auto" VerticalOptions="Center">
+                                            <Label Text="☁️ STATUS &amp; QUICK ACTIONS" FontSize="12" FontAttributes="Bold" TextColor="#38BDF8" VerticalOptions="Center" />
+                                            <Border Grid.Column="1" BackgroundColor="#161D3B" Stroke="#2B3666" StrokeThickness="1" StrokeShape="RoundRectangle 9" Padding="9,4">
+                                                <Label x:Name="LblMobileCloudBadge" Text="Setup Needed" FontSize="10" FontAttributes="Bold" TextColor="#CBD5E1" />
+                                            </Border>
+                                        </Grid>
+
+                                        <!-- Streamlined Metadata Block -->
+                                        <Grid ColumnDefinitions="*,*" ColumnSpacing="8">
+                                            <Border BackgroundColor="#131936" Stroke="#222B54" StrokeThickness="1" StrokeShape="RoundRectangle 10" Padding="10,8">
+                                                <VerticalStackLayout Spacing="2">
+                                                    <Label Text="GOOGLE ACCOUNT" FontSize="9" FontAttributes="Bold" TextColor="#6E7A9E" />
+                                                    <Label x:Name="LblMobileCloudMetaAccount" Text="Not Signed In" FontSize="11.5" FontAttributes="Bold" TextColor="#F8FAFC" LineBreakMode="TailTruncation" />
+                                                </VerticalStackLayout>
+                                            </Border>
+                                            <Border Grid.Column="1" BackgroundColor="#131936" Stroke="#222B54" StrokeThickness="1" StrokeShape="RoundRectangle 10" Padding="10,8">
+                                                <VerticalStackLayout Spacing="2">
+                                                    <Label Text="DEVICE &amp; DRIVE FOLDER" FontSize="9" FontAttributes="Bold" TextColor="#6E7A9E" />
+                                                    <Label x:Name="LblMobileCloudMetaFolder" Text="Android • /StudyHub_Sync/" FontSize="11.5" FontAttributes="Bold" TextColor="#CBD5E1" LineBreakMode="TailTruncation" />
+                                                </VerticalStackLayout>
+                                            </Border>
+                                        </Grid>
+
                                         <Label x:Name="LblMobileCloudStatusTitle" Text="Cloud Setup Needed" FontSize="12.5" FontAttributes="Bold" TextColor="#F8FAFC" />
-                                        <Label x:Name="LblMobileCloudStatusDetail" Text="Pair with your PC using a Quick-Pair code or client_secret.json to sync courses, notes, PDFs, audio &amp; calendar safely." FontSize="10.5" TextColor="#94A3C6" />
+                                        <Label x:Name="LblMobileCloudStatusDetail" Text="Pair with your PC or link Google Drive to sync courses, notes, PDFs, audio &amp; calendar." FontSize="11" TextColor="#94A3C6" />
 
+                                        <!-- Primary Action Bar -->
                                         <FlexLayout Wrap="Wrap" JustifyContent="Start">
-                                            <Button x:Name="BtnMobileCloudSignIn" Text="🔑 Sign In Google" FontSize="11" FontAttributes="Bold" BackgroundColor="#7C5CFF" TextColor="White" CornerRadius="9" Padding="10,6" Margin="0,0,6,6" Clicked="OnMobileCloudSignInClicked" />
-                                            <Button x:Name="BtnMobileCloudSyncNow" Text="🔄 Sync Now" FontSize="11" FontAttributes="Bold" BackgroundColor="#10B981" TextColor="White" CornerRadius="9" Padding="10,6" Margin="0,0,6,6" Clicked="OnMobileCloudSyncNowClicked" />
-                                            <Button x:Name="BtnMobileCloudTimeMachine" Text="🕒 Time Machine" FontSize="11" BackgroundColor="#1E2548" TextColor="#A78BFA" CornerRadius="9" Padding="10,6" Margin="0,0,6,6" Clicked="OnMobileCloudTimeMachineClicked" />
-                                            <Button x:Name="BtnMobileCloudSignOut" Text="Sign Out" IsVisible="False" FontSize="11" BackgroundColor="#4C1D24" TextColor="#FCA5A5" CornerRadius="9" Padding="10,6" Margin="0,0,0,6" Clicked="OnMobileCloudSignOutClicked" />
+                                            <Button x:Name="BtnMobileCloudSignIn" Text="🔑 Sign In Google" FontSize="11.5" FontAttributes="Bold" BackgroundColor="#7C5CFF" TextColor="White" CornerRadius="10" Padding="14,8" Margin="0,0,8,8" Clicked="OnMobileCloudSignInClicked" />
+                                            <Button x:Name="BtnMobileCloudSyncNow" Text="🔄 Sync Now" FontSize="11.5" FontAttributes="Bold" BackgroundColor="#7C5CFF" TextColor="White" CornerRadius="10" Padding="16,8" Margin="0,0,8,8" Clicked="OnMobileCloudSyncNowClicked" />
+                                            <Button Text="📖 How to Link" FontSize="11.5" FontAttributes="Bold" BackgroundColor="#171E3E" BorderColor="#334175" BorderWidth="1" TextColor="#E2E8F0" CornerRadius="10" Padding="12,8" Margin="0,0,8,8" Clicked="OnMobileOpenHowToLinkClicked" />
+                                            <Button x:Name="BtnMobileCloudSignOut" Text="Sign Out" IsVisible="False" FontSize="11.5" BackgroundColor="Transparent" BorderColor="#6B2B38" BorderWidth="1" TextColor="#FDA4AF" CornerRadius="10" Padding="12,8" Margin="0,0,0,8" Clicked="OnMobileCloudSignOutClicked" />
                                         </FlexLayout>
 
-                                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
-                                            <Entry x:Name="EntryMobileCloudManualAuth" Placeholder="Callback redirect URL or code (fallback)" PlaceholderColor="#687296" TextColor="#F8FAFC" BackgroundColor="#151A36" FontSize="11" />
-                                            <Button Grid.Column="1" Text="Verify" FontSize="11" BackgroundColor="#1E2548" TextColor="#38BDF8" CornerRadius="8" Padding="10,6" Clicked="OnMobileCloudManualAuthClicked" />
-                                        </Grid>
+                                        <!-- Contextual Fallback Toggle & Hidden Input -->
+                                        <Label x:Name="LblMobileFallbackToggle" Text="Browser redirect blocked? Enter callback manually ▸" FontSize="10.5" TextColor="#7E8AA8" TextDecorations="Underline">
+                                            <Label.GestureRecognizers>
+                                                <TapGestureRecognizer Tapped="OnMobileCloudToggleFallbackClicked" />
+                                            </Label.GestureRecognizers>
+                                        </Label>
+                                        <Border x:Name="MobileManualAuthContainer" IsVisible="False" BackgroundColor="#131832" Stroke="#63451A" StrokeThickness="1" StrokeShape="RoundRectangle 10" Padding="10">
+                                            <VerticalStackLayout Spacing="6">
+                                                <Label Text="Paste the http://127.0.0.1.../callback?code=... URL from browser:" FontSize="10.5" TextColor="#94A3C6" />
+                                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
+                                                    <Entry x:Name="EntryMobileCloudManualAuth" Placeholder="Callback redirect URL or code" PlaceholderColor="#687296" TextColor="#F8FAFC" BackgroundColor="#192042" FontSize="11" HeightRequest="40" />
+                                                    <Button Grid.Column="1" Text="Verify" FontSize="11" BackgroundColor="#232D58" TextColor="#38BDF8" CornerRadius="8" Padding="12,6" Clicked="OnMobileCloudManualAuthClicked" />
+                                                </Grid>
+                                            </VerticalStackLayout>
+                                        </Border>
+                                    </VerticalStackLayout>
+                                </Border>
 
-                                        <BoxView HeightRequest="1" Color="#1E2646" Margin="0,2" />
+                                <!-- 2. SYNC PREFERENCES & SEGMENTED SCOPE -->
+                                <Border BackgroundColor="#0D1124" Stroke="#252E56" StrokeThickness="1" StrokeShape="RoundRectangle 14" Padding="14">
+                                    <VerticalStackLayout Spacing="10">
+                                        <Label Text="⚙️ SYNC PREFERENCES &amp; SCOPE" FontSize="12" FontAttributes="Bold" TextColor="#F8FAFC" />
 
-                                        <Label Text="Quick-Pair (from PC Control Center) or OAuth Client ID:" FontSize="10.5" TextColor="#94A3C6" />
-                                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
-                                            <Entry x:Name="EntryMobileQuickPairCode" Placeholder="Paste SHPAIR1:... code here" PlaceholderColor="#687296" TextColor="#F8FAFC" BackgroundColor="#151A36" FontSize="11" />
-                                            <Button Grid.Column="1" Text="Apply Code" FontSize="11" FontAttributes="Bold" BackgroundColor="#232D58" TextColor="#38BDF8" CornerRadius="8" Padding="10,6" Clicked="OnMobileApplyQuickPairCodeClicked" />
-                                        </Grid>
+                                        <Border BackgroundColor="#131936" Stroke="#222B54" StrokeThickness="1" StrokeShape="RoundRectangle 11" Padding="11,8">
+                                            <VerticalStackLayout Spacing="8">
+                                                <Grid ColumnDefinitions="*,Auto">
+                                                    <VerticalStackLayout Spacing="1" VerticalOptions="Center">
+                                                        <Label Text="Auto-Sync on Edit &amp; Launch" FontSize="11.5" FontAttributes="Bold" TextColor="#E2E8F0" />
+                                                        <Label Text="Keep Android &amp; PC synced quietly in background" FontSize="10" TextColor="#7E8AA8" />
+                                                    </VerticalStackLayout>
+                                                    <Switch x:Name="SwitchMobileAutoSync" Grid.Column="1" IsToggled="True" OnColor="#7C5CFF" Toggled="OnMobileCloudPrefsToggled" />
+                                                </Grid>
+                                                <Grid ColumnDefinitions="*,Auto">
+                                                    <VerticalStackLayout Spacing="1" VerticalOptions="Center">
+                                                        <Label Text="Binary Media Transfers" FontSize="11.5" FontAttributes="Bold" TextColor="#E2E8F0" />
+                                                        <Label Text="Sync PDFs, videos, voice notes &amp; custom Zen files" FontSize="10" TextColor="#7E8AA8" />
+                                                    </VerticalStackLayout>
+                                                    <Switch x:Name="SwitchMobileSyncFiles" Grid.Column="1" IsToggled="True" OnColor="#7C5CFF" Toggled="OnMobileCloudPrefsToggled" />
+                                                </Grid>
+                                                <Grid ColumnDefinitions="*,Auto">
+                                                    <VerticalStackLayout Spacing="1" VerticalOptions="Center">
+                                                        <Label Text="Wi-Fi Only for Large Transfers" FontSize="11.5" FontAttributes="Bold" TextColor="#E2E8F0" />
+                                                        <Label Text="Save cellular data when syncing videos or PDFs" FontSize="10" TextColor="#7E8AA8" />
+                                                    </VerticalStackLayout>
+                                                    <Switch x:Name="SwitchMobileWifiOnly" Grid.Column="1" IsToggled="True" OnColor="#7C5CFF" Toggled="OnMobileCloudPrefsToggled" />
+                                                </Grid>
+                                            </VerticalStackLayout>
+                                        </Border>
 
-                                        <Entry x:Name="EntryMobileCloudClientId" Placeholder="Google OAuth Client ID (*.apps.googleusercontent.com)" PlaceholderColor="#687296" TextColor="#F8FAFC" BackgroundColor="#151A36" FontSize="11" />
-                                        <Entry x:Name="EntryMobileCloudClientSecret" Placeholder="Client Secret (optional/from JSON)" IsPassword="True" PlaceholderColor="#687296" TextColor="#F8FAFC" BackgroundColor="#151A36" FontSize="11" />
+                                        <Label Text="Choose What to Sync on This Device:" FontSize="10.5" TextColor="#94A3C6" />
 
+                                        <!-- Category Card 1: Productivity & Academics -->
+                                        <Border BackgroundColor="#131936" Stroke="#222B54" StrokeThickness="1" StrokeShape="RoundRectangle 11" Padding="11,9">
+                                            <VerticalStackLayout Spacing="8">
+                                                <Label Text="📚 PRODUCTIVITY &amp; ACADEMICS" FontSize="10" FontAttributes="Bold" TextColor="#38BDF8" />
+                                                <Grid ColumnDefinitions="*,Auto">
+                                                    <VerticalStackLayout Spacing="1" VerticalOptions="Center">
+                                                        <Label Text="Subjects, Notes &amp; Decks" FontSize="11.5" FontAttributes="Bold" TextColor="#E2E8F0" />
+                                                        <Label Text="Courses, folders &amp; flashcards" FontSize="10" TextColor="#7E8AA8" />
+                                                    </VerticalStackLayout>
+                                                    <Switch x:Name="SwitchMobileSyncCourses" Grid.Column="1" IsToggled="True" OnColor="#7C5CFF" Toggled="OnMobileCloudPrefsToggled" />
+                                                </Grid>
+                                                <Grid ColumnDefinitions="*,Auto">
+                                                    <VerticalStackLayout Spacing="1" VerticalOptions="Center">
+                                                        <Label Text="Links, Tasks &amp; Deadlines" FontSize="11.5" FontAttributes="Bold" TextColor="#E2E8F0" />
+                                                        <Label Text="Study URLs, to-dos &amp; exam dates" FontSize="10" TextColor="#7E8AA8" />
+                                                    </VerticalStackLayout>
+                                                    <Switch x:Name="SwitchMobileSyncLinks" Grid.Column="1" IsToggled="True" OnColor="#7C5CFF" Toggled="OnMobileCloudPrefsToggled" />
+                                                </Grid>
+                                                <Grid ColumnDefinitions="*,Auto">
+                                                    <VerticalStackLayout Spacing="1" VerticalOptions="Center">
+                                                        <Label Text="Calendar &amp; Heatmap" FontSize="11.5" FontAttributes="Bold" TextColor="#E2E8F0" />
+                                                        <Label Text="Reminders &amp; 30-day streak log" FontSize="10" TextColor="#7E8AA8" />
+                                                    </VerticalStackLayout>
+                                                    <Switch x:Name="SwitchMobileSyncCalendar" Grid.Column="1" IsToggled="True" OnColor="#7C5CFF" Toggled="OnMobileCloudPrefsToggled" />
+                                                </Grid>
+                                            </VerticalStackLayout>
+                                        </Border>
+
+                                        <!-- Category Card 2: Media & Assets -->
+                                        <Border BackgroundColor="#131936" Stroke="#222B54" StrokeThickness="1" StrokeShape="RoundRectangle 11" Padding="11,9">
+                                            <VerticalStackLayout Spacing="8">
+                                                <Label Text="📦 MEDIA &amp; ASSETS" FontSize="10" FontAttributes="Bold" TextColor="#A78BFA" />
+                                                <Grid ColumnDefinitions="*,Auto">
+                                                    <VerticalStackLayout Spacing="1" VerticalOptions="Center">
+                                                        <Label Text="PDFs &amp; Study Documents" FontSize="11.5" FontAttributes="Bold" TextColor="#E2E8F0" />
+                                                        <Label Text="Course PDFs stored on Drive" FontSize="10" TextColor="#7E8AA8" />
+                                                    </VerticalStackLayout>
+                                                    <Switch x:Name="SwitchMobileSyncPdfs" Grid.Column="1" IsToggled="True" OnColor="#7C5CFF" Toggled="OnMobileCloudPrefsToggled" />
+                                                </Grid>
+                                                <Grid ColumnDefinitions="*,Auto">
+                                                    <VerticalStackLayout Spacing="1" VerticalOptions="Center">
+                                                        <Label Text="Lecture Videos &amp; Recordings" FontSize="11.5" FontAttributes="Bold" TextColor="#E2E8F0" />
+                                                        <Label Text="Videos &amp; class voice notes" FontSize="10" TextColor="#7E8AA8" />
+                                                    </VerticalStackLayout>
+                                                    <Switch x:Name="SwitchMobileSyncVideos" Grid.Column="1" IsToggled="True" OnColor="#7C5CFF" Toggled="OnMobileCloudPrefsToggled" />
+                                                </Grid>
+                                                <Grid ColumnDefinitions="*,Auto">
+                                                    <VerticalStackLayout Spacing="1" VerticalOptions="Center">
+                                                        <Label Text="Extra Zen Scenes &amp; Media" FontSize="11.5" FontAttributes="Bold" TextColor="#E2E8F0" />
+                                                        <Label Text="Custom backgrounds &amp; loops" FontSize="10" TextColor="#7E8AA8" />
+                                                    </VerticalStackLayout>
+                                                    <Switch x:Name="SwitchMobileSyncZen" Grid.Column="1" IsToggled="True" OnColor="#7C5CFF" Toggled="OnMobileCloudPrefsToggled" />
+                                                </Grid>
+                                            </VerticalStackLayout>
+                                        </Border>
+
+                                        <!-- Category Card 3: System & App Data -->
+                                        <Border BackgroundColor="#131936" Stroke="#222B54" StrokeThickness="1" StrokeShape="RoundRectangle 11" Padding="11,9">
+                                            <VerticalStackLayout Spacing="8">
+                                                <Label Text="🎛️ SYSTEM &amp; APP DATA" FontSize="10" FontAttributes="Bold" TextColor="#10B981" />
+                                                <Grid ColumnDefinitions="*,Auto">
+                                                    <VerticalStackLayout Spacing="1" VerticalOptions="Center">
+                                                        <Label Text="Extra Audio &amp; Mixer Presets" FontSize="11.5" FontAttributes="Bold" TextColor="#E2E8F0" />
+                                                        <Label Text="Custom ambient tracks &amp; levels" FontSize="10" TextColor="#7E8AA8" />
+                                                    </VerticalStackLayout>
+                                                    <Switch x:Name="SwitchMobileSyncAudio" Grid.Column="1" IsToggled="True" OnColor="#7C5CFF" Toggled="OnMobileCloudPrefsToggled" />
+                                                </Grid>
+                                                <Grid ColumnDefinitions="*,Auto">
+                                                    <VerticalStackLayout Spacing="1" VerticalOptions="Center">
+                                                        <Label Text="Theme, Particles &amp; Settings" FontSize="11.5" FontAttributes="Bold" TextColor="#E2E8F0" />
+                                                        <Label Text="Backdrop theme &amp; clock UI" FontSize="10" TextColor="#7E8AA8" />
+                                                    </VerticalStackLayout>
+                                                    <Switch x:Name="SwitchMobileSyncPrefs" Grid.Column="1" IsToggled="True" OnColor="#7C5CFF" Toggled="OnMobileCloudPrefsToggled" />
+                                                </Grid>
+                                            </VerticalStackLayout>
+                                        </Border>
+                                    </VerticalStackLayout>
+                                </Border>
+
+                                <!-- 3. CLOUD TIME MACHINE / BACKUPS -->
+                                <Border BackgroundColor="#0D1124" Stroke="#252E56" StrokeThickness="1" StrokeShape="RoundRectangle 14" Padding="14">
+                                    <VerticalStackLayout Spacing="8">
+                                        <Label Text="🕒 CLOUD TIME MACHINE &amp; BACKUPS" FontSize="12" FontAttributes="Bold" TextColor="#A78BFA" />
+                                        <Label Text="Restore your study library from rolling recovery points inside StudyHub_Sync/Snapshots/." FontSize="10.5" TextColor="#94A3C6" />
                                         <FlexLayout Wrap="Wrap" JustifyContent="Start">
-                                            <Button Text="💾 Save ID/Secret" FontSize="10.5" BackgroundColor="#1E2548" TextColor="#F8FAFC" CornerRadius="8" Padding="9,5" Margin="0,0,6,6" Clicked="OnMobileSaveCloudCredentialsClicked" />
-                                            <Button Text="📄 Pick QuickPair/client_secret.json" FontSize="10.5" BackgroundColor="#1E2548" TextColor="#F8FAFC" CornerRadius="8" Padding="9,5" Margin="0,0,6,6" Clicked="OnMobilePickCloudCredentialsJsonClicked" />
-                                            <Button Text="📋 Copy Quick-Pair" FontSize="10.5" BackgroundColor="#1E2548" TextColor="#CBD5E1" CornerRadius="8" Padding="9,5" Margin="0,0,0,6" Clicked="OnMobileCopyQuickPairClicked" />
+                                            <Button Text="📸 Create Snapshot" FontSize="11" BackgroundColor="#1E2548" TextColor="#E2E8F0" CornerRadius="9" Padding="12,7" Margin="0,0,8,0" Clicked="OnMobileCreateSnapshotNowClicked" />
+                                            <Button x:Name="BtnMobileCloudTimeMachine" Text="🕒 Manage &amp; Restore" FontSize="11" FontAttributes="Bold" BackgroundColor="#232952" TextColor="#A78BFA" CornerRadius="9" Padding="12,7" Clicked="OnMobileCloudTimeMachineClicked" />
                                         </FlexLayout>
+                                    </VerticalStackLayout>
+                                </Border>
 
-                                        <Grid ColumnDefinitions="*,Auto">
-                                            <Label Text="Auto-Sync on Edit &amp; Launch" FontSize="11.5" TextColor="#CBD5E1" VerticalOptions="Center" />
-                                            <Switch x:Name="SwitchMobileAutoSync" Grid.Column="1" IsToggled="True" OnColor="#7C5CFF" Toggled="OnMobileCloudPrefsToggled" />
+                                <!-- 4. ADVANCED SETTINGS: COLLAPSIBLE ACCORDION -->
+                                <Border BackgroundColor="#0D1124" Stroke="#252E56" StrokeThickness="1" StrokeShape="RoundRectangle 14" Padding="14">
+                                    <VerticalStackLayout Spacing="10">
+                                        <Grid ColumnDefinitions="*,Auto" VerticalOptions="Center">
+                                            <Grid.GestureRecognizers>
+                                                <TapGestureRecognizer Tapped="OnMobileCloudToggleAdvancedClicked" />
+                                            </Grid.GestureRecognizers>
+                                            <VerticalStackLayout Spacing="2">
+                                                <Label Text="🔐 ADVANCED API &amp; MOBILE PAIRING" FontSize="12" FontAttributes="Bold" TextColor="#F8FAFC" />
+                                                <Label Text="Quick-Pair Code, client_secret.json &amp; OAuth Client ID/Secret" FontSize="10" TextColor="#7E8AA8" />
+                                            </VerticalStackLayout>
+                                            <HorizontalStackLayout Grid.Column="1" Spacing="8" VerticalOptions="Center">
+                                                <Border BackgroundColor="#151C3A" Stroke="#2B3666" StrokeThickness="1" StrokeShape="RoundRectangle 8" Padding="8,3">
+                                                    <Label x:Name="LblMobileAdvancedSummary" Text="Expand" FontSize="10" TextColor="#94A3C6" />
+                                                </Border>
+                                                <Label x:Name="LblMobileAdvancedChevron" Text="▸" FontSize="15" FontAttributes="Bold" TextColor="#94A3C6" VerticalOptions="Center" />
+                                            </HorizontalStackLayout>
                                         </Grid>
-                                        <Grid ColumnDefinitions="*,Auto">
-                                            <Label Text="Binary Media Transfers Enabled" FontSize="11.5" TextColor="#CBD5E1" VerticalOptions="Center" />
-                                            <Switch x:Name="SwitchMobileSyncFiles" Grid.Column="1" IsToggled="True" OnColor="#7C5CFF" Toggled="OnMobileCloudPrefsToggled" />
-                                        </Grid>
-                                        <Grid ColumnDefinitions="*,Auto">
-                                            <Label Text="Transfer Large Files on Wi-Fi Only" FontSize="11.5" TextColor="#CBD5E1" VerticalOptions="Center" />
-                                            <Switch x:Name="SwitchMobileWifiOnly" Grid.Column="1" IsToggled="True" OnColor="#7C5CFF" Toggled="OnMobileCloudPrefsToggled" />
-                                        </Grid>
-                                        <BoxView HeightRequest="1" BackgroundColor="#232B52" Margin="0,4" />
-                                        <Label Text="CHOOSE WHAT TO SYNC ON THIS PHONE" FontSize="10" FontAttributes="Bold" TextColor="#94A3C6" />
-                                        <Grid ColumnDefinitions="*,Auto">
-                                            <Label Text="📚 Subjects, Notes &amp; Flashcards" FontSize="11.5" TextColor="#CBD5E1" VerticalOptions="Center" />
-                                            <Switch x:Name="SwitchMobileSyncCourses" Grid.Column="1" IsToggled="True" OnColor="#7C5CFF" Toggled="OnMobileCloudPrefsToggled" />
-                                        </Grid>
-                                        <Grid ColumnDefinitions="*,Auto">
-                                            <Label Text="🔗 Links, Tasks &amp; Deadlines" FontSize="11.5" TextColor="#CBD5E1" VerticalOptions="Center" />
-                                            <Switch x:Name="SwitchMobileSyncLinks" Grid.Column="1" IsToggled="True" OnColor="#7C5CFF" Toggled="OnMobileCloudPrefsToggled" />
-                                        </Grid>
-                                        <Grid ColumnDefinitions="*,Auto">
-                                            <Label Text="📅 Calendar Events &amp; Heatmap" FontSize="11.5" TextColor="#CBD5E1" VerticalOptions="Center" />
-                                            <Switch x:Name="SwitchMobileSyncCalendar" Grid.Column="1" IsToggled="True" OnColor="#7C5CFF" Toggled="OnMobileCloudPrefsToggled" />
-                                        </Grid>
-                                        <Grid ColumnDefinitions="*,Auto">
-                                            <Label Text="📄 PDFs &amp; Study Documents" FontSize="11.5" TextColor="#CBD5E1" VerticalOptions="Center" />
-                                            <Switch x:Name="SwitchMobileSyncPdfs" Grid.Column="1" IsToggled="True" OnColor="#7C5CFF" Toggled="OnMobileCloudPrefsToggled" />
-                                        </Grid>
-                                        <Grid ColumnDefinitions="*,Auto">
-                                            <Label Text="🎬 Lecture Videos &amp; Recordings" FontSize="11.5" TextColor="#CBD5E1" VerticalOptions="Center" />
-                                            <Switch x:Name="SwitchMobileSyncVideos" Grid.Column="1" IsToggled="True" OnColor="#7C5CFF" Toggled="OnMobileCloudPrefsToggled" />
-                                        </Grid>
-                                        <Grid ColumnDefinitions="*,Auto">
-                                            <Label Text="🏔️ Extra Zen Scenes &amp; Custom Media" FontSize="11.5" TextColor="#CBD5E1" VerticalOptions="Center" />
-                                            <Switch x:Name="SwitchMobileSyncZen" Grid.Column="1" IsToggled="True" OnColor="#7C5CFF" Toggled="OnMobileCloudPrefsToggled" />
-                                        </Grid>
-                                        <Grid ColumnDefinitions="*,Auto">
-                                            <Label Text="🎧 Extra Audio &amp; Mixer Presets" FontSize="11.5" TextColor="#CBD5E1" VerticalOptions="Center" />
-                                            <Switch x:Name="SwitchMobileSyncAudio" Grid.Column="1" IsToggled="True" OnColor="#7C5CFF" Toggled="OnMobileCloudPrefsToggled" />
-                                        </Grid>
-                                        <Grid ColumnDefinitions="*,Auto">
-                                            <Label Text="🎨 Theme, Particles &amp; App Preferences" FontSize="11.5" TextColor="#CBD5E1" VerticalOptions="Center" />
-                                            <Switch x:Name="SwitchMobileSyncPrefs" Grid.Column="1" IsToggled="True" OnColor="#7C5CFF" Toggled="OnMobileCloudPrefsToggled" />
-                                        </Grid>
+
+                                        <VerticalStackLayout x:Name="MobileCloudAdvancedBody" IsVisible="False" Spacing="10">
+                                            <BoxView HeightRequest="1" Color="#1E2646" />
+
+                                            <Label Text="Phone Quick-Pair Code (Recommended from PC):" FontSize="11" FontAttributes="Bold" TextColor="#CBD5E1" />
+                                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
+                                                <Border BackgroundColor="#151A36" Stroke="#2B3666" StrokeThickness="1" StrokeShape="RoundRectangle 10" Padding="8,2">
+                                                    <Grid ColumnDefinitions="*,Auto">
+                                                        <Entry x:Name="EntryMobileQuickPairCode" Placeholder="Paste SHPAIR1:... code here" PlaceholderColor="#687296" TextColor="#F8FAFC" BackgroundColor="Transparent" FontSize="11.5" HeightRequest="42" />
+                                                        <Button Grid.Column="1" Text="✕" FontSize="11" BackgroundColor="Transparent" TextColor="#7E8AA8" WidthRequest="32" HeightRequest="32" Padding="0" Clicked="OnMobileClearQuickPairClicked" />
+                                                    </Grid>
+                                                </Border>
+                                                <Button Grid.Column="1" Text="Apply" FontSize="11.5" FontAttributes="Bold" BackgroundColor="#232D58" TextColor="#38BDF8" CornerRadius="10" Padding="14,6" Clicked="OnMobileApplyQuickPairCodeClicked" />
+                                            </Grid>
+
+                                            <Label Text="Google OAuth Client ID" FontSize="11" FontAttributes="Bold" TextColor="#CBD5E1" />
+                                            <Border BackgroundColor="#151A36" Stroke="#2B3666" StrokeThickness="1" StrokeShape="RoundRectangle 10" Padding="8,2">
+                                                <Grid ColumnDefinitions="*,Auto,Auto">
+                                                    <Entry x:Name="EntryMobileCloudClientId" Placeholder="*.apps.googleusercontent.com" PlaceholderColor="#687296" TextColor="#F8FAFC" BackgroundColor="Transparent" FontSize="11.5" HeightRequest="42" />
+                                                    <Button Grid.Column="1" Text="📋" FontSize="12" BackgroundColor="Transparent" TextColor="#94A3C6" WidthRequest="34" HeightRequest="34" Padding="0" Clicked="OnMobileCopyClientIdClicked" />
+                                                    <Button Grid.Column="2" Text="✕" FontSize="11" BackgroundColor="Transparent" TextColor="#7E8AA8" WidthRequest="32" HeightRequest="32" Padding="0" Clicked="OnMobileClearClientIdClicked" />
+                                                </Grid>
+                                            </Border>
+
+                                            <Label Text="Google OAuth Client Secret" FontSize="11" FontAttributes="Bold" TextColor="#CBD5E1" />
+                                            <Border BackgroundColor="#151A36" Stroke="#2B3666" StrokeThickness="1" StrokeShape="RoundRectangle 10" Padding="8,2">
+                                                <Grid ColumnDefinitions="*,Auto,Auto,Auto">
+                                                    <Entry x:Name="EntryMobileCloudClientSecret" Placeholder="Client Secret (optional/from JSON)" IsPassword="True" PlaceholderColor="#687296" TextColor="#F8FAFC" BackgroundColor="Transparent" FontSize="11.5" HeightRequest="42" />
+                                                    <Button Grid.Column="1" Text="👁" FontSize="12" BackgroundColor="Transparent" TextColor="#94A3C6" WidthRequest="34" HeightRequest="34" Padding="0" Clicked="OnMobileToggleSecretMaskClicked" />
+                                                    <Button Grid.Column="2" Text="📋" FontSize="12" BackgroundColor="Transparent" TextColor="#94A3C6" WidthRequest="34" HeightRequest="34" Padding="0" Clicked="OnMobileCopyClientSecretClicked" />
+                                                    <Button Grid.Column="3" Text="✕" FontSize="11" BackgroundColor="Transparent" TextColor="#7E8AA8" WidthRequest="32" HeightRequest="32" Padding="0" Clicked="OnMobileClearClientSecretClicked" />
+                                                </Grid>
+                                            </Border>
+
+                                            <FlexLayout Wrap="Wrap" JustifyContent="Start">
+                                                <Button Text="💾 Save ID/Secret" FontSize="11" FontAttributes="Bold" BackgroundColor="#7C5CFF" TextColor="White" CornerRadius="9" Padding="11,7" Margin="0,0,6,6" Clicked="OnMobileSaveCloudCredentialsClicked" />
+                                                <Button Text="📄 Pick JSON" FontSize="11" BackgroundColor="#1E2548" TextColor="#F8FAFC" CornerRadius="9" Padding="11,7" Margin="0,0,6,6" Clicked="OnMobilePickCloudCredentialsJsonClicked" />
+                                                <Button Text="📋 Copy Quick-Pair" FontSize="11" BackgroundColor="#1E2548" TextColor="#CBD5E1" CornerRadius="9" Padding="11,7" Margin="0,0,0,6" Clicked="OnMobileCopyQuickPairClicked" />
+                                            </FlexLayout>
+                                        </VerticalStackLayout>
                                     </VerticalStackLayout>
                                 </Border>
                             </VerticalStackLayout>
@@ -2362,6 +2524,90 @@
 
                     <Label x:Name="LblMobileProgressDetail" Text="Downloading &amp; verifying installer package..." FontSize="11" TextColor="#94A3C6" />
                 </VerticalStackLayout>
+            </Border>
+        </Grid>
+
+        <!-- ================= HOW TO LINK GOOGLE DRIVE GUIDE OVERLAY ================= -->
+        <Grid x:Name="MobileHowToLinkOverlay" IsVisible="False" BackgroundColor="#CC000000" Padding="14">
+            <Border MaximumWidthRequest="540"
+                    BackgroundColor="#11152C"
+                    Stroke="#38BDF8"
+                    StrokeThickness="1.5"
+                    StrokeShape="RoundRectangle 20"
+                    Padding="18"
+                    HorizontalOptions="Center"
+                    VerticalOptions="Center">
+                <Grid RowDefinitions="Auto,*,Auto" RowSpacing="12">
+                    <Grid ColumnDefinitions="*,Auto" VerticalOptions="Start">
+                        <VerticalStackLayout Spacing="2">
+                            <Label Text="📖 How to Link Google Drive" FontSize="16" FontAttributes="Bold" TextColor="#F8FAFC" />
+                            <Label Text="Free one-time setup (~3 mins). Text-only beginner guide." FontSize="11" TextColor="#94A3C6" />
+                        </VerticalStackLayout>
+                        <Button Grid.Column="1" Text="✕" FontSize="13" BackgroundColor="#1E2548" TextColor="#E2E8F0" CornerRadius="9" WidthRequest="36" HeightRequest="36" Padding="0" Clicked="OnMobileCloseHowToLinkClicked" />
+                    </Grid>
+
+                    <ScrollView Grid.Row="1" MaximumHeightRequest="500">
+                        <VerticalStackLayout Spacing="10">
+                            <Border BackgroundColor="#0D1124" Stroke="#38BDF8" StrokeThickness="1" StrokeShape="RoundRectangle 12" Padding="12">
+                                <VerticalStackLayout Spacing="4">
+                                    <Label Text="🔒 Why create your own Google Cloud OAuth Client?" FontSize="12" FontAttributes="Bold" TextColor="#38BDF8" />
+                                    <Label Text="Your files stay 100% private in your own Google Drive (/StudyHub_Sync/) with zero subscription cost and no middleman server." FontSize="11" TextColor="#CBD5E1" />
+                                </VerticalStackLayout>
+                            </Border>
+
+                            <Border BackgroundColor="#0D1124" Stroke="#252E56" StrokeThickness="1" StrokeShape="RoundRectangle 12" Padding="12">
+                                <VerticalStackLayout Spacing="4">
+                                    <Label Text="STEP 1 — Create Google Cloud Project" FontSize="12" FontAttributes="Bold" TextColor="#A78BFA" />
+                                    <Label Text="1. Open console.cloud.google.com on your PC or phone browser and sign in with Gmail.&#10;2. Click the Project dropdown pill next to 'Google Cloud' (top-left bar) and tap 'New Project'.&#10;3. Name it 'StudyHub', leave Organization &amp; Parent as 'No organization', and tap 'Create'.&#10;4. Make sure 'StudyHub' is selected in the top-left Project dropdown." FontSize="11" TextColor="#E2E8F0" />
+                                </VerticalStackLayout>
+                            </Border>
+
+                            <Border BackgroundColor="#0D1124" Stroke="#252E56" StrokeThickness="1" StrokeShape="RoundRectangle 12" Padding="12">
+                                <VerticalStackLayout Spacing="4">
+                                    <Label Text="STEP 2 — Enable Google Drive API" FontSize="12" FontAttributes="Bold" TextColor="#38BDF8" />
+                                    <Label Text="1. Open ☰ Menu -&gt; APIs &amp; Services -&gt; Library (or search 'Google Drive API' in the top search box).&#10;2. Open Google Drive API (drive.googleapis.com) and tap the blue 'Enable' button until Status shows Enabled." FontSize="11" TextColor="#E2E8F0" />
+                                </VerticalStackLayout>
+                            </Border>
+
+                            <Border BackgroundColor="#0D1124" Stroke="#252E56" StrokeThickness="1" StrokeShape="RoundRectangle 12" Padding="12">
+                                <VerticalStackLayout Spacing="4">
+                                    <Label Text="STEP 3 — Google Auth Platform Setup" FontSize="12" FontAttributes="Bold" TextColor="#10B981" />
+                                    <Label Text="Open APIs &amp; Services -&gt; OAuth consent screen -&gt; Get started:&#10;• 1. App Information: Name 'StudyHub' + choose your Gmail support email -&gt; Next.&#10;• 2. Audience: Select 'External' (NOT Internal) -&gt; Next.&#10;• 3. Contact Information: Enter your Gmail -&gt; Next.&#10;• 4. Finish: Agree to User Data Policy -&gt; Continue -&gt; Create." FontSize="11" TextColor="#E2E8F0" />
+                                </VerticalStackLayout>
+                            </Border>
+
+                            <Border BackgroundColor="#0D1124" Stroke="#F59E0B" StrokeThickness="1" StrokeShape="RoundRectangle 12" Padding="12">
+                                <VerticalStackLayout Spacing="4">
+                                    <Label Text="STEP 4 — Add Yourself as a Test User (CRITICAL!)" FontSize="12" FontAttributes="Bold" TextColor="#FBBF24" />
+                                    <Label Text="To avoid 'Error 403: access_denied':&#10;1. In Google Auth Platform left sidebar click 'Audience'.&#10;2. Scroll to 'Test users' -&gt; '+ Add users'.&#10;3. Type your exact Gmail address and tap 'Save'." FontSize="11" TextColor="#E2E8F0" />
+                                </VerticalStackLayout>
+                            </Border>
+
+                            <Border BackgroundColor="#0D1124" Stroke="#252E56" StrokeThickness="1" StrokeShape="RoundRectangle 12" Padding="12">
+                                <VerticalStackLayout Spacing="4">
+                                    <Label Text="STEP 5 — Create Desktop OAuth Client" FontSize="12" FontAttributes="Bold" TextColor="#38BDF8" />
+                                    <Label Text="1. Click 'Clients' -&gt; 'Create OAuth client'.&#10;2. Under Application type ALWAYS select 'Desktop app' (yes — Desktop app works for both Windows and Android!).&#10;3. Click 'Create' -&gt; 'Download JSON' to save your client_secret_...json file privately." FontSize="11" TextColor="#E2E8F0" />
+                                </VerticalStackLayout>
+                            </Border>
+
+                            <Border BackgroundColor="#0D1124" Stroke="#252E56" StrokeThickness="1" StrokeShape="RoundRectangle 12" Padding="12">
+                                <VerticalStackLayout Spacing="4">
+                                    <Label Text="STEP 6 &amp; 7 — Link PC + Quick-Pair Phone" FontSize="12" FontAttributes="Bold" TextColor="#EC4899" />
+                                    <Label Text="• On PC: Expand 'Advanced API &amp; Mobile Pairing' -&gt; 'Import client_secret.json' -&gt; click 'Sign In with Google' -&gt; choose Continue on 'unverified app' (yours!) -&gt; click 'Copy Phone Quick-Pair'.&#10;• On Android: Expand 'Advanced API &amp; Mobile Pairing' -&gt; paste the SHPAIR1:... code -&gt; tap Apply (or Pick JSON) -&gt; tap 'Sign In Google' with the same Gmail!" FontSize="11" TextColor="#E2E8F0" />
+                                </VerticalStackLayout>
+                            </Border>
+
+                            <Border BackgroundColor="#131936" Stroke="#252E56" StrokeThickness="1" StrokeShape="RoundRectangle 12" Padding="12">
+                                <VerticalStackLayout Spacing="4">
+                                    <Label Text="🛠️ Troubleshooting" FontSize="12" FontAttributes="Bold" TextColor="#F8FAFC" />
+                                    <Label Text="• Error 403 access_denied: Check Step 4 (Audience -&gt; Test users).&#10;• Browser says unverified app: Safe for your personal Testing app; press Advanced / Continue.&#10;• Redirect stuck: Copy the http://127.0.0.1... URL from the browser bar and paste it in the manual fallback box." FontSize="10.5" TextColor="#94A3C6" />
+                                </VerticalStackLayout>
+                            </Border>
+                        </VerticalStackLayout>
+                    </ScrollView>
+
+                    <Button Grid.Row="2" Text="Got It ✓" FontSize="12" FontAttributes="Bold" BackgroundColor="#7C5CFF" TextColor="White" CornerRadius="10" HeightRequest="40" Clicked="OnMobileCloseHowToLinkClicked" />
+                </Grid>
             </Border>
         </Grid>
 
