@@ -160,10 +160,10 @@ namespace StudyHub.Services
                         }
                         else if (!string.Equals(branch, repoDefaultBranch, StringComparison.OrdinalIgnoreCase))
                         {
-                            // Auto-fallback when URL specifies e.g. /tree/study_hub but repo actually uses main
+                            // Auto-fallback when URL specifies a tag/stale ref (e.g. /tree/study_hub tag) instead of an actual branch
                             try
                             {
-                                using var brCheck = await _http.GetAsync($"https://api.github.com/repos/{owner}/{repo}/commits/{branch}");
+                                using var brCheck = await _http.GetAsync($"https://api.github.com/repos/{owner}/{repo}/branches/{Uri.EscapeDataString(branch)}");
                                 if (!brCheck.IsSuccessStatusCode)
                                 {
                                     activeBranch = repoDefaultBranch;
@@ -290,17 +290,42 @@ namespace StudyHub.Services
                 }
                 catch { }
 
-                // 2. Strategy B: Check authoritative version.json in active branch
+                // 2. Strategy B: Check authoritative version.json in active branch (API contents first to bypass Fastly 5-min raw CDN cache, then raw fallback)
                 bool verJsonFound = false;
                 string verJsonVer = "", verJsonNotes = "", verJsonDl = "", verJsonDate = "";
                 int verJsonBuild = 0;
                 try
                 {
-                    string rawVerUrl = $"https://raw.githubusercontent.com/{owner}/{repo}/{activeBranch}/version.json?t={DateTimeOffset.UtcNow.ToUnixTimeSeconds()}";
-                    using var verResp = await _http.GetAsync(rawVerUrl);
-                    if (verResp.IsSuccessStatusCode)
+                    string versionJsonText = "";
+                    try
                     {
-                        using var doc = JsonDocument.Parse(await verResp.Content.ReadAsStringAsync());
+                        using var apiVerResp = await _http.GetAsync($"https://api.github.com/repos/{owner}/{repo}/contents/version.json?ref={Uri.EscapeDataString(activeBranch)}");
+                        if (apiVerResp.IsSuccessStatusCode)
+                        {
+                            using var apiDoc = JsonDocument.Parse(await apiVerResp.Content.ReadAsStringAsync());
+                            if (apiDoc.RootElement.TryGetProperty("content", out var cEl))
+                            {
+                                string b64 = (cEl.GetString() ?? "").Replace("\n", "").Replace("\r", "").Trim();
+                                if (!string.IsNullOrEmpty(b64))
+                                    versionJsonText = Encoding.UTF8.GetString(Convert.FromBase64String(b64));
+                            }
+                        }
+                    }
+                    catch { }
+
+                    if (string.IsNullOrWhiteSpace(versionJsonText))
+                    {
+                        string rawVerUrl = $"https://raw.githubusercontent.com/{owner}/{repo}/{activeBranch}/version.json?t={DateTimeOffset.UtcNow.ToUnixTimeSeconds()}";
+                        using var rawReq = new HttpRequestMessage(HttpMethod.Get, rawVerUrl);
+                        rawReq.Headers.TryAddWithoutValidation("Cache-Control", "no-cache");
+                        using var verResp = await _http.SendAsync(rawReq);
+                        if (verResp.IsSuccessStatusCode)
+                            versionJsonText = await verResp.Content.ReadAsStringAsync();
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(versionJsonText))
+                    {
+                        using var doc = JsonDocument.Parse(versionJsonText);
                         var root = doc.RootElement;
                         string remoteVer = root.TryGetProperty("version", out var vEl) ? (vEl.GetString() ?? "") : "";
                         verJsonBuild = root.TryGetProperty("build", out var bEl) && bEl.TryGetInt32(out int bVal) ? bVal : 0;
@@ -319,18 +344,22 @@ namespace StudyHub.Services
                 }
                 catch { }
 
-                // Pick authoritative metadata: Release wins ONLY if its version strictly exceeds version.json & CurrentAppVersion
-                bool useReleaseOverVersionJson = relFound
+                // Pick authoritative metadata: Release wins when valid and >= version.json (or version.json unavailable), and never falls through to Strategy C!
+                bool releaseAuthoritative = relFound
                     && !string.IsNullOrWhiteSpace(relVer)
-                    && (!verJsonFound || CompareVersions(relVer, verJsonVer) > 0);
+                    && (!verJsonFound || CompareVersions(relVer, verJsonVer) >= 0);
 
-                if (useReleaseOverVersionJson && CompareVersions(relVer, CurrentAppVersion) > 0)
+                if (releaseAuthoritative)
                 {
                     result.Success = true;
-                    result.IsUpdateAvailable = true;
+                    result.IsUpdateAvailable = CompareVersions(relVer, CurrentAppVersion) > 0;
                     result.LatestVersion = relVer;
                     result.ReleaseTitle = relTitle;
-                    result.ReleaseNotes = string.IsNullOrWhiteSpace(relNotes) ? $"Study Hub v{relVer}" : relNotes;
+                    result.ReleaseNotes = !string.IsNullOrWhiteSpace(relNotes)
+                        ? relNotes
+                        : (verJsonFound && CompareVersions(verJsonVer, relVer) == 0 && !string.IsNullOrWhiteSpace(verJsonNotes)
+                            ? verJsonNotes
+                            : $"Study Hub v{relVer}");
                     result.PublishedAt = FormatIsoDate(relPub);
                     result.LatestCommitSha = relTagId;
 

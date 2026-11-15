@@ -518,7 +518,7 @@ namespace StudyHub.Models
         [JsonPropertyName("notifications")]
         public bool Notifications { get; set; } = true;
 
-        public const string DefaultGithubRepoUrl = "https://github.com/InfamousToken10729/Study-Hub-Remastered/tree/study_hub";
+        public const string DefaultGithubRepoUrl = "https://github.com/InfamousToken10729/Study-Hub-Remastered";
 
         [JsonPropertyName("calendarNotifsEnabled")]
         public bool CalendarNotifsEnabled { get; set; } = true;
@@ -565,10 +565,11 @@ namespace StudyHub.Models
 
         public static string NormalizeGithubRepoUrl(string? url)
         {
-            var trimmed = (url ?? "").Trim();
+            var trimmed = (url ?? "").Trim().TrimEnd('/');
             if (string.IsNullOrEmpty(trimmed) ||
                 string.Equals(trimmed, "https://github.com/Mahmoud/StudyHub", StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(trimmed, "https://github.com/Mahmoud/StudyHub.git", StringComparison.OrdinalIgnoreCase))
+                string.Equals(trimmed, "https://github.com/Mahmoud/StudyHub.git", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(trimmed, "https://github.com/InfamousToken10729/Study-Hub-Remastered/tree/study_hub", StringComparison.OrdinalIgnoreCase))
             {
                 return DefaultGithubRepoUrl;
             }
@@ -642,7 +643,7 @@ namespace StudyHub.Models
             if (PomoBreak < 1) PomoBreak = 5;
             CalendarNotifPresets ??= new() { "start_of_day", "1_day", "3_days" };
             MixerLevels ??= new();
-            GithubRepoUrl ??= "";
+            GithubRepoUrl = NormalizeGithubRepoUrl(GithubRepoUrl);
             InstalledCommitSha ??= "";
             LastUpdateCheck ??= "";
             LastSyncStatusText ??= "";
