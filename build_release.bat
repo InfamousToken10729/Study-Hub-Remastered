@@ -1,13 +1,13 @@
 @echo off
 setlocal EnableDelayedExpansion
-title Study Hub v3.7.1 - Dual Platform Builder (.EXE + .APK)
+title Study Hub v3.7.2 - Dual Platform Builder (.EXE + .APK)
 cd /d "%~dp0"
 
 set "NO_LAUNCH=0"
 if /i "%~1"=="--no-launch" set "NO_LAUNCH=1"
 
 echo ============================================================================
-echo   STUDY HUB v3.7.1 REMASTERED - DUAL-TARGET BUILDER (WINDOWS .EXE + ANDROID .APK)
+echo   STUDY HUB v3.7.2 REMASTERED - DUAL-TARGET BUILDER (WINDOWS .EXE + ANDROID .APK)
 echo ============================================================================
 echo.
 

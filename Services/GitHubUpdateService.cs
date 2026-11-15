@@ -31,8 +31,8 @@ namespace StudyHub.Services
 
     public class GitHubUpdateService
     {
-        public const string CurrentAppVersion = "3.7.1";
-        public const int CurrentAppBuild = 371;
+        public const string CurrentAppVersion = "3.7.2";
+        public const int CurrentAppBuild = 372;
 
         private readonly HttpClient _http;
         private readonly string _baseDir;
@@ -214,7 +214,10 @@ namespace StudyHub.Services
                     return ("", "", "");
                 }
 
-                // 1. Strategy A: Check GitHub Releases (/releases/latest or /releases?per_page=1)
+                bool relFound = false;
+                string relVer = "", relTitle = "", relNotes = "", relPub = "", relUrl = "", relType = "", relTagId = "", relZipball = "";
+
+                // 1. Strategy A: Inspect GitHub Releases into isolated metadata (never let an older release like v3.0.0 shadow newer version.json!)
                 try
                 {
                     JsonElement? relRoot = null;
@@ -244,14 +247,15 @@ namespace StudyHub.Services
                         string pub = root.TryGetProperty("published_at", out var pEl) ? (pEl.GetString() ?? "") : "";
                         string relId = root.TryGetProperty("id", out var idEl) ? idEl.ToString() : "";
                         string zipball = root.TryGetProperty("zipball_url", out var zEl) ? (zEl.GetString() ?? "") : "";
-                        releasePublishedIso = pub;
-                        releaseTagId = !string.IsNullOrWhiteSpace(tag) ? $"rel:{tag}:{relId}" : $"rel:{relId}";
 
-                        string cleanRemoteVer = CleanVersionString(tag);
-                        if (string.IsNullOrWhiteSpace(cleanRemoteVer)) cleanRemoteVer = CleanVersionString(name);
+                        relVer = CleanVersionString(tag);
+                        if (string.IsNullOrWhiteSpace(relVer)) relVer = CleanVersionString(name);
+                        relTitle = string.IsNullOrWhiteSpace(name) ? $"Release {tag}" : name;
+                        relNotes = body;
+                        relPub = pub;
+                        relZipball = zipball;
+                        relTagId = !string.IsNullOrWhiteSpace(tag) ? $"rel:{tag}:{relId}" : $"rel:{relId}";
 
-                        string assetUrl = "";
-                        string assetType = "";
                         if (root.TryGetProperty("assets", out var assetsEl) && assetsEl.ValueKind == JsonValueKind.Array)
                         {
                             foreach (var asset in assetsEl.EnumerateArray())
@@ -261,72 +265,35 @@ namespace StudyHub.Services
 #if ANDROID
                                 if (aName.EndsWith(".apk", StringComparison.OrdinalIgnoreCase))
                                 {
-                                    assetUrl = aUrl;
-                                    assetType = "apk";
-                                    hasNativeBinaryAsset = true;
+                                    relUrl = aUrl;
+                                    relType = "apk";
                                     break;
                                 }
 #else
                                 if (aName.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
                                 {
-                                    assetUrl = aUrl;
-                                    assetType = "exe";
-                                    hasNativeBinaryAsset = true;
+                                    relUrl = aUrl;
+                                    relType = "exe";
                                     break;
                                 }
-                                if (aName.EndsWith(".zip", StringComparison.OrdinalIgnoreCase) && string.IsNullOrEmpty(assetUrl))
+                                if (aName.EndsWith(".zip", StringComparison.OrdinalIgnoreCase) && string.IsNullOrEmpty(relUrl))
                                 {
-                                    assetUrl = aUrl;
-                                    assetType = "zip";
-                                    hasNativeBinaryAsset = true;
+                                    relUrl = aUrl;
+                                    relType = "zip";
                                 }
 #endif
                             }
                         }
 
-                        if (string.IsNullOrEmpty(assetUrl))
-                        {
-                            // Fallback to repo root binary (StudyHub.apk / StudyHub.exe) ignoring GitHub's auto-generated Source code zips
-                            var (rootUrl, rootType, _) = await TryResolveRepoRootBinaryAsync();
-                            if (!string.IsNullOrWhiteSpace(rootUrl))
-                            {
-                                assetUrl = rootUrl;
-                                assetType = rootType;
-                                hasNativeBinaryAsset = true;
-                            }
-#if !ANDROID
-                            else
-                            {
-                                assetUrl = !string.IsNullOrEmpty(zipball)
-                                    ? zipball
-                                    : $"https://github.com/{owner}/{repo}/archive/refs/heads/{activeBranch}.zip";
-                                assetType = "source_zip";
-                            }
-#endif
-                        }
-
-                        if (!string.IsNullOrWhiteSpace(tag) || !string.IsNullOrWhiteSpace(name))
-                        {
-                            result.Success = true;
-                            result.LatestVersion = !string.IsNullOrWhiteSpace(cleanRemoteVer) ? cleanRemoteVer : CurrentAppVersion;
-                            result.ReleaseTitle = string.IsNullOrWhiteSpace(name) ? $"Release {tag}" : name;
-                            result.ReleaseNotes = string.IsNullOrWhiteSpace(body) ? "Release found on GitHub." : body;
-                            result.PublishedAt = FormatIsoDate(pub);
-                            result.DownloadUrl = assetUrl;
-                            result.DownloadType = assetType;
-                            result.LatestCommitSha = releaseTagId;
-
-                            if (!string.IsNullOrWhiteSpace(cleanRemoteVer) && CompareVersions(cleanRemoteVer, CurrentAppVersion) > 0)
-                            {
-                                result.IsUpdateAvailable = true;
-                                return result;
-                            }
-                        }
+                        relFound = !string.IsNullOrWhiteSpace(tag) || !string.IsNullOrWhiteSpace(name);
                     }
                 }
                 catch { }
 
-                // 2. Strategy B: Check raw version.json in active branch
+                // 2. Strategy B: Check authoritative version.json in active branch
+                bool verJsonFound = false;
+                string verJsonVer = "", verJsonNotes = "", verJsonDl = "", verJsonDate = "";
+                int verJsonBuild = 0;
                 try
                 {
                     string rawVerUrl = $"https://raw.githubusercontent.com/{owner}/{repo}/{activeBranch}/version.json?t={DateTimeOffset.UtcNow.ToUnixTimeSeconds()}";
@@ -336,78 +303,147 @@ namespace StudyHub.Services
                         using var doc = JsonDocument.Parse(await verResp.Content.ReadAsStringAsync());
                         var root = doc.RootElement;
                         string remoteVer = root.TryGetProperty("version", out var vEl) ? (vEl.GetString() ?? "") : "";
-                        int remoteBuild = root.TryGetProperty("build", out var bEl) && bEl.TryGetInt32(out int bVal) ? bVal : 0;
-                        string notes = root.TryGetProperty("notes", out var nEl) ? (nEl.GetString() ?? "") : "";
-                        string customDl = root.TryGetProperty("download_url", out var dEl) ? (dEl.GetString() ?? "") : "";
+                        verJsonBuild = root.TryGetProperty("build", out var bEl) && bEl.TryGetInt32(out int bVal) ? bVal : 0;
+                        verJsonNotes = root.TryGetProperty("notes", out var nEl) ? (nEl.GetString() ?? "") : "";
+                        verJsonDate = root.TryGetProperty("releaseDate", out var rdEl) ? (rdEl.GetString() ?? "") : "";
+                        verJsonDl = root.TryGetProperty("download_url", out var dEl) ? (dEl.GetString() ?? "") : "";
 #if ANDROID
                         if (root.TryGetProperty("apk_url", out var apkEl) && !string.IsNullOrWhiteSpace(apkEl.GetString()))
-                            customDl = apkEl.GetString() ?? customDl;
+                            verJsonDl = apkEl.GetString() ?? verJsonDl;
                         else if (root.TryGetProperty("android_download_url", out var aApkEl) && !string.IsNullOrWhiteSpace(aApkEl.GetString()))
-                            customDl = aApkEl.GetString() ?? customDl;
+                            verJsonDl = aApkEl.GetString() ?? verJsonDl;
 #endif
-
-                        string cleanVer = CleanVersionString(remoteVer);
-                        if (!string.IsNullOrWhiteSpace(cleanVer))
-                        {
-                            result.Success = true;
-                            result.LatestVersion = cleanVer;
-                            if (string.IsNullOrWhiteSpace(result.ReleaseTitle))
-                                result.ReleaseTitle = $"Study Hub v{cleanVer}";
-                            if (string.IsNullOrWhiteSpace(result.ReleaseNotes) || result.ReleaseNotes == "Release found on GitHub.")
-                                result.ReleaseNotes = string.IsNullOrWhiteSpace(notes) ? $"Version {cleanVer} from {owner}/{repo} ({activeBranch})" : notes;
-
-                            // Preserve already-found release native binary if present; otherwise apply customDl / repo root binary
-                            if (!hasNativeBinaryAsset)
-                            {
-                                if (!string.IsNullOrWhiteSpace(customDl))
-                                {
-                                    bool isWantedBinary =
-#if ANDROID
-                                        customDl.EndsWith(".apk", StringComparison.OrdinalIgnoreCase);
-#else
-                                        customDl.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) || customDl.EndsWith(".zip", StringComparison.OrdinalIgnoreCase);
-#endif
-                                    if (isWantedBinary)
-                                    {
-                                        result.DownloadUrl = customDl;
-                                        result.DownloadType = customDl.EndsWith(".apk", StringComparison.OrdinalIgnoreCase) ? "apk"
-                                            : customDl.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ? "exe" : "zip";
-                                        hasNativeBinaryAsset = true;
-                                    }
-                                }
-
-                                if (!hasNativeBinaryAsset)
-                                {
-                                    var (rootUrl, rootType, _) = await TryResolveRepoRootBinaryAsync();
-                                    if (!string.IsNullOrWhiteSpace(rootUrl))
-                                    {
-                                        result.DownloadUrl = rootUrl;
-                                        result.DownloadType = rootType;
-                                        hasNativeBinaryAsset = true;
-                                    }
-#if !ANDROID
-                                    else if (string.IsNullOrWhiteSpace(result.DownloadUrl))
-                                    {
-                                        result.DownloadUrl = !string.IsNullOrWhiteSpace(customDl)
-                                            ? customDl
-                                            : $"https://github.com/{owner}/{repo}/archive/refs/heads/{activeBranch}.zip";
-                                        result.DownloadType = "source_zip";
-                                    }
-#endif
-                                }
-                            }
-
-                            if (CompareVersions(cleanVer, CurrentAppVersion) > 0 || remoteBuild > CurrentAppBuild)
-                            {
-                                result.IsUpdateAvailable = true;
-                                return result;
-                            }
-                        }
+                        verJsonVer = CleanVersionString(remoteVer);
+                        verJsonFound = !string.IsNullOrWhiteSpace(verJsonVer);
                     }
                 }
                 catch { }
 
-                // 3. Strategy C: Check latest commit on active branch (and ensure binary URL is present)
+                // Pick authoritative metadata: Release wins ONLY if its version strictly exceeds version.json & CurrentAppVersion
+                bool useReleaseOverVersionJson = relFound
+                    && !string.IsNullOrWhiteSpace(relVer)
+                    && (!verJsonFound || CompareVersions(relVer, verJsonVer) > 0);
+
+                if (useReleaseOverVersionJson && CompareVersions(relVer, CurrentAppVersion) > 0)
+                {
+                    result.Success = true;
+                    result.IsUpdateAvailable = true;
+                    result.LatestVersion = relVer;
+                    result.ReleaseTitle = relTitle;
+                    result.ReleaseNotes = string.IsNullOrWhiteSpace(relNotes) ? $"Study Hub v{relVer}" : relNotes;
+                    result.PublishedAt = FormatIsoDate(relPub);
+                    result.LatestCommitSha = relTagId;
+
+                    if (!string.IsNullOrWhiteSpace(relUrl))
+                    {
+                        result.DownloadUrl = relUrl;
+                        result.DownloadType = relType;
+                    }
+                    else
+                    {
+                        var (rootUrl, rootType, _) = await TryResolveRepoRootBinaryAsync();
+                        if (!string.IsNullOrWhiteSpace(rootUrl))
+                        {
+                            result.DownloadUrl = rootUrl;
+                            result.DownloadType = rootType;
+                        }
+#if !ANDROID
+                        else
+                        {
+                            result.DownloadUrl = !string.IsNullOrEmpty(relZipball)
+                                ? relZipball
+                                : $"https://github.com/{owner}/{repo}/archive/refs/heads/{activeBranch}.zip";
+                            result.DownloadType = "source_zip";
+                        }
+#endif
+                    }
+                    return result;
+                }
+
+                if (verJsonFound)
+                {
+                    result.Success = true;
+                    result.LatestVersion = verJsonVer;
+                    result.ReleaseTitle = $"Study Hub v{verJsonVer}";
+                    result.ReleaseNotes = !string.IsNullOrWhiteSpace(verJsonNotes)
+                        ? verJsonNotes
+                        : (relFound && CompareVersions(relVer, verJsonVer) >= 0 && !string.IsNullOrWhiteSpace(relNotes)
+                            ? relNotes
+                            : $"Version {verJsonVer} from {owner}/{repo} ({activeBranch})");
+                    result.PublishedAt = !string.IsNullOrWhiteSpace(verJsonDate) ? verJsonDate : FormatIsoDate(relPub);
+                    result.LatestCommitSha = $"ver:{verJsonVer}:b{verJsonBuild}";
+
+                    // Prefer Release asset only if Release matches >= version.json; otherwise resolve repo root binary cleanly
+                    if (relFound && CompareVersions(relVer, verJsonVer) >= 0 && !string.IsNullOrWhiteSpace(relUrl))
+                    {
+                        result.DownloadUrl = relUrl;
+                        result.DownloadType = relType;
+                        hasNativeBinaryAsset = true;
+                    }
+                    else if (!string.IsNullOrWhiteSpace(verJsonDl))
+                    {
+                        bool isWantedBinary =
+#if ANDROID
+                            verJsonDl.EndsWith(".apk", StringComparison.OrdinalIgnoreCase);
+#else
+                            verJsonDl.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) || verJsonDl.EndsWith(".zip", StringComparison.OrdinalIgnoreCase);
+#endif
+                        if (isWantedBinary)
+                        {
+                            result.DownloadUrl = verJsonDl;
+                            result.DownloadType = verJsonDl.EndsWith(".apk", StringComparison.OrdinalIgnoreCase) ? "apk"
+                                : verJsonDl.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) ? "exe" : "zip";
+                            hasNativeBinaryAsset = true;
+                        }
+                    }
+
+                    if (!hasNativeBinaryAsset)
+                    {
+                        var (rootUrl, rootType, _) = await TryResolveRepoRootBinaryAsync();
+                        if (!string.IsNullOrWhiteSpace(rootUrl))
+                        {
+                            result.DownloadUrl = rootUrl;
+                            result.DownloadType = rootType;
+                            hasNativeBinaryAsset = true;
+                        }
+#if !ANDROID
+                        else if (string.IsNullOrWhiteSpace(result.DownloadUrl))
+                        {
+                            result.DownloadUrl = !string.IsNullOrWhiteSpace(verJsonDl)
+                                ? verJsonDl
+                                : $"https://github.com/{owner}/{repo}/archive/refs/heads/{activeBranch}.zip";
+                            result.DownloadType = "source_zip";
+                        }
+#endif
+                    }
+
+                    // Authoritative check: never re-prompt same/older version after installing, and never fall back to stale v3.0.0 release!
+                    bool semverNewer = CompareVersions(verJsonVer, CurrentAppVersion) > 0
+                        || (CompareVersions(verJsonVer, CurrentAppVersion) == 0 && verJsonBuild > CurrentAppBuild);
+                    result.IsUpdateAvailable = semverNewer;
+                    return result;
+                }
+
+                // 3. Strategy C fallback (ONLY when neither version.json nor a newer release exists on GitHub)
+                // Seed release metadata only if Release >= CurrentAppVersion so legacy v3.0.0 tags never surface
+                if (relFound && (string.IsNullOrWhiteSpace(relVer) || CompareVersions(relVer, CurrentAppVersion) >= 0))
+                {
+                    result.Success = true;
+                    result.LatestVersion = !string.IsNullOrWhiteSpace(relVer) ? relVer : CurrentAppVersion;
+                    result.ReleaseTitle = relTitle;
+                    result.ReleaseNotes = string.IsNullOrWhiteSpace(relNotes) ? "Release found on GitHub." : relNotes;
+                    result.PublishedAt = FormatIsoDate(relPub);
+                    result.LatestCommitSha = relTagId;
+                    if (!string.IsNullOrWhiteSpace(relUrl))
+                    {
+                        result.DownloadUrl = relUrl;
+                        result.DownloadType = relType;
+                        hasNativeBinaryAsset = true;
+                    }
+                    releasePublishedIso = relPub;
+                    releaseTagId = relTagId;
+                }
+
                 using (var commitResp = await _http.GetAsync($"https://api.github.com/repos/{owner}/{repo}/commits/{activeBranch}"))
                 {
                     if (commitResp.IsSuccessStatusCode)
@@ -646,9 +682,11 @@ namespace StudyHub.Services
                 string stagingDir = Path.Combine(_baseDir, "_update_staging");
                 int currentPid = Environment.ProcessId;
                 string currentExe = Process.GetCurrentProcess().MainModule?.FileName
-                    ?? Path.Combine(_baseDir, "StudyHub.exe");
-                string rootExe = Path.Combine(_baseDir, "StudyHub.exe");
-                string distExe = Path.Combine(_baseDir, "dist", "StudyHub.exe");
+                    ?? Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "StudyHub.exe");
+                string appInstallDir = Path.GetDirectoryName(currentExe)
+                    ?? AppDomain.CurrentDomain.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+                string rootExe = Path.Combine(appInstallDir, "StudyHub.exe");
+                string distExe = Path.Combine(appInstallDir, "dist", "StudyHub.exe");
                 string updaterBatPath = Path.Combine(_baseDir, "StudyHub_Updater.bat");
 
                 progress?.Report((15, "Verifying downloaded update package..."));
@@ -733,7 +771,7 @@ del ""%~f0""
                     var sb = new StringBuilder();
                     sb.AppendLine("@echo off");
                     sb.AppendLine("title Study Hub Auto-Updater");
-                    sb.AppendLine($"cd /d \"{_baseDir}\"");
+                    sb.AppendLine($"cd /d \"{appInstallDir}\"");
                     sb.AppendLine($"echo Waiting for Study Hub (PID {currentPid}) to close...");
                     sb.AppendLine(":waitloop");
                     sb.AppendLine($"tasklist /FI \"PID eq {currentPid}\" 2>NUL | find /I \"{currentPid}\" >NUL");
@@ -742,7 +780,7 @@ del ""%~f0""
                     sb.AppendLine("    goto waitloop");
                     sb.AppendLine(")");
                     sb.AppendLine("echo Updating Study Hub files (preserving your database and files)...");
-                    sb.AppendLine($"robocopy \"{sourceRoot}\" \"{_baseDir}\" /E /XD \"StudyHub_Files\" \"StudyHub_Sounds\" \"StudyHub_Backups\" \"StudyHub_Converted_PDFs\" \"StudyHub_SyncCache\" \"webview_data\" \"_update_staging\" \".git\" \"bin\" \"obj\" /XF \"study_hub.db\" \"study_hub_state.json\" \"gdrive_device_config.json\" \"last_synced_snapshot.json\" \"sync_entity_hashes.json\" \"StudyHub_Updater.bat\" >NUL 2>&1");
+                    sb.AppendLine($"robocopy \"{sourceRoot}\" \"{appInstallDir}\" /E /XD \"StudyHub_Files\" \"StudyHub_Sounds\" \"StudyHub_ZenMedia\" \"StudyHub_Backups\" \"StudyHub_Converted_PDFs\" \"StudyHub_SyncCache\" \"webview_data\" \"_update_staging\" \".git\" \"bin\" \"obj\" /XF \"study_hub.db\" \"study_hub.db-wal\" \"study_hub.db-shm\" \"study_hub_state.json\" \"gdrive_device_config.json\" \"last_synced_snapshot.json\" \"sync_entity_hashes.json\" \"StudyHub_Updater.bat\" >NUL 2>&1");
 
                     if (hasCsproj)
                     {

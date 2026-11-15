@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
         xmlns:controls="clr-namespace:StudyHub.Controls"
-        Title="Study Hub v3.7.1 — Remastered Native Edition"
+        Title="Study Hub v3.7.2 — Remastered Native Edition"
         Width="1440" Height="900"
         MinWidth="1040" MinHeight="680"
         WindowStartupLocation="CenterScreen"
@@ -1713,7 +1713,7 @@
 
                     <!-- Drawer Footer -->
                     <StackPanel Grid.Row="2" Margin="0,16,0,0">
-                        <TextBlock Text="Study Hub v3.7.1 • Remastered Edition" FontSize="11" FontWeight="SemiBold" Foreground="#818CF8"/>
+                        <TextBlock Text="Study Hub v3.7.2 • Remastered Edition" FontSize="11" FontWeight="SemiBold" Foreground="#818CF8"/>
                     </StackPanel>
                 </Grid>
             </Border>
@@ -2216,7 +2216,7 @@
             <Border Background="#B3000000" MouseDown="SettingsBackdrop_MouseDown"/>
 
             <!-- 2-Column Dialog Container matching User Screenshots -->
-            <Border Width="940" Height="640" MaxHeight="680" HorizontalAlignment="Center" VerticalAlignment="Center" Background="{DynamicResource NavBgBrush}" BorderBrush="{DynamicResource BorderBrushTheme}" BorderThickness="1" CornerRadius="24" ClipToBounds="True">
+            <Border Width="990" Height="640" MaxHeight="680" HorizontalAlignment="Center" VerticalAlignment="Center" Background="{DynamicResource NavBgBrush}" BorderBrush="{DynamicResource BorderBrushTheme}" BorderThickness="1" CornerRadius="24" ClipToBounds="True">
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="250"/> <!-- Sidebar Navigation -->
@@ -2299,7 +2299,7 @@
 
                             <!-- Sidebar Footer -->
                             <StackPanel Grid.Row="3" Margin="4,0,0,4">
-                                <TextBlock Text="Study Hub v3.7.1 • Remastered Edition" FontSize="10.5" FontWeight="Bold" Foreground="#818CF8"/>
+                                <TextBlock Text="Study Hub v3.7.2 • Remastered Edition" FontSize="10.5" FontWeight="Bold" Foreground="#818CF8"/>
                                 <TextBlock Text="All preferences auto-save" FontSize="10" Foreground="#4B5578" Margin="0,2,0,0"/>
                             </StackPanel>
                         </Grid>
@@ -2471,7 +2471,7 @@
                                             <Grid Margin="0,0,0,10">
                                                 <StackPanel VerticalAlignment="Center">
                                                     <TextBlock Text="Base Data &amp; Database Folder" FontWeight="Bold" FontSize="12" Foreground="{DynamicResource PrimaryTextBrush}"/>
-                                                    <TextBlock x:Name="TxtPathBaseData" Text="E:\Project\Study Hub Remastered" FontSize="11" Foreground="{DynamicResource SecondaryTextBrush}"/>
+                                                    <TextBlock x:Name="TxtPathBaseData" Text="%LocalAppData%\StudyHub" FontSize="11" Foreground="{DynamicResource SecondaryTextBrush}"/>
                                                 </StackPanel>
                                                 <Button Click="BtnOpenBaseFolder_Click" Style="{StaticResource SecondaryButtonStyle}" HorizontalAlignment="Right" Padding="12,5">
                                                     <TextBlock Text="Open Folder ↗" FontSize="11"/>
@@ -2481,7 +2481,7 @@
                                             <Grid Margin="0,0,0,10">
                                                 <StackPanel VerticalAlignment="Center">
                                                     <TextBlock Text="Study Files &amp; PDFs Folder" FontWeight="Bold" FontSize="12" Foreground="{DynamicResource PrimaryTextBrush}"/>
-                                                    <TextBlock x:Name="TxtPathStudyFiles" Text="E:\Project\Study Hub Remastered\StudyHub_Files" FontSize="11" Foreground="{DynamicResource SecondaryTextBrush}"/>
+                                                    <TextBlock x:Name="TxtPathStudyFiles" Text="%LocalAppData%\StudyHub\StudyHub_Files" FontSize="11" Foreground="{DynamicResource SecondaryTextBrush}"/>
                                                 </StackPanel>
                                                 <Button Click="BtnOpenFilesFolder_Click" Style="{StaticResource SecondaryButtonStyle}" HorizontalAlignment="Right" Padding="12,5">
                                                     <TextBlock Text="Open Folder ↗" FontSize="11"/>
@@ -2491,7 +2491,7 @@
                                             <Grid>
                                                 <StackPanel VerticalAlignment="Center">
                                                     <TextBlock Text="Ambient White Noise &amp; Sounds Folder" FontWeight="Bold" FontSize="12" Foreground="{DynamicResource PrimaryTextBrush}"/>
-                                                    <TextBlock x:Name="TxtPathSounds" Text="E:\Project\Study Hub Remastered\StudyHub_Sounds" FontSize="11" Foreground="{DynamicResource SecondaryTextBrush}"/>
+                                                    <TextBlock x:Name="TxtPathSounds" Text="%LocalAppData%\StudyHub\StudyHub_Sounds" FontSize="11" Foreground="{DynamicResource SecondaryTextBrush}"/>
                                                 </StackPanel>
                                                 <Button Click="BtnOpenSoundsFolder_Click" Style="{StaticResource SecondaryButtonStyle}" HorizontalAlignment="Right" Padding="12,5">
                                                     <TextBlock Text="Open Folder ↗" FontSize="11"/>
@@ -2565,11 +2565,16 @@
                                     <Border Background="{DynamicResource CardBgBrush}" BorderBrush="{DynamicResource BorderBrushTheme}" BorderThickness="1" CornerRadius="18" Padding="20" Margin="0,0,0,16">
                                         <StackPanel>
                                             <Grid Margin="0,0,0,14">
-                                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="12"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+                                                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
                                                     <TextBlock Text="☁️" FontSize="15" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                                                    <TextBlock Text="Google Drive Sync &amp; Status" FontWeight="Black" FontSize="14.5" Foreground="#38BDF8" VerticalAlignment="Center"/>
+                                                    <TextBlock Text="Google Drive Sync &amp; Status" FontWeight="Black" FontSize="14.5" Foreground="#38BDF8" VerticalAlignment="Center" TextWrapping="Wrap"/>
                                                 </StackPanel>
-                                                <Border x:Name="BdCloudStatusBadge" Background="#1E293B" CornerRadius="10" Padding="11,4" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                                <Border x:Name="BdCloudStatusBadge" Grid.Column="2" Background="#1E293B" CornerRadius="10" Padding="11,4" VerticalAlignment="Center">
                                                     <TextBlock x:Name="TxtCloudStatusBadge" Text="Setup Needed" FontSize="11" FontWeight="Bold" Foreground="#CBD5E1"/>
                                                 </Border>
                                             </Grid>
@@ -2713,16 +2718,16 @@
 
                                             <Border Background="{DynamicResource InputBgBrush}" BorderBrush="{DynamicResource BorderBrushTheme}" BorderThickness="1" CornerRadius="12" Padding="14,12" Margin="0,0,0,14">
                                                 <StackPanel>
-                                                    <CheckBox x:Name="ChkCloudAutoSync" Checked="ChkCloudPrefs_Changed" Unchecked="ChkCloudPrefs_Changed" Foreground="{DynamicResource PrimaryTextBrush}" VerticalContentAlignment="Top" Margin="0,0,0,10">
+                                                    <CheckBox x:Name="ChkCloudAutoSync" Checked="ChkCloudPrefs_Changed" Unchecked="ChkCloudPrefs_Changed" Foreground="{DynamicResource PrimaryTextBrush}" VerticalContentAlignment="Top" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" Margin="0,0,0,10">
                                                         <StackPanel Margin="4,-1,0,0">
-                                                            <TextBlock Text="Auto-sync automatically after saving changes &amp; on app launch" FontSize="12.5" FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}"/>
-                                                            <TextBlock Text="Keeps desktop and Android updated in the background without manual clicks." FontSize="11" Foreground="{DynamicResource SecondaryTextBrush}" Margin="0,2,0,0"/>
+                                                            <TextBlock Text="Auto-sync automatically after saving changes &amp; on app launch" FontSize="12.5" FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}" TextWrapping="Wrap"/>
+                                                            <TextBlock Text="Keeps desktop and Android updated in the background without manual clicks." FontSize="11" Foreground="{DynamicResource SecondaryTextBrush}" Margin="0,2,0,0" TextWrapping="Wrap"/>
                                                         </StackPanel>
                                                     </CheckBox>
-                                                    <CheckBox x:Name="ChkCloudSyncFiles" Checked="ChkCloudPrefs_Changed" Unchecked="ChkCloudPrefs_Changed" Foreground="{DynamicResource PrimaryTextBrush}" VerticalContentAlignment="Top">
+                                                    <CheckBox x:Name="ChkCloudSyncFiles" Checked="ChkCloudPrefs_Changed" Unchecked="ChkCloudPrefs_Changed" Foreground="{DynamicResource PrimaryTextBrush}" VerticalContentAlignment="Top" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
                                                         <StackPanel Margin="4,-1,0,0">
-                                                            <TextBlock Text="Enable Binary Media Transfers" FontSize="12.5" FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}"/>
-                                                            <TextBlock Text="Automatically upload and download course PDFs, lecture videos, recordings &amp; custom Zen files." FontSize="11" Foreground="{DynamicResource SecondaryTextBrush}" Margin="0,2,0,0"/>
+                                                            <TextBlock Text="Enable Binary Media Transfers" FontSize="12.5" FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}" TextWrapping="Wrap"/>
+                                                            <TextBlock Text="Automatically upload and download course PDFs, lecture videos, recordings &amp; custom Zen files." FontSize="11" Foreground="{DynamicResource SecondaryTextBrush}" Margin="0,2,0,0" TextWrapping="Wrap"/>
                                                         </StackPanel>
                                                     </CheckBox>
                                                 </StackPanel>
@@ -2730,108 +2735,136 @@
 
                                             <TextBlock Text="Choose What to Sync (per device — unchecked items stay untouched on other devices)" FontSize="11.5" FontWeight="SemiBold" Foreground="{DynamicResource SecondaryTextBrush}" Margin="0,0,0,10" TextWrapping="Wrap"/>
 
-                                            <!-- Segmented Card Layout (3 Distinct Categorical Cards) -->
-                                            <Grid>
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="*"/>
-                                                    <ColumnDefinition Width="12"/>
-                                                    <ColumnDefinition Width="*"/>
-                                                    <ColumnDefinition Width="12"/>
-                                                    <ColumnDefinition Width="*"/>
-                                                </Grid.ColumnDefinitions>
-
+                                            <!-- Segmented Card Layout (Spacious Category Cards with 2-Col Interior & Zero Text Clipping) -->
+                                            <StackPanel>
                                                 <!-- Category 1: Productivity & Academics -->
-                                                <Border Grid.Column="0" Background="{DynamicResource InputBgBrush}" BorderBrush="{DynamicResource BorderBrushTheme}" BorderThickness="1" CornerRadius="14" Padding="14">
+                                                <Border Background="{DynamicResource InputBgBrush}" BorderBrush="{DynamicResource BorderBrushTheme}" BorderThickness="1" CornerRadius="14" Padding="16,13" Margin="0,0,0,10">
                                                     <StackPanel>
-                                                        <TextBlock Text="📚 PRODUCTIVITY &amp; ACADEMICS" FontSize="10" FontWeight="Black" Foreground="#38BDF8" Margin="0,0,0,12"/>
+                                                        <TextBlock Text="📚 PRODUCTIVITY &amp; ACADEMICS" FontSize="10.5" FontWeight="Black" Foreground="#38BDF8" Margin="0,0,0,12" TextWrapping="Wrap"/>
+                                                        <Grid>
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="*"/>
+                                                                <ColumnDefinition Width="18"/>
+                                                                <ColumnDefinition Width="*"/>
+                                                            </Grid.ColumnDefinitions>
+                                                            <Grid.RowDefinitions>
+                                                                <RowDefinition Height="Auto"/>
+                                                                <RowDefinition Height="10"/>
+                                                                <RowDefinition Height="Auto"/>
+                                                            </Grid.RowDefinitions>
 
-                                                        <CheckBox x:Name="ChkCloudSyncCourses" Checked="ChkCloudPrefs_Changed" Unchecked="ChkCloudPrefs_Changed" VerticalContentAlignment="Top" Margin="0,0,0,11">
-                                                            <StackPanel Margin="4,-1,0,0">
-                                                                <TextBlock Text="Subjects, Notes &amp; Decks" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}"/>
-                                                                <TextBlock Text="Courses, folders, notes &amp; flashcards" FontSize="10.5" Foreground="{DynamicResource MutedTextBrush}" TextWrapping="Wrap"/>
-                                                            </StackPanel>
-                                                        </CheckBox>
+                                                            <CheckBox x:Name="ChkCloudSyncCourses" Grid.Row="0" Grid.Column="0" Checked="ChkCloudPrefs_Changed" Unchecked="ChkCloudPrefs_Changed" VerticalContentAlignment="Top" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                                                                <StackPanel Margin="4,-1,0,0">
+                                                                    <TextBlock Text="Subjects, Notes &amp; Decks" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}" TextWrapping="Wrap"/>
+                                                                    <TextBlock Text="Courses, folders, notes &amp; flashcards" FontSize="10.5" Foreground="{DynamicResource MutedTextBrush}" TextWrapping="Wrap" Margin="0,2,0,0"/>
+                                                                </StackPanel>
+                                                            </CheckBox>
 
-                                                        <CheckBox x:Name="ChkCloudSyncLinks" Checked="ChkCloudPrefs_Changed" Unchecked="ChkCloudPrefs_Changed" VerticalContentAlignment="Top" Margin="0,0,0,11">
-                                                            <StackPanel Margin="4,-1,0,0">
-                                                                <TextBlock Text="Links, Tasks &amp; Deadlines" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}"/>
-                                                                <TextBlock Text="Bookmarks, study tasks &amp; due dates" FontSize="10.5" Foreground="{DynamicResource MutedTextBrush}" TextWrapping="Wrap"/>
-                                                            </StackPanel>
-                                                        </CheckBox>
+                                                            <CheckBox x:Name="ChkCloudSyncLinks" Grid.Row="0" Grid.Column="2" Checked="ChkCloudPrefs_Changed" Unchecked="ChkCloudPrefs_Changed" VerticalContentAlignment="Top" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                                                                <StackPanel Margin="4,-1,0,0">
+                                                                    <TextBlock Text="Links, Tasks &amp; Deadlines" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}" TextWrapping="Wrap"/>
+                                                                    <TextBlock Text="Bookmarks, study tasks &amp; due dates" FontSize="10.5" Foreground="{DynamicResource MutedTextBrush}" TextWrapping="Wrap" Margin="0,2,0,0"/>
+                                                                </StackPanel>
+                                                            </CheckBox>
 
-                                                        <CheckBox x:Name="ChkCloudSyncCalendar" Checked="ChkCloudPrefs_Changed" Unchecked="ChkCloudPrefs_Changed" VerticalContentAlignment="Top">
-                                                            <StackPanel Margin="4,-1,0,0">
-                                                                <TextBlock Text="Calendar &amp; Study Heatmap" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}"/>
-                                                                <TextBlock Text="Events, reminders &amp; daily streak log" FontSize="10.5" Foreground="{DynamicResource MutedTextBrush}" TextWrapping="Wrap"/>
-                                                            </StackPanel>
-                                                        </CheckBox>
+                                                            <CheckBox x:Name="ChkCloudSyncCalendar" Grid.Row="2" Grid.Column="0" Checked="ChkCloudPrefs_Changed" Unchecked="ChkCloudPrefs_Changed" VerticalContentAlignment="Top" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                                                                <StackPanel Margin="4,-1,0,0">
+                                                                    <TextBlock Text="Calendar &amp; Study Heatmap" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}" TextWrapping="Wrap"/>
+                                                                    <TextBlock Text="Events, reminders &amp; daily streak log" FontSize="10.5" Foreground="{DynamicResource MutedTextBrush}" TextWrapping="Wrap" Margin="0,2,0,0"/>
+                                                                </StackPanel>
+                                                            </CheckBox>
+                                                        </Grid>
                                                     </StackPanel>
                                                 </Border>
 
                                                 <!-- Category 2: Media & Assets -->
-                                                <Border Grid.Column="2" Background="{DynamicResource InputBgBrush}" BorderBrush="{DynamicResource BorderBrushTheme}" BorderThickness="1" CornerRadius="14" Padding="14">
+                                                <Border Background="{DynamicResource InputBgBrush}" BorderBrush="{DynamicResource BorderBrushTheme}" BorderThickness="1" CornerRadius="14" Padding="16,13" Margin="0,0,0,10">
                                                     <StackPanel>
-                                                        <TextBlock Text="📦 MEDIA &amp; ASSETS" FontSize="10" FontWeight="Black" Foreground="#A78BFA" Margin="0,0,0,12"/>
+                                                        <TextBlock Text="📦 MEDIA &amp; ASSETS" FontSize="10.5" FontWeight="Black" Foreground="#A78BFA" Margin="0,0,0,12" TextWrapping="Wrap"/>
+                                                        <Grid>
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="*"/>
+                                                                <ColumnDefinition Width="18"/>
+                                                                <ColumnDefinition Width="*"/>
+                                                            </Grid.ColumnDefinitions>
+                                                            <Grid.RowDefinitions>
+                                                                <RowDefinition Height="Auto"/>
+                                                                <RowDefinition Height="10"/>
+                                                                <RowDefinition Height="Auto"/>
+                                                            </Grid.RowDefinitions>
 
-                                                        <CheckBox x:Name="ChkCloudSyncPdfs" Checked="ChkCloudPrefs_Changed" Unchecked="ChkCloudPrefs_Changed" VerticalContentAlignment="Top" Margin="0,0,0,11">
-                                                            <StackPanel Margin="4,-1,0,0">
-                                                                <TextBlock Text="PDFs &amp; Study Documents" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}"/>
-                                                                <TextBlock Text="Downloadable PDF files per subject" FontSize="10.5" Foreground="{DynamicResource MutedTextBrush}" TextWrapping="Wrap"/>
-                                                            </StackPanel>
-                                                        </CheckBox>
+                                                            <CheckBox x:Name="ChkCloudSyncPdfs" Grid.Row="0" Grid.Column="0" Checked="ChkCloudPrefs_Changed" Unchecked="ChkCloudPrefs_Changed" VerticalContentAlignment="Top" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                                                                <StackPanel Margin="4,-1,0,0">
+                                                                    <TextBlock Text="PDFs &amp; Study Documents" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}" TextWrapping="Wrap"/>
+                                                                    <TextBlock Text="Downloadable PDF files per subject" FontSize="10.5" Foreground="{DynamicResource MutedTextBrush}" TextWrapping="Wrap" Margin="0,2,0,0"/>
+                                                                </StackPanel>
+                                                            </CheckBox>
 
-                                                        <CheckBox x:Name="ChkCloudSyncVideos" Checked="ChkCloudPrefs_Changed" Unchecked="ChkCloudPrefs_Changed" VerticalContentAlignment="Top" Margin="0,0,0,11">
-                                                            <StackPanel Margin="4,-1,0,0">
-                                                                <TextBlock Text="Videos &amp; Recordings" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}"/>
-                                                                <TextBlock Text="Lecture videos &amp; class voice notes" FontSize="10.5" Foreground="{DynamicResource MutedTextBrush}" TextWrapping="Wrap"/>
-                                                            </StackPanel>
-                                                        </CheckBox>
+                                                            <CheckBox x:Name="ChkCloudSyncVideos" Grid.Row="0" Grid.Column="2" Checked="ChkCloudPrefs_Changed" Unchecked="ChkCloudPrefs_Changed" VerticalContentAlignment="Top" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                                                                <StackPanel Margin="4,-1,0,0">
+                                                                    <TextBlock Text="Videos &amp; Recordings" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}" TextWrapping="Wrap"/>
+                                                                    <TextBlock Text="Lecture videos &amp; class voice notes" FontSize="10.5" Foreground="{DynamicResource MutedTextBrush}" TextWrapping="Wrap" Margin="0,2,0,0"/>
+                                                                </StackPanel>
+                                                            </CheckBox>
 
-                                                        <CheckBox x:Name="ChkCloudSyncZen" Checked="ChkCloudPrefs_Changed" Unchecked="ChkCloudPrefs_Changed" VerticalContentAlignment="Top">
-                                                            <StackPanel Margin="4,-1,0,0">
-                                                                <TextBlock Text="Extra Zen Scenes &amp; Media" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}"/>
-                                                                <TextBlock Text="Custom focus images, scenes &amp; videos" FontSize="10.5" Foreground="{DynamicResource MutedTextBrush}" TextWrapping="Wrap"/>
-                                                            </StackPanel>
-                                                        </CheckBox>
+                                                            <CheckBox x:Name="ChkCloudSyncZen" Grid.Row="2" Grid.Column="0" Checked="ChkCloudPrefs_Changed" Unchecked="ChkCloudPrefs_Changed" VerticalContentAlignment="Top" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                                                                <StackPanel Margin="4,-1,0,0">
+                                                                    <TextBlock Text="Extra Zen Scenes &amp; Media" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}" TextWrapping="Wrap"/>
+                                                                    <TextBlock Text="Custom focus images, scenes &amp; videos" FontSize="10.5" Foreground="{DynamicResource MutedTextBrush}" TextWrapping="Wrap" Margin="0,2,0,0"/>
+                                                                </StackPanel>
+                                                            </CheckBox>
+                                                        </Grid>
                                                     </StackPanel>
                                                 </Border>
 
                                                 <!-- Category 3: System & App Data -->
-                                                <Border Grid.Column="4" Background="{DynamicResource InputBgBrush}" BorderBrush="{DynamicResource BorderBrushTheme}" BorderThickness="1" CornerRadius="14" Padding="14">
+                                                <Border Background="{DynamicResource InputBgBrush}" BorderBrush="{DynamicResource BorderBrushTheme}" BorderThickness="1" CornerRadius="14" Padding="16,13">
                                                     <StackPanel>
-                                                        <TextBlock Text="🎛️ SYSTEM &amp; APP DATA" FontSize="10" FontWeight="Black" Foreground="#10B981" Margin="0,0,0,12"/>
+                                                        <TextBlock Text="🎛️ SYSTEM &amp; APP DATA" FontSize="10.5" FontWeight="Black" Foreground="#10B981" Margin="0,0,0,12" TextWrapping="Wrap"/>
+                                                        <Grid>
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="*"/>
+                                                                <ColumnDefinition Width="18"/>
+                                                                <ColumnDefinition Width="*"/>
+                                                            </Grid.ColumnDefinitions>
 
-                                                        <CheckBox x:Name="ChkCloudSyncAudio" Checked="ChkCloudPrefs_Changed" Unchecked="ChkCloudPrefs_Changed" VerticalContentAlignment="Top" Margin="0,0,0,11">
-                                                            <StackPanel Margin="4,-1,0,0">
-                                                                <TextBlock Text="Extra Audio &amp; Mixer Presets" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}"/>
-                                                                <TextBlock Text="Custom ambient tracks &amp; volume sliders" FontSize="10.5" Foreground="{DynamicResource MutedTextBrush}" TextWrapping="Wrap"/>
-                                                            </StackPanel>
-                                                        </CheckBox>
+                                                            <CheckBox x:Name="ChkCloudSyncAudio" Grid.Column="0" Checked="ChkCloudPrefs_Changed" Unchecked="ChkCloudPrefs_Changed" VerticalContentAlignment="Top" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                                                                <StackPanel Margin="4,-1,0,0">
+                                                                    <TextBlock Text="Extra Audio &amp; Mixer Presets" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}" TextWrapping="Wrap"/>
+                                                                    <TextBlock Text="Custom ambient tracks &amp; volume sliders" FontSize="10.5" Foreground="{DynamicResource MutedTextBrush}" TextWrapping="Wrap" Margin="0,2,0,0"/>
+                                                                </StackPanel>
+                                                            </CheckBox>
 
-                                                        <CheckBox x:Name="ChkCloudSyncPrefs" Checked="ChkCloudPrefs_Changed" Unchecked="ChkCloudPrefs_Changed" VerticalContentAlignment="Top">
-                                                            <StackPanel Margin="4,-1,0,0">
-                                                                <TextBlock Text="Theme, Particles &amp; Settings" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}"/>
-                                                                <TextBlock Text="Surface backdrop, particles &amp; clock UI" FontSize="10.5" Foreground="{DynamicResource MutedTextBrush}" TextWrapping="Wrap"/>
-                                                            </StackPanel>
-                                                        </CheckBox>
+                                                            <CheckBox x:Name="ChkCloudSyncPrefs" Grid.Column="2" Checked="ChkCloudPrefs_Changed" Unchecked="ChkCloudPrefs_Changed" VerticalContentAlignment="Top" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                                                                <StackPanel Margin="4,-1,0,0">
+                                                                    <TextBlock Text="Theme, Particles &amp; Settings" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource PrimaryTextBrush}" TextWrapping="Wrap"/>
+                                                                    <TextBlock Text="Surface backdrop, particles &amp; clock UI" FontSize="10.5" Foreground="{DynamicResource MutedTextBrush}" TextWrapping="Wrap" Margin="0,2,0,0"/>
+                                                                </StackPanel>
+                                                            </CheckBox>
+                                                        </Grid>
                                                     </StackPanel>
                                                 </Border>
-                                            </Grid>
+                                            </StackPanel>
                                         </StackPanel>
                                     </Border>
 
                                     <!-- SECTION 3: CLOUD TIME MACHINE / BACKUPS -->
                                     <Border Background="{DynamicResource CardBgBrush}" BorderBrush="{DynamicResource BorderBrushTheme}" BorderThickness="1" CornerRadius="18" Padding="20" Margin="0,0,0,16">
                                         <StackPanel>
-                                            <Grid Margin="0,0,0,12">
-                                                <StackPanel>
+                                            <Grid Margin="0,0,0,14">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="16"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+                                                <StackPanel Grid.Column="0">
                                                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,0,4">
                                                         <TextBlock Text="🕒" FontSize="15" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                                                        <TextBlock Text="Cloud Time Machine &amp; Backups" FontWeight="Black" FontSize="14.5" Foreground="#A78BFA" VerticalAlignment="Center"/>
+                                                        <TextBlock Text="Cloud Time Machine &amp; Backups" FontWeight="Black" FontSize="14.5" Foreground="#A78BFA" VerticalAlignment="Center" TextWrapping="Wrap"/>
                                                     </StackPanel>
                                                     <TextBlock Text="Rolling snapshots stored in StudyHub_Sync/Snapshots/ let you roll back safely before major changes or overwrites." FontSize="11.5" Foreground="{DynamicResource SecondaryTextBrush}" TextWrapping="Wrap"/>
                                                 </StackPanel>
-                                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
                                                     <Button x:Name="BtnCloudCreateSnapshot" Click="BtnCloudCreateSnapshot_Click" Style="{StaticResource SecondaryButtonStyle}" Padding="12,7" Margin="0,0,8,0">
                                                         <TextBlock Text="📸 Create Snapshot" FontSize="11.5"/>
                                                     </Button>
@@ -2841,7 +2874,7 @@
                                                 </StackPanel>
                                             </Grid>
                                             <StackPanel x:Name="CloudSnapshotsStackPanel">
-                                                <TextBlock Text="Click 'Load Snapshots' while signed in to inspect or restore recovery points." FontSize="11.5" Foreground="{DynamicResource SecondaryTextBrush}"/>
+                                                <TextBlock Text="Click 'Load Snapshots' while signed in to inspect or restore recovery points." FontSize="11.5" Foreground="{DynamicResource SecondaryTextBrush}" TextWrapping="Wrap"/>
                                             </StackPanel>
                                         </StackPanel>
                                     </Border>
@@ -2851,14 +2884,23 @@
                                         <StackPanel>
                                             <Button x:Name="BtnCloudToggleAdvanced" Click="BtnCloudToggleAdvanced_Click" Background="Transparent" BorderThickness="0" Padding="0" HorizontalContentAlignment="Stretch" Cursor="Hand">
                                                 <Grid>
-                                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                                        <TextBlock Text="🔐" FontSize="15" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                                                        <StackPanel>
-                                                            <TextBlock Text="Advanced API &amp; Mobile Pairing" FontWeight="Black" FontSize="14.5" Foreground="{DynamicResource PrimaryTextBrush}"/>
-                                                            <TextBlock Text="Google Cloud Desktop OAuth Client ID, Client Secret, client_secret.json import &amp; Android Quick-Pair" FontSize="11.5" Foreground="{DynamicResource SecondaryTextBrush}"/>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*"/>
+                                                        <ColumnDefinition Width="16"/>
+                                                        <ColumnDefinition Width="Auto"/>
+                                                    </Grid.ColumnDefinitions>
+                                                    <Grid Grid.Column="0">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="Auto"/>
+                                                            <ColumnDefinition Width="*"/>
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock Grid.Column="0" Text="🔐" FontSize="15" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                            <TextBlock Text="Advanced API &amp; Mobile Pairing" FontWeight="Black" FontSize="14.5" Foreground="{DynamicResource PrimaryTextBrush}" TextWrapping="Wrap"/>
+                                                            <TextBlock Text="Google Cloud Desktop OAuth Client ID, Client Secret, client_secret.json import &amp; Android Quick-Pair" FontSize="11.5" Foreground="{DynamicResource SecondaryTextBrush}" TextWrapping="Wrap" Margin="0,2,0,0"/>
                                                         </StackPanel>
-                                                    </StackPanel>
-                                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                                    </Grid>
+                                                    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
                                                         <Border Background="{DynamicResource InputBgBrush}" BorderBrush="{DynamicResource BorderBrushTheme}" BorderThickness="1" CornerRadius="9" Padding="10,4" Margin="0,0,10,0">
                                                             <TextBlock x:Name="TxtCloudAdvancedSummary" Text="Expand Setup" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource SecondaryTextBrush}"/>
                                                         </Border>
@@ -2898,13 +2940,13 @@
                                                             <ColumnDefinition Width="*"/>
                                                             <ColumnDefinition Width="Auto"/>
                                                         </Grid.ColumnDefinitions>
-                                                        <TextBox x:Name="TxtCloudClientSecret" Grid.Column="0" Background="Transparent" BorderThickness="0" Padding="2,6" VerticalContentAlignment="Center" Foreground="{DynamicResource PrimaryTextBrush}" CaretBrush="#7C5CFF" FontSize="13"/>
-                                                        <Border x:Name="BdCloudSecretMask" Grid.Column="0" Background="{DynamicResource InputBgBrush}" Padding="2,6" Visibility="Collapsed" MouseLeftButtonDown="BdCloudSecretMask_MouseLeftButtonDown" Cursor="IBeam">
-                                                            <TextBlock x:Name="TxtCloudSecretMaskDots" Text="••••••••••••••••••••••••" FontSize="13" Foreground="{DynamicResource SecondaryTextBrush}" VerticalAlignment="Center"/>
+                                                        <TextBox x:Name="TxtCloudClientSecret" Grid.Column="0" Background="Transparent" BorderThickness="0" Padding="2,6" VerticalContentAlignment="Center" Foreground="{DynamicResource PrimaryTextBrush}" CaretBrush="#7C5CFF" FontSize="13" LostFocus="TxtCloudClientSecret_LostFocus"/>
+                                                        <Border x:Name="BdCloudSecretMask" Grid.Column="0" Background="Transparent" Padding="2,6" Visibility="Collapsed" MouseLeftButtonDown="BdCloudSecretMask_MouseLeftButtonDown" Cursor="IBeam">
+                                                            <TextBlock x:Name="TxtCloudSecretMaskDots" Text="••••••••••••••••••••••••" FontSize="14" FontWeight="Bold" Foreground="{DynamicResource PrimaryTextBrush}" VerticalAlignment="Center"/>
                                                         </Border>
                                                         <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0,0,0">
                                                             <Button x:Name="BtnCloudToggleSecretMask" Click="BtnCloudToggleSecretMask_Click" Width="30" Height="30" Background="Transparent" BorderThickness="0" Cursor="Hand" ToolTip="Show / Hide Client Secret">
-                                                                <TextBlock Text="👁" FontSize="13" Foreground="{DynamicResource SecondaryTextBrush}"/>
+                                                                <TextBlock x:Name="TxtCloudSecretEyeIcon" Text="👁" FontSize="13" Foreground="{DynamicResource SecondaryTextBrush}"/>
                                                             </Button>
                                                             <Button Click="BtnCloudCopyClientSecret_Click" Width="30" Height="30" Background="Transparent" BorderThickness="0" Cursor="Hand" ToolTip="Copy Client Secret">
                                                                 <TextBlock Text="📋" FontSize="13" Foreground="{DynamicResource SecondaryTextBrush}"/>
@@ -2965,7 +3007,7 @@
                                             <Border x:Name="BdUpdateResultBox" Background="{DynamicResource SubtleBgBrush}" BorderBrush="{DynamicResource BorderBrushTheme}" BorderThickness="1" CornerRadius="12" Padding="14" Visibility="Collapsed">
                                                 <StackPanel>
                                                     <TextBlock x:Name="TxtUpdateStatusHeader" Text="Up to date!" FontWeight="Bold" FontSize="13" Foreground="#10B981" Margin="0,0,0,4"/>
-                                                    <TextBlock x:Name="TxtUpdateStatusDetails" Text="You are running version v3.7.1." FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}" TextWrapping="Wrap" Margin="0,0,0,10"/>
+                                                    <TextBlock x:Name="TxtUpdateStatusDetails" Text="You are running version v3.7.2." FontSize="12" Foreground="{DynamicResource SecondaryTextBrush}" TextWrapping="Wrap" Margin="0,0,0,10"/>
                                                     <Button x:Name="BtnInstallUpdateNow" Click="BtnInstallUpdateNow_Click" Style="{StaticResource BrandButtonStyle}" Visibility="Collapsed" HorizontalAlignment="Left" Padding="16,8">
                                                         <TextBlock x:Name="TxtBtnInstallUpdateLabel" Text="⬇️ Download &amp; Apply Update Now"/>
                                                     </Button>
@@ -3348,12 +3390,14 @@
                         </Border>
                         <StackPanel VerticalAlignment="Center">
                             <TextBlock Text="Update Downloaded &amp; Ready!" FontSize="17" FontWeight="Black" Foreground="#10B981"/>
-                            <TextBlock x:Name="TxtUpdateReadyVersion" Text="Study Hub v3.7.1" FontSize="12" FontWeight="Bold" Foreground="{DynamicResource SecondaryTextBrush}"/>
+                            <TextBlock x:Name="TxtUpdateReadyVersion" Text="Study Hub v3.7.2" FontSize="12" FontWeight="Bold" Foreground="{DynamicResource SecondaryTextBrush}"/>
                         </StackPanel>
                     </StackPanel>
 
                     <Border Background="{DynamicResource SubtleBgBrush}" BorderBrush="{DynamicResource BorderBrushTheme}" BorderThickness="1" CornerRadius="14" Padding="14" Margin="0,0,0,16">
-                        <TextBlock x:Name="TxtUpdateReadyNotes" Text="A new update was downloaded in the background and is ready to install." FontSize="12.5" Foreground="{DynamicResource PrimaryTextBrush}" TextWrapping="Wrap" MaxHeight="160"/>
+                        <ScrollViewer MaxHeight="200" VerticalScrollBarVisibility="Auto">
+                            <TextBlock x:Name="TxtUpdateReadyNotes" Text="A new update was downloaded in the background and is ready to install." FontSize="12.5" Foreground="{DynamicResource PrimaryTextBrush}" TextWrapping="Wrap"/>
+                        </ScrollViewer>
                     </Border>
 
                     <Grid>

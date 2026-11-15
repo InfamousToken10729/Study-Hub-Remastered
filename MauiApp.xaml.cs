@@ -14,7 +14,7 @@ public partial class StudyHubMauiApp : Application
     {
         return new Window(new MauiMainPage())
         {
-            Title = "Study Hub v3.7.1 — Remastered Edition"
+            Title = "Study Hub v3.7.2 — Remastered Edition"
         };
     }
 }

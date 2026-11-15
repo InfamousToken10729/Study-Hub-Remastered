@@ -4181,6 +4181,11 @@ public partial class MauiMainPage : ContentPage
         }
         else
         {
+            if (!string.IsNullOrWhiteSpace(res.LatestCommitSha) && !string.Equals(_state.Settings.InstalledCommitSha, res.LatestCommitSha, StringComparison.OrdinalIgnoreCase))
+            {
+                _state.Settings.InstalledCommitSha = res.LatestCommitSha;
+                await _storage.SaveStateAsync(_state);
+            }
             LblMobileUpdateStatusTitle.Text = $"✅ Up to Date (v{res.CurrentVersion})";
             LblMobileUpdateStatusTitle.TextColor = Color.FromArgb("#10B981");
             string commitInfo = string.IsNullOrWhiteSpace(res.LatestCommitSha)
@@ -4504,6 +4509,7 @@ public partial class MauiMainPage : ContentPage
     private void OnMobileSaveCloudCredentialsClicked(object? sender, EventArgs e)
     {
         var (ok, msg) = _cloudSync.ApplyClientCredentials(EntryMobileCloudClientId.Text ?? "", EntryMobileCloudClientSecret.Text ?? "");
+        EntryMobileCloudClientSecret.IsPassword = true;
         UpdateMobileCloudSyncUiState();
         ShowToast(ok ? $"✅ {msg}" : $"⚠️ {msg}");
     }

@@ -6,7 +6,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>StudyHub</AssemblyName>
     <RootNamespace>StudyHub</RootNamespace>
-    <Version>3.7.1</Version>
+    <Version>3.7.2</Version>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <NoWarn>CS8618;CS8625;CS8600;CS8601;CS8602;CS8603;CS8604;CA1416;XA0119;XA4218</NoWarn>
   </PropertyGroup>
@@ -36,8 +36,8 @@
     <SkipValidateMauiImplicitPackageReferences>true</SkipValidateMauiImplicitPackageReferences>
     <ApplicationTitle>Study Hub</ApplicationTitle>
     <ApplicationId>com.studyhub.remastered</ApplicationId>
-    <ApplicationDisplayVersion>3.7.1</ApplicationDisplayVersion>
-    <ApplicationVersion>371</ApplicationVersion>
+    <ApplicationDisplayVersion>3.7.2</ApplicationDisplayVersion>
+    <ApplicationVersion>372</ApplicationVersion>
     <SupportedOSPlatformVersion>24.0</SupportedOSPlatformVersion>
     <AndroidPackageFormat>apk</AndroidPackageFormat>
     <AndroidUseAapt2>true</AndroidUseAapt2>

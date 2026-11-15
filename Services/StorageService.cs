@@ -84,6 +84,106 @@ namespace StudyHub.Services
                 _syncDeviceId = deviceId.Trim();
         }
 
+        private static bool TryFindGitRepositoryRoot(string startDir, out string repoRoot)
+        {
+            repoRoot = "";
+            if (string.IsNullOrWhiteSpace(startDir)) return false;
+            try
+            {
+                DirectoryInfo? cursor = new DirectoryInfo(startDir);
+                for (int i = 0; i < 6 && cursor != null; i++)
+                {
+                    if (Directory.Exists(Path.Combine(cursor.FullName, ".git")))
+                    {
+                        repoRoot = cursor.FullName;
+                        return true;
+                    }
+                    cursor = cursor.Parent;
+                }
+            }
+            catch { }
+            return false;
+        }
+
+        private static string GetAppLocalDataDirectory()
+        {
+            string localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            string preferred = Path.Combine(localAppData, "StudyHub");
+            string legacyAppData = Path.Combine(localAppData, "GraduationStudyHub");
+            if (!File.Exists(Path.Combine(preferred, "study_hub.db")) &&
+                File.Exists(Path.Combine(legacyAppData, "study_hub.db")))
+            {
+                return legacyAppData;
+            }
+            Directory.CreateDirectory(preferred);
+            return preferred;
+        }
+
+        private static void CopyDirectoryMissingFiles(string sourceDir, string destDir)
+        {
+            if (!Directory.Exists(sourceDir)) return;
+            Directory.CreateDirectory(destDir);
+            foreach (string file in Directory.GetFiles(sourceDir))
+            {
+                string destFile = Path.Combine(destDir, Path.GetFileName(file));
+                if (!File.Exists(destFile))
+                    File.Copy(file, destFile, false);
+            }
+            foreach (string subDir in Directory.GetDirectories(sourceDir))
+            {
+                CopyDirectoryMissingFiles(subDir, Path.Combine(destDir, Path.GetFileName(subDir)));
+            }
+        }
+
+        private static void MigrateLegacyRepoDataIfNeeded(string sourceDir, string destDir)
+        {
+            if (string.IsNullOrWhiteSpace(sourceDir) ||
+                string.Equals(Path.GetFullPath(sourceDir), Path.GetFullPath(destDir), StringComparison.OrdinalIgnoreCase))
+                return;
+
+            try
+            {
+                Directory.CreateDirectory(destDir);
+                string[] rootFiles =
+                {
+                    "study_hub.db",
+                    "study_hub.db-wal",
+                    "study_hub.db-shm",
+                    "study_hub_state.json",
+                    "gdrive_device_config.json",
+                    "last_synced_snapshot.json",
+                    "sync_entity_hashes.json"
+                };
+
+                foreach (string name in rootFiles)
+                {
+                    string src = Path.Combine(sourceDir, name);
+                    string dst = Path.Combine(destDir, name);
+                    if (File.Exists(src) && !File.Exists(dst))
+                        File.Copy(src, dst, false);
+                }
+
+                string[] dataFolders =
+                {
+                    "StudyHub_Files",
+                    "StudyHub_Sounds",
+                    "StudyHub_ZenMedia",
+                    "StudyHub_Backups",
+                    "StudyHub_Converted_PDFs",
+                    "StudyHub_SyncCache"
+                };
+
+                foreach (string folder in dataFolders)
+                {
+                    CopyDirectoryMissingFiles(Path.Combine(sourceDir, folder), Path.Combine(destDir, folder));
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"MigrateLegacyRepoDataIfNeeded warning: {ex.Message}");
+            }
+        }
+
         private static string ResolveWritableDataDirectory()
         {
 #if ANDROID
@@ -93,12 +193,22 @@ namespace StudyHub.Services
 #else
             string exeDir = AppDomain.CurrentDomain.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
 
-            // If running from bin\Release\net9.0-windows... or dist\, check if parent workspace has study_hub.db
+            // Never store personal courses, databases, backups, or OAuth tokens inside a Git source repository.
+            if (TryFindGitRepositoryRoot(exeDir, out string gitRepoRoot))
+            {
+                string isolatedAppData = GetAppLocalDataDirectory();
+                MigrateLegacyRepoDataIfNeeded(gitRepoRoot, isolatedAppData);
+                MigrateLegacyRepoDataIfNeeded(exeDir, isolatedAppData);
+                return isolatedAppData;
+            }
+
+            // If running from bin\Release\net9.0-windows... or dist\ (outside a git repo), check parent install folder
             var candidates = new List<string> { exeDir };
             DirectoryInfo? cursor = new DirectoryInfo(exeDir);
             for (int i = 0; i < 4 && cursor?.Parent != null; i++)
             {
                 cursor = cursor.Parent;
+                if (TryFindGitRepositoryRoot(cursor.FullName, out _)) continue;
                 if (File.Exists(Path.Combine(cursor.FullName, "study_hub.db")) ||
                     Directory.Exists(Path.Combine(cursor.FullName, "StudyHub_Files")))
                 {
@@ -133,9 +243,7 @@ namespace StudyHub.Services
             }
             catch
             {
-                string appData = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "GraduationStudyHub");
-                Directory.CreateDirectory(appData);
-                return appData;
+                return GetAppLocalDataDirectory();
             }
 #endif
         }
@@ -718,17 +826,22 @@ namespace StudyHub.Services
 
         private void SyncAlternateDatabaseCopy(string sourceDb)
         {
+            if (TryFindGitRepositoryRoot(BaseDir, out _)) return;
             try
             {
-                string distDb = Path.Combine(BaseDir, "dist", "study_hub.db");
+                string distDir = Path.Combine(BaseDir, "dist");
+                string distDb = Path.Combine(distDir, "study_hub.db");
                 if (!string.Equals(sourceDb, distDb, StringComparison.OrdinalIgnoreCase) &&
-                    Directory.Exists(Path.Combine(BaseDir, "dist")))
+                    Directory.Exists(distDir) &&
+                    !TryFindGitRepositoryRoot(distDir, out _))
                 {
                     File.Copy(sourceDb, distDb, true);
                 }
 
                 DirectoryInfo? parent = Directory.GetParent(BaseDir);
-                if (parent != null && string.Equals(Path.GetFileName(BaseDir), "dist", StringComparison.OrdinalIgnoreCase))
+                if (parent != null &&
+                    string.Equals(Path.GetFileName(BaseDir), "dist", StringComparison.OrdinalIgnoreCase) &&
+                    !TryFindGitRepositoryRoot(parent.FullName, out _))
                 {
                     string parentDb = Path.Combine(parent.FullName, "study_hub.db");
                     File.Copy(sourceDb, parentDb, true);

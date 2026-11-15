@@ -6987,6 +6987,11 @@ namespace StudyHub
                 "system" => "System Utilities",
                 _ => "Control Center"
             };
+            if (tab == "cloud")
+            {
+                _isCloudSecretHidden = true;
+                UpdateCloudSyncUiState();
+            }
         }
 
         private void UpdateControlCenterUiState()
@@ -7346,9 +7351,14 @@ namespace StudyHub
                     }
                     else
                     {
+                        if (!string.IsNullOrWhiteSpace(result.LatestCommitSha) && !string.Equals(_state.Settings.InstalledCommitSha, result.LatestCommitSha, StringComparison.OrdinalIgnoreCase))
+                        {
+                            _state.Settings.InstalledCommitSha = result.LatestCommitSha;
+                            SaveState(countActivity: false);
+                        }
                         TxtUpdateStatusHeader.Text = $"✅ StudyHub is Up to Date (v{result.CurrentVersion})";
                         TxtUpdateStatusHeader.Foreground = new SolidColorBrush(Color.FromRgb(16, 185, 129));
-                        TxtUpdateStatusDetails.Text = $"Latest commit: {result.LatestCommitSha}. No updates pending.";
+                        TxtUpdateStatusDetails.Text = $"Latest release: {result.ReleaseTitle}. No updates pending.";
                         if (!silentOnNoUpdate) ShowToast("You are on the latest version of StudyHub!");
                     }
                 }
@@ -8932,9 +8942,12 @@ namespace StudyHub
             if (BdCloudSecretMask != null && TxtCloudClientSecret != null)
             {
                 bool showMask = _isCloudSecretHidden && !string.IsNullOrWhiteSpace(TxtCloudClientSecret.Text) && !TxtCloudClientSecret.IsFocused;
+                TxtCloudClientSecret.Visibility = showMask ? Visibility.Collapsed : Visibility.Visible;
                 BdCloudSecretMask.Visibility = showMask ? Visibility.Visible : Visibility.Collapsed;
                 if (TxtCloudSecretMaskDots != null)
-                    TxtCloudSecretMaskDots.Text = new string('•', Math.Clamp(TxtCloudClientSecret.Text.Length, 10, 28));
+                    TxtCloudSecretMaskDots.Text = new string('•', Math.Clamp(TxtCloudClientSecret.Text.Length, 12, 28));
+                if (TxtCloudSecretEyeIcon != null)
+                    TxtCloudSecretEyeIcon.Text = showMask ? "👁" : "🙈";
             }
 
             if (TxtCloudMetaAccount != null)
@@ -9071,14 +9084,27 @@ namespace StudyHub
         {
             _isCloudSecretHidden = !_isCloudSecretHidden;
             UpdateCloudSyncUiState();
-            if (!_isCloudSecretHidden) TxtCloudClientSecret?.Focus();
+            if (!_isCloudSecretHidden && TxtCloudClientSecret != null)
+            {
+                TxtCloudClientSecret.Focus();
+                TxtCloudClientSecret.CaretIndex = TxtCloudClientSecret.Text?.Length ?? 0;
+            }
+        }
+
+        private void TxtCloudClientSecret_LostFocus(object sender, RoutedEventArgs e)
+        {
+            UpdateCloudSyncUiState();
         }
 
         private void BdCloudSecretMask_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
             _isCloudSecretHidden = false;
             UpdateCloudSyncUiState();
-            TxtCloudClientSecret?.Focus();
+            if (TxtCloudClientSecret != null)
+            {
+                TxtCloudClientSecret.Focus();
+                TxtCloudClientSecret.CaretIndex = TxtCloudClientSecret.Text?.Length ?? 0;
+            }
         }
 
         private void BtnCloudCopyClientSecret_Click(object sender, RoutedEventArgs e)
@@ -9120,6 +9146,7 @@ namespace StudyHub
         private void BtnCloudSaveCredentials_Click(object sender, RoutedEventArgs e)
         {
             var (ok, msg) = _cloudSync.ApplyClientCredentials(TxtCloudClientId.Text, TxtCloudClientSecret.Text);
+            _isCloudSecretHidden = true;
             UpdateCloudSyncUiState();
             ShowToast(ok ? $"✅ {msg}" : $"⚠️ {msg}");
         }

@@ -1,11 +1,29 @@
 # Build & Runtime Artifacts
 bin/
 obj/
+dist/
 publish_out/
 publish_win/
+publish_android/
+_update_staging/
 webview_data/
+TestResults/
 *.tmp
+*.user
+*.suo
+.vs/
 StudyHub_Updater.bat
+
+# Personal Study Data, Course Files, Databases & Backups (Never Commit to Git)
+study_hub.db
+study_hub.db-wal
+study_hub.db-shm
+study_hub_state.json
+StudyHub_Files/
+StudyHub_Backups/
+StudyHub_Converted_PDFs/
+StudyHub_Sounds/
+StudyHub_ZenMedia/
 
 # Google OAuth & Sync Credentials (Device-Local Secrets - Never Commit to Git)
 gdrive_device_config.json

@@ -1,8 +1,8 @@
 {
-  "version": "3.7.1",
-  "build": 371,
-  "releaseDate": "2026-11-14",
+  "version": "3.7.2",
+  "build": 372,
+  "releaseDate": "2026-11-15",
   "appName": "Study Hub Remastered",
   "engine": "C# .NET 9 WPF + .NET MAUI Native",
-  "notes": "Study Hub v3.7.1 Remastered: Redesigned High-Altitude Observatory scenes, OLED Obsidian / Cyberpunk Neon Matrix / Boreal Twilight themes, Interactive Circuit Trace / Fireflies / Plasma Lightning / Cherry Blossom-Snowfall particle engines, modular mobile settings menus, and automatic background update download with live progress popup."
+  "notes": "Study Hub v3.7.2 Remastered: Fixed Network Mesh connecting lines & pointer reactivity on PC and Android; redesigned Google Drive Cloud Sync with progressive disclosure, segmented cards, inline field buttons, and How to Link setup guide; fixed Cloud Sync spacing/overlaps and truly hid masked Client Secret text; fixed GitHub updater stale v3.0.0/re-prompt bug; isolated user courses, PDFs, backups, audio, databases, and OAuth secrets outside source repositories and added full .gitignore protection."
 }

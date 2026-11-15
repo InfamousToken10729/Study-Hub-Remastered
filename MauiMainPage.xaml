@@ -1267,7 +1267,7 @@
                             <Label Text="🎓" FontSize="20" />
                             <VerticalStackLayout>
                                 <Label Text="StudyHub Workspace" FontSize="15" FontAttributes="Bold" TextColor="#F8FAFC" />
-                                <Label Text="v3.7.1 • Remastered Edition" FontSize="10.5" TextColor="#8A95B7" />
+                                <Label Text="v3.7.2 • Remastered Edition" FontSize="10.5" TextColor="#8A95B7" />
                             </VerticalStackLayout>
                         </HorizontalStackLayout>
                         <Button Grid.Column="1" Text="✕" FontSize="13" WidthRequest="32" HeightRequest="32" Padding="0" BackgroundColor="#181D38" TextColor="#F8FAFC" CornerRadius="8" Clicked="OnToggleLeftDrawerClicked" />
@@ -1320,7 +1320,7 @@
                     </ScrollView>
 
                     <Label Grid.Row="2"
-                           Text="Study Hub v3.7.1 • SQLite + JSON Sync ✅"
+                           Text="Study Hub v3.7.2 • SQLite + JSON Sync ✅"
                            FontSize="10.5"
                            TextColor="#10B981"
                            Margin="0,12,0,0" />
@@ -1644,7 +1644,7 @@
                                         </Border>
                                         <VerticalStackLayout Grid.Column="1" Spacing="2" VerticalOptions="Center">
                                             <Label Text="Backup, Data &amp; App Updates" FontSize="13.5" FontAttributes="Bold" TextColor="#F8FAFC" />
-                                            <Label x:Name="LblHubUpdatesSummary" Text="Version 3.7.1 • Auto-Check &amp; Backup" FontSize="11" TextColor="#94A3C6" />
+                                            <Label x:Name="LblHubUpdatesSummary" Text="Version 3.7.2 • Auto-Check &amp; Backup" FontSize="11" TextColor="#94A3C6" />
                                         </VerticalStackLayout>
                                         <Label Grid.Column="2" Text="›" FontSize="20" TextColor="#8A95B7" VerticalOptions="Center" />
                                     </Grid>
@@ -1653,7 +1653,7 @@
                                 <Border BackgroundColor="#090D1F" Stroke="#1D2546" StrokeThickness="1" StrokeShape="RoundRectangle 12" Padding="12,9" Margin="0,4,0,0">
                                     <Grid ColumnDefinitions="*,Auto">
                                         <Label Text="Study Hub Mobile &amp; Desktop" FontSize="11.5" TextColor="#8A95B7" VerticalOptions="Center" />
-                                        <Label Grid.Column="1" Text="v3.7.1" FontSize="11.5" FontAttributes="Bold" TextColor="#A78BFA" VerticalOptions="Center" />
+                                        <Label Grid.Column="1" Text="v3.7.2" FontSize="11.5" FontAttributes="Bold" TextColor="#A78BFA" VerticalOptions="Center" />
                                     </Grid>
                                 </Border>
                             </VerticalStackLayout>
@@ -2023,8 +2023,8 @@
                                 <Border BackgroundColor="#0D1124" Stroke="#252F58" StrokeThickness="1" StrokeShape="RoundRectangle 12" Padding="12,10">
                                     <Grid ColumnDefinitions="*,Auto" VerticalOptions="Center">
                                         <VerticalStackLayout Spacing="2">
-                                            <Label Text="Study Hub v3.7.1" FontSize="13.5" FontAttributes="Bold" TextColor="#F8FAFC" />
-                                            <Label Text="Build 371 • Android &amp; Desktop Sync" FontSize="10.5" TextColor="#8A95B7" />
+                                            <Label Text="Study Hub v3.7.2" FontSize="13.5" FontAttributes="Bold" TextColor="#F8FAFC" />
+                                            <Label Text="Build 372 • Android &amp; Desktop Sync" FontSize="10.5" TextColor="#8A95B7" />
                                         </VerticalStackLayout>
                                         <Label Grid.Column="1" Text="CURRENT" FontSize="10" FontAttributes="Bold" TextColor="#10B981" VerticalOptions="Center" />
                                     </Grid>
